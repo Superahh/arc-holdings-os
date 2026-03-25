@@ -1,0 +1,531 @@
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+const { loadQueue } = require("./approval_queue");
+const { loadWorkflowState } = require("./workflow_state");
+const { runStatusAction } = require("./ops_status_cli");
+const {
+  assertValidOpportunityRecord,
+  assertValidApprovalTicket,
+  assertValidHandoffPacket,
+  assertValidAgentStatusCard,
+  assertValidCompanyBoardSnapshot,
+} = require("./contracts");
+
+const TERMINAL_OPPORTUNITY_STATES = new Set(["closed", "rejected"]);
+
+function toIso(value) {
+  if (typeof value === "string" && !Number.isNaN(Date.parse(value))) {
+    return new Date(value).toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function readJsonIfPresent(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function listLatestRunArtifactsByOpportunity(baseDir) {
+  const runsDir = path.join(baseDir, "runs");
+  if (!fs.existsSync(runsDir)) {
+    return new Map();
+  }
+
+  const files = fs
+    .readdirSync(runsDir)
+    .filter((entry) => entry.endsWith(".artifact.json"))
+    .map((entry) => path.join(runsDir, entry))
+    .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+  const artifacts = new Map();
+  for (const filePath of files) {
+    const artifact = readJsonIfPresent(filePath);
+    if (!artifact || typeof artifact.opportunity_id !== "string" || !artifact.opportunity_id) {
+      continue;
+    }
+    if (!artifacts.has(artifact.opportunity_id)) {
+      artifacts.set(artifact.opportunity_id, {
+        path: filePath,
+        artifact,
+      });
+    }
+  }
+  return artifacts;
+}
+
+function summarizeQueueTotals(queue) {
+  const totals = {
+    total: 0,
+    pending: 0,
+    approve: 0,
+    reject: 0,
+    request_more_info: 0,
+  };
+
+  for (const item of queue.items) {
+    totals.total += 1;
+    if (totals[item.status] !== undefined) {
+      totals[item.status] += 1;
+    }
+  }
+  return totals;
+}
+
+function mapTaskUrgency(task) {
+  if (!task) {
+    return "medium";
+  }
+  if (task.urgency === "overdue" || task.urgency === "due_soon") {
+    return "high";
+  }
+  return "medium";
+}
+
+function sortOpportunities(entries) {
+  return [...entries].sort((a, b) => {
+    const aTaskRank =
+      a.latest_task && a.latest_task.urgency === "overdue"
+        ? 0
+        : a.latest_task && a.latest_task.urgency === "due_soon"
+          ? 1
+          : 2;
+    const bTaskRank =
+      b.latest_task && b.latest_task.urgency === "overdue"
+        ? 0
+        : b.latest_task && b.latest_task.urgency === "due_soon"
+          ? 1
+          : 2;
+    if (aTaskRank !== bTaskRank) {
+      return aTaskRank - bTaskRank;
+    }
+
+    const aUpdated = Date.parse(
+      (a.workflow_record && a.workflow_record.last_updated_at) ||
+        (a.latest_artifact && a.latest_artifact.generated_at) ||
+        0
+    );
+    const bUpdated = Date.parse(
+      (b.workflow_record && b.workflow_record.last_updated_at) ||
+        (b.latest_artifact && b.latest_artifact.generated_at) ||
+        0
+    );
+    return bUpdated - aUpdated;
+  });
+}
+
+function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaitingTasks) {
+  const ids = new Set([
+    ...Object.keys(workflowState.opportunities || {}),
+    ...queue.items.map((item) => item.opportunity_id).filter(Boolean),
+    ...latestArtifacts.keys(),
+  ]);
+
+  const queueByOpportunity = new Map();
+  for (const item of queue.items) {
+    if (!item.opportunity_id) {
+      continue;
+    }
+    const existing = queueByOpportunity.get(item.opportunity_id);
+    if (!existing) {
+      queueByOpportunity.set(item.opportunity_id, item);
+      continue;
+    }
+    const existingTime = Date.parse(existing.created_at || 0);
+    const currentTime = Date.parse(item.created_at || 0);
+    if (currentTime > existingTime) {
+      queueByOpportunity.set(item.opportunity_id, item);
+    }
+  }
+
+  const taskByOpportunity = new Map();
+  for (const task of awaitingTasks) {
+    if (task.opportunity_id && !taskByOpportunity.has(task.opportunity_id)) {
+      taskByOpportunity.set(task.opportunity_id, task);
+    }
+  }
+
+  const entries = [];
+  for (const opportunityId of ids) {
+    const workflowRecord = workflowState.opportunities[opportunityId] || null;
+    const queueItem = queueByOpportunity.get(opportunityId) || null;
+    const artifactEntry = latestArtifacts.get(opportunityId) || null;
+    const artifact = artifactEntry ? artifactEntry.artifact : null;
+    const artifactOutput = artifact && artifact.output ? artifact.output : null;
+    const opportunityRecord = artifactOutput ? artifactOutput.opportunity_record || null : null;
+    const handoffPacket = artifactOutput ? artifactOutput.handoff_packet || null : null;
+    const approvalTicket = queueItem ? queueItem.ticket : artifactOutput ? artifactOutput.approval_ticket || null : null;
+
+    if (opportunityRecord) {
+      assertValidOpportunityRecord(opportunityRecord);
+    }
+    if (handoffPacket) {
+      assertValidHandoffPacket(handoffPacket);
+    }
+    if (approvalTicket) {
+      assertValidApprovalTicket(approvalTicket);
+    }
+
+    const artifactGeneratedAt = artifact ? Date.parse(artifact.generated_at) : Number.NaN;
+    const workflowUpdatedAt = workflowRecord ? Date.parse(workflowRecord.last_updated_at) : Number.NaN;
+    const artifactIsStale =
+      !Number.isNaN(artifactGeneratedAt) &&
+      !Number.isNaN(workflowUpdatedAt) &&
+      artifactGeneratedAt < workflowUpdatedAt;
+
+    entries.push({
+      opportunity_id: opportunityId,
+      source:
+        (opportunityRecord && opportunityRecord.source) ||
+        (workflowRecord && workflowRecord.source) ||
+        (queueItem && queueItem.ticket && queueItem.ticket.opportunity_id ? "queue" : "unknown"),
+      current_status: workflowRecord ? workflowRecord.current_status : "unknown",
+      priority: workflowRecord ? workflowRecord.priority || "normal" : "normal",
+      recommendation:
+        (opportunityRecord && opportunityRecord.recommendation) ||
+        (workflowRecord && workflowRecord.recommendation) ||
+        null,
+      latest_task: taskByOpportunity.get(opportunityId) || null,
+      workflow_record: workflowRecord,
+      queue_item: queueItem,
+      contract_bundle: {
+        opportunity_record: opportunityRecord,
+        handoff_packet: handoffPacket,
+        approval_ticket: approvalTicket,
+      },
+      latest_artifact: artifact
+        ? {
+            path: artifactEntry.path,
+            generated_at: artifact.generated_at,
+            is_stale: artifactIsStale,
+          }
+        : null,
+    });
+  }
+
+  return sortOpportunities(entries);
+}
+
+function findOpportunityByStatuses(opportunities, statuses) {
+  return opportunities.find((entry) => statuses.has(entry.current_status)) || null;
+}
+
+function buildAgentStatusCards(opportunities, attention, queueTotals, nowIso) {
+  const pendingQueueOpportunity = opportunities.find(
+    (entry) => entry.queue_item && entry.queue_item.status === "pending"
+  );
+  const riskOpportunity = findOpportunityByStatuses(
+    opportunities,
+    new Set(["awaiting_seller_verification", "researching"])
+  );
+  const operationsExecutionOpportunity = findOpportunityByStatuses(
+    opportunities,
+    new Set(["awaiting_approval", "approved", "acquired"])
+  );
+  const blockedOperationsOpportunity = opportunities.find(
+    (entry) => entry.workflow_record && entry.workflow_record.purchase_recommendation_blocked
+  );
+  const operatorOpportunity = findOpportunityByStatuses(
+    opportunities,
+    new Set(["routed", "monetizing"])
+  );
+
+  const topTask = attention.top_task || null;
+  const ceoCard = {
+    agent: "CEO Agent",
+    status:
+      queueTotals.pending > 0
+        ? "awaiting_approval"
+        : topTask && topTask.source === "approval_queue" && topTask.overdue
+          ? "alert"
+          : "working",
+    active_task:
+      queueTotals.pending > 0
+        ? `Review ${queueTotals.pending} approval ticket${queueTotals.pending === 1 ? "" : "s"}.`
+        : "Monitor capital exposure and routing priorities.",
+    opportunity_id:
+      (pendingQueueOpportunity && pendingQueueOpportunity.opportunity_id) ||
+      (topTask && topTask.opportunity_id) ||
+      null,
+    blocker: queueTotals.pending > 0 ? "Approval queue is waiting on owner action." : null,
+    urgency: queueTotals.pending > 0 ? "high" : mapTaskUrgency(topTask),
+    updated_at: nowIso,
+  };
+
+  const riskTask = riskOpportunity ? riskOpportunity.latest_task : null;
+  const riskCard = {
+    agent: "Risk and Compliance Agent",
+    status:
+      riskTask && riskTask.overdue
+        ? "alert"
+        : riskOpportunity
+          ? "working"
+          : "idle",
+    active_task:
+      (riskTask && riskTask.next_action) ||
+      (riskOpportunity
+        ? "Collect missing verification inputs and unblock evaluation."
+        : "No active verification queue."),
+    opportunity_id: riskOpportunity ? riskOpportunity.opportunity_id : null,
+    blocker:
+      riskOpportunity && riskOpportunity.workflow_record && riskOpportunity.workflow_record.purchase_recommendation_blocked
+        ? "Purchase recommendation remains blocked."
+        : null,
+    urgency: mapTaskUrgency(riskTask),
+    updated_at: nowIso,
+  };
+
+  const operationsTarget = operationsExecutionOpportunity || blockedOperationsOpportunity || null;
+  const operationsTask = operationsTarget ? operationsTarget.latest_task : null;
+  const operationsCard = {
+    agent: "Operations Coordinator Agent",
+    status:
+      operationsExecutionOpportunity
+        ? "working"
+        : blockedOperationsOpportunity
+          ? "blocked"
+          : "idle",
+    active_task:
+      operationsExecutionOpportunity
+        ? "Execute cleared acquisition and route handoff."
+        : blockedOperationsOpportunity
+          ? "Hold execution until verification or approval clears."
+          : "No cleared execution item in flight.",
+    opportunity_id: operationsTarget ? operationsTarget.opportunity_id : null,
+    blocker:
+      !operationsExecutionOpportunity &&
+      blockedOperationsOpportunity &&
+      blockedOperationsOpportunity.workflow_record &&
+      blockedOperationsOpportunity.workflow_record.purchase_recommendation_blocked
+        ? "Current opportunity is blocked before purchase."
+        : null,
+    urgency:
+      operationsExecutionOpportunity
+        ? mapTaskUrgency(operationsTask)
+        : blockedOperationsOpportunity
+          ? "high"
+          : "low",
+    updated_at: nowIso,
+  };
+
+  const operatorTask = operatorOpportunity ? operatorOpportunity.latest_task : null;
+  const operatorCard = {
+    agent: "Department Operator Agent",
+    status: operatorOpportunity ? "working" : "idle",
+    active_task:
+      (operatorTask && operatorTask.next_action) ||
+      (operatorOpportunity
+        ? "Advance active routed inventory."
+        : "No routed or monetizing inventory in queue."),
+    opportunity_id: operatorOpportunity ? operatorOpportunity.opportunity_id : null,
+    blocker: null,
+    urgency: operatorOpportunity ? mapTaskUrgency(operatorTask) : "low",
+    updated_at: nowIso,
+  };
+
+  const cards = [ceoCard, riskCard, operationsCard, operatorCard];
+  for (const card of cards) {
+    assertValidAgentStatusCard(card);
+  }
+  return cards;
+}
+
+function buildCapitalNote(queueTotals, opportunities) {
+  const pendingExposure = opportunities
+    .map((entry) => (entry.queue_item && entry.queue_item.status === "pending" ? entry.queue_item.ticket : null))
+    .filter(Boolean)
+    .reduce((sum, ticket) => sum + (ticket.max_exposure_usd || 0), 0);
+
+  if (queueTotals.pending > 0) {
+    return `${pendingExposure} USD is awaiting explicit approval. Capital remains user-controlled until deposit, reserve, approval, and withdrawal flows are implemented with auditability.`;
+  }
+  return "No capital approval is currently pending. Capital remains manually controlled until explicit deposit, reserve, approval, and withdrawal controls are implemented.";
+}
+
+function buildBoardPriorities(awaitingTasks) {
+  if (!awaitingTasks.length) {
+    return ["Monitor company state and wait for the next qualified opportunity."];
+  }
+
+  return awaitingTasks.slice(0, 3).map((task) => `${task.owner}: ${task.next_action}`);
+}
+
+function buildBoardAlerts(queueTotals, kpis, opportunities) {
+  const alerts = [];
+  if (kpis.overdue_tasks > 0) {
+    alerts.push(`${kpis.overdue_tasks} overdue task${kpis.overdue_tasks === 1 ? "" : "s"} require intervention.`);
+  }
+  if (queueTotals.pending > 0) {
+    alerts.push(`${queueTotals.pending} approval ticket${queueTotals.pending === 1 ? "" : "s"} are waiting on review.`);
+  }
+  for (const entry of opportunities) {
+    if (
+      entry.workflow_record &&
+      entry.workflow_record.purchase_recommendation_blocked &&
+      alerts.length < 4
+    ) {
+      alerts.push(`${entry.opportunity_id} is blocked until verification or approval clears.`);
+    }
+  }
+  if (!alerts.length) {
+    alerts.push("No critical alerts right now.");
+  }
+  return alerts.slice(0, 4);
+}
+
+function buildCompanyBoardSnapshot(opportunities, awaitingTasks, queueTotals, kpis, nowIso) {
+  const activeOpportunities = opportunities
+    .filter((entry) => !TERMINAL_OPPORTUNITY_STATES.has(entry.current_status))
+    .map((entry) => entry.opportunity_id);
+  const blockedCount = opportunities.filter((entry) => {
+    const record = entry.workflow_record;
+    return Boolean(
+      record &&
+        (record.purchase_recommendation_blocked ||
+          record.alternative_opportunities_required ||
+          record.current_status === "awaiting_seller_verification")
+    );
+  }).length;
+
+  const board = {
+    snapshot_id: `brd-ui-${nowIso}`,
+    timestamp: nowIso,
+    priorities: buildBoardPriorities(awaitingTasks),
+    approvals_waiting: queueTotals.pending,
+    blocked_count: blockedCount,
+    active_opportunities: activeOpportunities,
+    alerts: buildBoardAlerts(queueTotals, kpis, opportunities),
+    capital_note: buildCapitalNote(queueTotals, opportunities),
+  };
+  assertValidCompanyBoardSnapshot(board);
+  return board;
+}
+
+function buildKpis(statusSnapshot, opportunities) {
+  const activeOpportunities = opportunities.filter(
+    (entry) => !TERMINAL_OPPORTUNITY_STATES.has(entry.current_status)
+  ).length;
+  const blockedOpportunities = opportunities.filter((entry) => {
+    const record = entry.workflow_record;
+    return Boolean(
+      record &&
+        (record.purchase_recommendation_blocked ||
+          record.alternative_opportunities_required ||
+          record.current_status === "awaiting_seller_verification")
+    );
+  }).length;
+
+  return {
+    active_opportunities: activeOpportunities,
+    blocked_opportunities: blockedOpportunities,
+    approvals_waiting: statusSnapshot.queue.health.queue_totals.pending,
+    overdue_tasks: statusSnapshot.awaiting_tasks.overdue_count,
+    due_soon_tasks: statusSnapshot.awaiting_tasks.due_soon_count,
+    queue_health: statusSnapshot.queue.health.observations.queue_health,
+    workflow_health:
+      statusSnapshot.workflow && statusSnapshot.workflow.health
+        ? statusSnapshot.workflow.health.observations.workflow_health
+        : null,
+  };
+}
+
+function buildUiSnapshot(options = {}) {
+  const queuePath = path.resolve(options.queuePath || path.join(__dirname, "state", "approval_queue.json"));
+  const workflowStatePath = path.resolve(
+    options.workflowStatePath || path.join(__dirname, "state", "workflow_state.json")
+  );
+  const baseDir = path.resolve(options.baseDir || path.join(__dirname, "output"));
+  const nowIso = toIso(options.now);
+
+  const queue = loadQueue(queuePath);
+  const workflowState = loadWorkflowState(workflowStatePath);
+  const statusSnapshot = runStatusAction({
+    queuePath,
+    workflowStatePath,
+    baseDir,
+    now: nowIso,
+    slaMinutes: options.slaMinutes || 120,
+    workflowStaleMinutes: options.workflowStaleMinutes || 240,
+    dueSoonMinutes: options.dueSoonMinutes || 30,
+    pendingLimit: options.pendingLimit || 10,
+    staleLimit: options.staleLimit || 10,
+    taskLimit: options.taskLimit || 20,
+  });
+
+  const latestArtifacts = listLatestRunArtifactsByOpportunity(baseDir);
+  const opportunities = buildOpportunityEntries(
+    queue,
+    workflowState,
+    latestArtifacts,
+    statusSnapshot.awaiting_tasks.tasks
+  );
+  const queueTotals = summarizeQueueTotals(queue);
+  const kpis = buildKpis(statusSnapshot, opportunities);
+  const agentStatusCards = buildAgentStatusCards(opportunities, statusSnapshot.attention, queueTotals, nowIso);
+  const companyBoardSnapshot = buildCompanyBoardSnapshot(
+    opportunities,
+    statusSnapshot.awaiting_tasks.tasks,
+    queueTotals,
+    kpis,
+    nowIso
+  );
+
+  return {
+    schema_version: "v1",
+    generated_at: nowIso,
+    source_paths: {
+      queue_path: queuePath,
+      workflow_state_path: workflowStatePath,
+      output_base_dir: baseDir,
+    },
+    kpis,
+    attention: statusSnapshot.attention,
+    approval_queue: {
+      updated_at: queue.updated_at,
+      totals: queueTotals,
+      items: [...queue.items].sort((a, b) => {
+        if (a.status === "pending" && b.status !== "pending") {
+          return -1;
+        }
+        if (a.status !== "pending" && b.status === "pending") {
+          return 1;
+        }
+        return Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0);
+      }),
+    },
+    workflow: {
+      updated_at: workflowState.updated_at,
+      status_counts:
+        statusSnapshot.workflow && statusSnapshot.workflow.health
+          ? statusSnapshot.workflow.health.workflow_totals.status_counts
+          : {},
+      stale_opportunities:
+        statusSnapshot.workflow && statusSnapshot.workflow.stale_opportunities
+          ? statusSnapshot.workflow.stale_opportunities
+          : [],
+      opportunities,
+    },
+    office: {
+      agent_status_cards: agentStatusCards,
+      company_board_snapshot: companyBoardSnapshot,
+    },
+    awaiting_tasks: statusSnapshot.awaiting_tasks,
+    capital_controls: {
+      status: "manual_only",
+      note: "Capital deposit, reserve, approval, and withdrawal flows are not yet implemented. Any capital movement remains explicitly user-controlled and must stay auditable.",
+    },
+  };
+}
+
+module.exports = {
+  buildUiSnapshot,
+  listLatestRunArtifactsByOpportunity,
+  buildOpportunityEntries,
+  buildAgentStatusCards,
+  buildCompanyBoardSnapshot,
+  buildKpis,
+};

@@ -17,7 +17,9 @@ ARC Holdings OS is a layered system:
 - CEO routing and prioritization
 - approval queue
 - workflow/state tracker
+- read-only UI snapshot composer
 - office status composer
+- desktop UI shell
 - eval logger
 
 ## Canonical interfaces
@@ -46,6 +48,7 @@ Opportunity states:
 
 - discovered
 - researching
+- awaiting_seller_verification
 - awaiting_approval
 - approved
 - acquired
@@ -90,3 +93,4 @@ Approval requests must emit `ApprovalTicket`.
 
 - first concrete source feed for opportunity intake
 - KPI subset required at launch
+- capital control model for deposit, reserve, approval-to-use, and withdrawal with explicit user control and audit trail

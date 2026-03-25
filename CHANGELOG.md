@@ -2,6 +2,10 @@
 
 ## 2026-03-26
 
+- Added the first visible desktop UI shell in [ui/](./ui) with office canvas, selected detail panel, shared company board, approval queue, and KPI strip.
+- Added [runtime/ui_snapshot.js](./runtime/ui_snapshot.js) as a read-only snapshot composer over queue state, workflow state, and latest run artifacts.
+- Added UI shell verification coverage with [runtime/tests/ui_snapshot.test.js](./runtime/tests/ui_snapshot.test.js) and [runtime/tests/ui_server.test.js](./runtime/tests/ui_server.test.js).
+- Fixed docs-sync drift by adding `awaiting_seller_verification` to [specs/technical_spec.md](./specs/technical_spec.md) and documenting future capital-control requirements.
 - Migrated workspace to contract-driven ARC Holdings OS Prompt Lab.
 - Added [specs/contracts.md](./specs/contracts.md) with canonical interfaces.
 - Added [prompts/tasks/approval_decision.md](./prompts/tasks/approval_decision.md).

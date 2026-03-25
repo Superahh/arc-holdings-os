@@ -2,57 +2,33 @@
 
 ## Active goal
 
-Complete Prompt Lab migration into a lean, contract-driven ARC Holdings OS planning system and validate one end-to-end v1 scenario.
+Ship the first visible desktop UI shell on top of the frozen v1 contracts and current runtime state.
 
 ## Current milestone
 
-Stabilize contracts, align prompts to those contracts, and verify approval-aware workflow outputs.
+Deliver a read-only, contract-driven operator shell with low-clutter visibility into workflow, approvals, blockers, and top attention.
 
 ## This week target
 
-- lock [specs/contracts.md](./specs/contracts.md)
-- align system/task prompts with contract outputs
-- run scenario: intake -> valuation -> risk -> approval -> routing -> status summary
-- log first benchmark and iteration notes
+- compose a single UI snapshot from runtime state and latest artifacts
+- render office canvas, detail panel, board, approval queue, and KPI strip
+- keep the shell desktop-first, ADHD-friendly, and operationally meaningful
+- avoid adding write-path backend complexity
 
 ## Current blockers
 
-- none for milestone completion
+- none for shell delivery
 
 ## Next actions
 
-- [x] run contract conformance check on updated prompts
-- [x] execute and log one full scenario in [evals/test_cases.md](./evals/test_cases.md)
-- [x] collect one failure and one win from real prompt runs
-- [x] freeze v1 interface contracts for implementation handoff
-- [x] add additional runtime scenario coverage for `request_more_info` and rejection paths
-- [x] add acceptance gate CLI for repeatable scenario validation
-- [x] implement minimum lifecycle persistence model for v1 runtime
-- [x] add workflow state inspection CLI for operator visibility
-- [x] add workflow lifecycle health KPI checks
-- [x] integrate workflow health into consolidated ops reporting
-- [x] propagate workflow health into batch run summaries
-- [x] harden acceptance gate with workflow transition checks
-- [x] split queue vs workflow health artifact references in ops report
-- [x] add fast terminal status snapshot CLI for operators
-- [x] add state bootstrap/reset CLI for queue and workflow files
-- [x] add workflow replay timeline CLI for lifecycle audits
-- [x] add transition-checked manual workflow update CLI
-- [x] add actionable awaiting-task queue to ops status output
-- [x] include awaiting-task summary in consolidated ops report and loop/batch controls
-- [x] source awaiting workflow task details from latest handoff artifacts
-- [x] source awaiting workflow task details in ops report from latest handoff artifacts
-- [x] enforce remote-safe handoff actions for shipping-only scenarios in acceptance gate
-- [x] add one-command runtime test runner for operator/dev workflows
-- [x] harden pipeline tests for remote-safe handoff wording across scenario branches
-- [x] add one-command markdown link integrity check utility
-- [x] add one-command repo quality gate wrapper
-- [x] add due-soon awaiting-task signal for status/report and loop/batch operator visibility
-- [x] add per-task urgency and minutes-to-due fields for awaiting-task triage
-- [x] add top-task attention summary for status/report operator clarity
-- [x] add compact attention CLI with fail-on-overdue mode for automation hooks
-- [x] add urgency-based nudge generation to compact attention output
-- [x] add persisted compact attention output mode for external monitors
+- [x] keep v1 contracts frozen for UI consumption
+- [x] add read-only UI snapshot composer over queue/workflow/artifact state
+- [x] add first visible shell in [ui/](./ui)
+- [x] keep approval queue and workflow state as source of truth
+- [x] add UI shell tests for snapshot composition and HTTP serving
+- [ ] define capital deposit, reserve, approval-to-use, and withdrawal controls with explicit user control and auditability
+- [ ] decide the first safe writable UI action surface
+- [ ] add browser-level smoke coverage before expanding interaction scope
 
 ## Out of scope
 
@@ -65,7 +41,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 
 This milestone is done when:
 
-- all key prompts emit contract-shaped outputs
-- approval-critical actions always produce `ApprovalTicket`
-- one end-to-end scenario passes acceptance checks
-- implementation can start with low ambiguity
+- the shell renders all five required regions from runtime truth
+- board, cards, and detail views stay contract-driven
+- no new backend mutation path is introduced for UI convenience
+- the operator can scan blockers, approvals, and next action in seconds

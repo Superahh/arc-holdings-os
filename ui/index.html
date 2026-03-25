@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ARC Holdings OS</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ARC Holdings OS</p>
+          <h1>Desktop Command Floor</h1>
+        </div>
+        <div class="toolbar">
+          <button id="refresh-button" class="action-button" type="button">Refresh</button>
+          <div class="stamp">
+            <span>Snapshot</span>
+            <strong id="generated-at">Loading</strong>
+          </div>
+        </div>
+      </header>
+
+      <section id="kpi-strip" class="kpi-strip" aria-label="KPI strip"></section>
+
+      <main class="main-grid">
+        <section class="office-region panel" aria-labelledby="office-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Office canvas</p>
+              <h2 id="office-title">Active company floor</h2>
+            </div>
+            <p class="panel-note" id="attention-note"></p>
+          </div>
+          <div id="office-canvas" class="office-canvas"></div>
+        </section>
+
+        <aside class="detail-region panel" aria-labelledby="detail-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Detail panel</p>
+              <h2 id="detail-title">Selected view</h2>
+            </div>
+          </div>
+          <div id="detail-panel" class="detail-panel"></div>
+        </aside>
+      </main>
+
+      <section class="bottom-grid">
+        <section class="board-region panel" aria-labelledby="board-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Shared company board</p>
+              <h2 id="board-title">Board snapshot</h2>
+            </div>
+          </div>
+          <div id="company-board" class="company-board"></div>
+        </section>
+
+        <section class="queue-region panel" aria-labelledby="queue-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Approval queue</p>
+              <h2 id="queue-title">Decisions and exposure</h2>
+            </div>
+          </div>
+          <div id="approval-queue" class="approval-queue"></div>
+        </section>
+      </section>
+    </div>
+
+    <template id="kpi-card-template">
+      <article class="kpi-card">
+        <p class="kpi-label"></p>
+        <strong class="kpi-value"></strong>
+        <span class="kpi-meta"></span>
+      </article>
+    </template>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

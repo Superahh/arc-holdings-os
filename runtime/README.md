@@ -25,6 +25,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `workflow_health_cli.js`: CLI for workflow lifecycle health and stale-state monitoring
 - `workflow_replay_cli.js`: CLI to replay workflow lifecycle events into timeline artifacts
 - `workflow_update_cli.js`: CLI for manual, policy-checked workflow status progression
+- `ui_snapshot.js`: read-only snapshot composer for the visible UI shell
 - `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
@@ -314,4 +315,6 @@ node runtime/acceptance_cli.js
 
 ## Scope note
 
-This is a minimal v1 skeleton. It intentionally avoids external dependencies and does not implement external APIs or UI rendering.
+This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.
+
+The first visible shell now lives in [ui/](../ui), but runtime remains the source of truth and does not add UI-side mutation paths.

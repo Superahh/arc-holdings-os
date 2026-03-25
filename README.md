@@ -45,6 +45,7 @@ Use this repo to:
 - [evals/](./evals): test cases, wins, failures, benchmarks
 - [experiments/prompt_iterations.md](./experiments/prompt_iterations.md): unified experiment log
 - [runtime/](./runtime): implementation slice(s) aligned to frozen contracts
+- [ui/](./ui): first visible desktop shell over runtime state and contract outputs
 
 ## First files to open
 
@@ -55,6 +56,7 @@ Use this repo to:
 - [prompts/tasks/opportunity_evaluation.md](./prompts/tasks/opportunity_evaluation.md)
 - [IMPLEMENTATION_HANDOFF_CHECKLIST.md](./IMPLEMENTATION_HANDOFF_CHECKLIST.md)
 - [runtime/README.md](./runtime/README.md)
+- [ui/README.md](./ui/README.md)
 
 ## Minimal rules
 
@@ -77,4 +79,10 @@ Or run each command separately:
 ```powershell
 node runtime/tests/run_all_tests.js
 node tools/check_markdown_links.js --root .
+```
+
+Run the visible UI shell:
+
+```powershell
+node ui/server.js
 ```
