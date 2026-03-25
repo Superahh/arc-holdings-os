@@ -492,6 +492,88 @@ function mapStatusToLaneStage(status) {
   return "monitor";
 }
 
+function summarizeFlowEvent(event) {
+  if (!event || typeof event !== "object") {
+    return "Workflow update recorded.";
+  }
+  const opportunityId = event.opportunity_id || "opportunity";
+  const actor = event.actor || "system";
+  if (event.action === "status_update") {
+    return `${opportunityId} moved to ${event.status || "updated"} by ${actor}.`;
+  }
+  if (event.action === "seller_verification_request") {
+    return `${actor} requested seller verification on ${opportunityId}.`;
+  }
+  if (event.action === "seller_verification_response") {
+    if (event.response_status === "unsatisfactory") {
+      return `Unsatisfactory seller response on ${opportunityId}; confidence downgraded.`;
+    }
+    return `Seller verification response on ${opportunityId}: ${event.response_status || "received"}.`;
+  }
+  if (event.action === "priority_update") {
+    return `${opportunityId} priority updated to ${event.priority || "normal"} by ${actor}.`;
+  }
+  return `${event.action || "workflow_update"} recorded for ${opportunityId}.`;
+}
+
+function mapEventSeverity(event) {
+  if (!event || typeof event !== "object") {
+    return "info";
+  }
+  if (event.action === "seller_verification_response" && event.response_status === "unsatisfactory") {
+    return "alert";
+  }
+  if (event.action === "priority_update" && event.priority === "urgent") {
+    return "attention";
+  }
+  if (event.action === "status_update" && event.status === "awaiting_approval") {
+    return "attention";
+  }
+  return "info";
+}
+
+function buildOfficeFlowEvents(workflowState, opportunities, limit = 8) {
+  const records = Array.isArray(workflowState.event_log) ? workflowState.event_log : [];
+  const trackedActions = new Set([
+    "status_update",
+    "seller_verification_request",
+    "seller_verification_response",
+    "priority_update",
+  ]);
+  const opportunityById = new Map(
+    opportunities.map((entry) => [entry.opportunity_id, entry])
+  );
+
+  const events = [];
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const event = records[index];
+    if (!event || !trackedActions.has(event.action)) {
+      continue;
+    }
+    const opportunity = event.opportunity_id ? opportunityById.get(event.opportunity_id) : null;
+    const laneStage = mapStatusToLaneStage(
+      event.status ||
+        (opportunity && opportunity.current_status ? opportunity.current_status : "monitor")
+    );
+    events.push({
+      event_id:
+        (typeof event.event_id === "string" && event.event_id) ||
+        `evt-${index + 1}`,
+      opportunity_id: event.opportunity_id || null,
+      action: event.action,
+      actor: event.actor || "system",
+      timestamp: event.timestamp || null,
+      lane_stage: laneStage,
+      severity: mapEventSeverity(event),
+      summary: summarizeFlowEvent(event),
+    });
+    if (events.length >= limit) {
+      break;
+    }
+  }
+  return events;
+}
+
 function buildPresenceBubble(card, attentionTask) {
   if (card.blocker) {
     return {
@@ -642,6 +724,7 @@ function buildUiSnapshot(options = {}) {
     nowIso
   );
   const officeHandoffSignals = buildOfficeHandoffSignals(opportunities);
+  const officeFlowEvents = buildOfficeFlowEvents(workflowState, opportunities);
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
     opportunities,
     statusSnapshot.awaiting_tasks.tasks,
@@ -689,6 +772,7 @@ function buildUiSnapshot(options = {}) {
       agent_status_cards: agentStatusCards,
       presence: officePresence,
       handoff_signals: officeHandoffSignals,
+      flow_events: officeFlowEvents,
       company_board_snapshot: companyBoardSnapshot,
     },
     awaiting_tasks: statusSnapshot.awaiting_tasks,
@@ -706,6 +790,7 @@ module.exports = {
   buildAgentStatusCards,
   buildOfficePresence,
   buildOfficeHandoffSignals,
+  buildOfficeFlowEvents,
   buildCompanyBoardSnapshot,
   buildKpis,
 };

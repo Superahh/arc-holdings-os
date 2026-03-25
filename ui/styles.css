@@ -240,6 +240,63 @@ h2 {
   justify-content: flex-end;
 }
 
+.flow-feed {
+  margin-bottom: 18px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.flow-feed.empty {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(20, 35, 34, 0.14);
+  color: var(--muted);
+}
+
+.flow-chip {
+  padding: 9px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 35, 34, 0.14);
+  background: rgba(255, 252, 245, 0.84);
+  min-height: 72px;
+  display: grid;
+  gap: 6px;
+}
+
+.flow-chip-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.flow-chip-text {
+  font-size: 0.8rem;
+  line-height: 1.32;
+}
+
+.flow-info {
+  border-color: rgba(20, 35, 34, 0.14);
+}
+
+.flow-attention {
+  border-color: rgba(124, 99, 30, 0.3);
+  background: rgba(251, 246, 232, 0.92);
+}
+
+.flow-alert {
+  border-color: rgba(163, 52, 52, 0.3);
+  background: rgba(250, 238, 238, 0.94);
+}
+
+.flow-chip.is-new {
+  animation: flowNewPulse 1s ease;
+}
+
 .office-layout {
   display: grid;
   gap: 20px;
@@ -987,6 +1044,23 @@ h2 {
   }
 }
 
+@keyframes flowNewPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: var(--shadow);
+  }
+  50% {
+    transform: scale(1.018);
+    box-shadow:
+      var(--shadow),
+      0 0 0 5px rgba(175, 95, 45, 0.14);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: var(--shadow);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-idle .avatar-body,
   .motion-working .avatar-body,
@@ -999,7 +1073,8 @@ h2 {
   .has-focus-shift,
   .has-lane-shift,
   .handoff-path.is-transition,
-  .handoff-pulse.is-transition {
+  .handoff-pulse.is-transition,
+  .flow-chip.is-new {
     animation: none;
   }
 }
@@ -1009,6 +1084,10 @@ h2 {
   .bottom-grid,
   .office-layout {
     grid-template-columns: 1fr;
+  }
+
+  .flow-feed {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -1033,5 +1112,9 @@ h2 {
   .avatar-shell {
     width: 92px;
     min-width: 92px;
+  }
+
+  .flow-feed {
+    grid-template-columns: 1fr;
   }
 }

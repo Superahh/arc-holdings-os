@@ -9,6 +9,7 @@ function createEmptyTransitionState() {
     focusShiftAgents: new Set(),
     laneShiftAgents: new Set(),
     laneShiftOpportunities: new Set(),
+    newFlowEventIds: new Set(),
   };
 }
 
@@ -87,6 +88,10 @@ function formatBubbleClass(value) {
 
 function formatLaneClass(value) {
   return `lane-${normalizeToken(value || "monitor")}`;
+}
+
+function formatFlowSeverityClass(value) {
+  return `flow-${normalizeToken(value || "info")}`;
 }
 
 function mapStatusToLaneStage(status) {
@@ -183,6 +188,11 @@ function computeTransitionState(previousSnapshot, nextSnapshot) {
   const prevSignalKeys = new Set(
     (previousSnapshot.office.handoff_signals || []).map((entry) => buildSignalKey(entry))
   );
+  const prevFlowEventIds = new Set(
+    (previousSnapshot.office.flow_events || [])
+      .map((entry) => entry && entry.event_id)
+      .filter(Boolean)
+  );
   const handoffByKey = new Map();
 
   for (const nextOpportunity of nextSnapshot.workflow.opportunities || []) {
@@ -255,6 +265,14 @@ function computeTransitionState(previousSnapshot, nextSnapshot) {
   transitions.handoffs = [...handoffByKey.values()]
     .sort((a, b) => Date.parse(a.due_by || 0) - Date.parse(b.due_by || 0))
     .slice(0, 4);
+  for (const event of nextSnapshot.office.flow_events || []) {
+    if (!event || !event.event_id) {
+      continue;
+    }
+    if (!prevFlowEventIds.has(event.event_id)) {
+      transitions.newFlowEventIds.add(event.event_id);
+    }
+  }
   transitions.generatedAt = Date.now();
   return transitions;
 }
@@ -270,7 +288,8 @@ function setTransitionState(nextTransitionState) {
     nextTransitionState.handoffs.length > 0 ||
     nextTransitionState.focusShiftAgents.size > 0 ||
     nextTransitionState.laneShiftAgents.size > 0 ||
-    nextTransitionState.laneShiftOpportunities.size > 0;
+    nextTransitionState.laneShiftOpportunities.size > 0 ||
+    nextTransitionState.newFlowEventIds.size > 0;
 
   if (!hasSignals) {
     return;
@@ -400,6 +419,30 @@ function renderPresenceMeta(presence) {
   return pieces.join(" | ");
 }
 
+function renderFlowEvents(activeTransitions) {
+  const events = (state.snapshot.office.flow_events || []).slice(0, 5);
+  if (!events.length) {
+    return `<div class="flow-feed empty">No recent workflow events.</div>`;
+  }
+
+  const items = events
+    .map((event) => {
+      const isNew = activeTransitions.newFlowEventIds.has(event.event_id);
+      return `
+        <article class="flow-chip ${formatLaneClass(event.lane_stage)} ${formatFlowSeverityClass(event.severity)} ${isNew ? "is-new" : ""}">
+          <p class="flow-chip-meta">
+            <span>${escapeHtml(event.opportunity_id || "company")}</span>
+            <span>${escapeHtml(formatTimestamp(event.timestamp))}</span>
+          </p>
+          <p class="flow-chip-text">${escapeHtml(event.summary)}</p>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `<div class="flow-feed">${items}</div>`;
+}
+
 function buildZoneSignalClasses(agent, activeTransitions, renderableHandoffs) {
   const classes = [];
   if (activeTransitions.focusShiftAgents.has(agent)) {
@@ -506,6 +549,7 @@ function renderOfficeCanvas() {
   const topTask = state.snapshot.attention.top_task;
   const activeTransitions = getActiveTransitionState();
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
+  const flowEventsHtml = renderFlowEvents(activeTransitions);
 
   const floorBanner = `
     <div class="floor-banner">
@@ -617,6 +661,7 @@ function renderOfficeCanvas() {
 
   elements.officeCanvas.innerHTML = `
     ${floorBanner}
+    ${flowEventsHtml}
     <div class="office-layout-wrap">
       <div class="office-layout">${zonesHtml}</div>
       <div class="handoff-overlay hidden" aria-hidden="true">
