@@ -14,6 +14,14 @@ const { loadQueue, enqueueApprovalTicket, saveQueue } = require("./approval_queu
 const { loadWorkflowState, saveWorkflowState, upsertFromPipeline } = require("./workflow_state");
 
 function parseArgs(argv) {
+  function readValue(index, option) {
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new Error(`Missing value for argument: ${option}`);
+    }
+    return value;
+  }
+
   const args = {
     fixture: null,
     now: new Date().toISOString(),
@@ -29,30 +37,32 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === "--fixture") {
-      args.fixture = argv[i + 1];
+      args.fixture = readValue(i, token);
       i += 1;
     } else if (token === "--now") {
-      args.now = argv[i + 1];
+      args.now = readValue(i, token);
       i += 1;
     } else if (token === "--base-dir") {
-      args.baseDir = argv[i + 1];
+      args.baseDir = readValue(i, token);
       i += 1;
     } else if (token === "--queue-path") {
-      args.queuePath = argv[i + 1];
+      args.queuePath = readValue(i, token);
       i += 1;
     } else if (token === "--queue-actor") {
-      args.queueActor = argv[i + 1];
+      args.queueActor = readValue(i, token);
       i += 1;
     } else if (token === "--workflow-state-path") {
-      args.workflowStatePath = argv[i + 1];
+      args.workflowStatePath = readValue(i, token);
       i += 1;
     } else if (token === "--workflow-actor") {
-      args.workflowActor = argv[i + 1];
+      args.workflowActor = readValue(i, token);
       i += 1;
     } else if (token === "--update-snapshot") {
       args.updateSnapshot = true;
     } else if (token === "--check-snapshot") {
       args.checkSnapshot = true;
+    } else {
+      throw new Error(`Unknown argument: ${token}`);
     }
   }
 

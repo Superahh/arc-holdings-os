@@ -16,6 +16,23 @@ test("parseArgs enforces required fixture", () => {
   assert.throws(() => parseArgs([]), /--fixture/);
 });
 
+test("parseArgs rejects unknown and malformed arguments", () => {
+  assert.throws(
+    () =>
+      parseArgs([
+        "--fixture",
+        fixturePath("golden-scenario.json"),
+        "--queue-paht",
+        "runtime/state/approval_queue.json",
+      ]),
+    /Unknown argument: --queue-paht/
+  );
+  assert.throws(
+    () => parseArgs(["--fixture", fixturePath("golden-scenario.json"), "--queue-path"]),
+    /Missing value for argument: --queue-path/
+  );
+});
+
 test("runPipelineAction writes workflow state for request_more_info path", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-run-pipeline-"));
   const workflowPath = path.join(tempDir, "workflow_state.json");

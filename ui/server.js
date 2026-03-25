@@ -7,6 +7,7 @@ const { URL } = require("node:url");
 
 const { buildUiSnapshot } = require("../runtime/ui_snapshot");
 const { runDecisionAction } = require("../runtime/queue_decision_cli");
+const APPROVAL_DECISIONS = new Set(["approve", "reject", "request_more_info"]);
 
 const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -144,6 +145,7 @@ function createUiServer(options = {}) {
             sendJson(response, 400, {
               error: "invalid_request",
               message: "ticket_id is required.",
+              retryable: false,
             });
             return;
           }
@@ -151,6 +153,15 @@ function createUiServer(options = {}) {
             sendJson(response, 400, {
               error: "invalid_request",
               message: "decision is required.",
+              retryable: false,
+            });
+            return;
+          }
+          if (!APPROVAL_DECISIONS.has(decision)) {
+            sendJson(response, 422, {
+              error: "invalid_decision",
+              message: "decision must be one of approve, reject, request_more_info.",
+              retryable: false,
             });
             return;
           }
@@ -171,9 +182,12 @@ function createUiServer(options = {}) {
               result,
             });
           } catch (error) {
-            sendJson(response, 400, {
-              error: "decision_failed",
-              message: error instanceof Error ? error.message : String(error),
+            const message = error instanceof Error ? error.message : String(error);
+            const isConflict = /already decided|not found/i.test(message);
+            sendJson(response, isConflict ? 409 : 400, {
+              error: isConflict ? "decision_conflict" : "decision_failed",
+              message,
+              retryable: false,
             });
           }
         })
@@ -181,6 +195,7 @@ function createUiServer(options = {}) {
           sendJson(response, 400, {
             error: "invalid_request",
             message: error instanceof Error ? error.message : String(error),
+            retryable: false,
           });
         });
       return;

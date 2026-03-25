@@ -1,6 +1,8 @@
 "use strict";
 
 const TRANSITION_WINDOW_MS = 14000;
+const DECISION_REQUEST_TIMEOUT_MS = 12000;
+const DECISION_SUCCESS_MESSAGE_MS = 9000;
 
 function createEmptyTransitionState() {
   return {
@@ -20,6 +22,9 @@ const state = {
   transitionTimerId: null,
   decisionInFlight: false,
   decisionMessage: null,
+  decisionMessageLevel: "info",
+  decisionMessageTimerId: null,
+  lastDecisionRetry: null,
 };
 
 const elements = {
@@ -374,6 +379,32 @@ function setSelection(type, id) {
   render();
 }
 
+function clearDecisionMessage() {
+  state.decisionMessage = null;
+  state.decisionMessageLevel = "info";
+  state.lastDecisionRetry = null;
+}
+
+function setDecisionMessage(message, level = "info", options = {}) {
+  state.decisionMessage = message;
+  state.decisionMessageLevel = level;
+  state.lastDecisionRetry = options.retry || null;
+  if (state.decisionMessageTimerId !== null) {
+    window.clearTimeout(state.decisionMessageTimerId);
+    state.decisionMessageTimerId = null;
+  }
+  const ttlMs = Number.isInteger(options.ttlMs) ? options.ttlMs : 0;
+  if (ttlMs > 0) {
+    state.decisionMessageTimerId = window.setTimeout(() => {
+      clearDecisionMessage();
+      if (state.snapshot) {
+        renderAttention();
+        renderApprovalQueue();
+      }
+    }, ttlMs);
+  }
+}
+
 function formatDecisionLabel(decision) {
   const labels = {
     approve: "Approve",
@@ -388,14 +419,37 @@ function buildDecisionConfirmMessage(ticketId, decision) {
   return `Submit ${label} decision for ${ticketId}?`;
 }
 
+function isRetryableDecisionError(payload, statusCode) {
+  if (!payload || typeof payload !== "object") {
+    return statusCode >= 500;
+  }
+  if (typeof payload.retryable === "boolean") {
+    return payload.retryable;
+  }
+  return statusCode >= 500;
+}
+
+function buildTimeoutError(ticketId, decision) {
+  const error = new Error(
+    `Decision request timed out for ${ticketId}. Retry ${formatDecisionLabel(decision)} or refresh.`
+  );
+  error.retryable = true;
+  return error;
+}
+
 async function submitApprovalDecision(ticketId, decision) {
   if (state.decisionInFlight) {
     return;
   }
   state.decisionInFlight = true;
-  state.decisionMessage = `Submitting ${formatDecisionLabel(decision)} for ${ticketId}...`;
+  setDecisionMessage(`Submitting ${formatDecisionLabel(decision)} for ${ticketId}...`, "info");
   renderAttention();
   renderApprovalQueue();
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort();
+  }, DECISION_REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch("/api/approval-decision", {
@@ -403,6 +457,7 @@ async function submitApprovalDecision(ticketId, decision) {
       headers: {
         "Content-Type": "application/json",
       },
+      signal: controller.signal,
       body: JSON.stringify({
         ticket_id: ticketId,
         decision,
@@ -411,16 +466,37 @@ async function submitApprovalDecision(ticketId, decision) {
       }),
     });
 
-    const payload = await response.json();
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.ok) {
-      throw new Error(payload && payload.message ? payload.message : "Decision submission failed.");
+      const error = new Error(
+        payload && payload.message
+          ? payload.message
+          : `Decision submission failed (${response.status}).`
+      );
+      error.retryable = isRetryableDecisionError(payload, response.status);
+      throw error;
     }
-    state.decisionMessage = `Submitted ${formatDecisionLabel(decision)} for ${ticketId}.`;
+    setDecisionMessage(
+      `Submitted ${formatDecisionLabel(decision)} for ${ticketId}.`,
+      "success",
+      { ttlMs: DECISION_SUCCESS_MESSAGE_MS }
+    );
     await loadSnapshot();
   } catch (error) {
-    state.decisionMessage = error instanceof Error ? error.message : String(error);
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    const normalizedError = isAbort ? buildTimeoutError(ticketId, decision) : error;
+    const message =
+      normalizedError instanceof Error ? normalizedError.message : String(normalizedError);
+    const retryable =
+      normalizedError instanceof Error && typeof normalizedError.retryable === "boolean"
+        ? normalizedError.retryable
+        : false;
+    setDecisionMessage(message, "error", {
+      retry: retryable ? { ticketId, decision } : null,
+    });
     renderAttention();
   } finally {
+    window.clearTimeout(timeoutId);
     state.decisionInFlight = false;
     renderApprovalQueue();
   }
@@ -1299,6 +1375,12 @@ function renderApprovalQueue() {
                   <button type="button" class="queue-action queue-action-approve" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="approve" ${state.decisionInFlight ? "disabled" : ""}>Approve</button>
                   <button type="button" class="queue-action queue-action-info" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="request_more_info" ${state.decisionInFlight ? "disabled" : ""}>More info</button>
                   <button type="button" class="queue-action queue-action-reject" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="reject" ${state.decisionInFlight ? "disabled" : ""}>Reject</button>
+                  ${
+                    state.lastDecisionRetry &&
+                    state.lastDecisionRetry.ticketId === item.ticket_id
+                      ? `<button type="button" class="queue-action queue-action-retry" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="${escapeHtml(state.lastDecisionRetry.decision)}" data-retry="true" ${state.decisionInFlight ? "disabled" : ""}>Retry ${escapeHtml(formatDecisionLabel(state.lastDecisionRetry.decision))}</button>`
+                      : ""
+                  }
                 </div>
               `
               : "";
@@ -1357,6 +1439,9 @@ function renderAttention() {
   const baseMessage = task
     ? `${task.owner} next: ${task.next_action}`
     : "No active attention item.";
+  elements.attentionNote.className = `panel-note decision-note-${normalizeToken(
+    state.decisionMessageLevel || "info"
+  )}`;
   elements.attentionNote.textContent = state.decisionMessage
     ? `${baseMessage} | ${state.decisionMessage}`
     : baseMessage;

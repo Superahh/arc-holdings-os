@@ -217,6 +217,23 @@ h2 {
   border-color: rgba(163, 52, 52, 0.35);
 }
 
+.queue-action-retry {
+  border-color: rgba(20, 35, 34, 0.28);
+  background: rgba(20, 35, 34, 0.06);
+}
+
+.panel-note.decision-note-info {
+  color: var(--warn);
+}
+
+.panel-note.decision-note-success {
+  color: var(--ok);
+}
+
+.panel-note.decision-note-error {
+  color: var(--danger);
+}
+
 .kpi-value {
   display: block;
   margin: 6px 0;

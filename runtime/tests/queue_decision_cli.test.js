@@ -24,6 +24,34 @@ test("parseArgs enforces required arguments", () => {
   );
 });
 
+test("parseArgs rejects unknown and malformed arguments", () => {
+  assert.throws(
+    () =>
+      parseArgs([
+        "--queue-path",
+        "x.json",
+        "--ticket-id",
+        "apr-1",
+        "--decision",
+        "approve",
+        "--decison",
+        "reject",
+      ]),
+    /Unknown argument: --decison/
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        "--queue-path",
+        "x.json",
+        "--ticket-id",
+        "apr-1",
+        "--decision",
+      ]),
+    /Missing value for argument: --decision/
+  );
+});
+
 test("runDecisionAction updates queue and writes decision artifact", () => {
   const input = loadFixture("golden-scenario.json");
   input.device.carrier_status = "verified";

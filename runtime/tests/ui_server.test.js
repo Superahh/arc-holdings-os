@@ -155,6 +155,35 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     const postDecisionSnapshot = JSON.parse(postDecisionSnapshotResponse.body);
     assert.equal(postDecisionSnapshot.kpis.approvals_waiting, 0);
     assert.equal(postDecisionSnapshot.approval_queue.items[0].status, "approve");
+
+    const missingFieldResponse = await request(server, "/api/approval-decision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ticket_id: "apr-ui-server-001",
+      }),
+    });
+    assert.equal(missingFieldResponse.statusCode, 400);
+    const missingFieldPayload = JSON.parse(missingFieldResponse.body);
+    assert.equal(missingFieldPayload.error, "invalid_request");
+    assert.equal(missingFieldPayload.retryable, false);
+
+    const invalidDecisionResponse = await request(server, "/api/approval-decision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ticket_id: "apr-ui-server-001",
+        decision: "ship_now",
+      }),
+    });
+    assert.equal(invalidDecisionResponse.statusCode, 422);
+    const invalidDecisionPayload = JSON.parse(invalidDecisionResponse.body);
+    assert.equal(invalidDecisionPayload.error, "invalid_decision");
+    assert.equal(invalidDecisionPayload.retryable, false);
   } finally {
     await new Promise((resolve, reject) => {
       server.close((error) => {
