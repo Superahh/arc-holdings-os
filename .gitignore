@@ -1,1 +1,4 @@
 .DS_Store
+runtime/output/runs/*.artifact.json
+runtime/output/decisions/*.decision.json
+runtime/state/*.json

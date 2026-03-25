@@ -1,93 +1,68 @@
-# Project Overview
+﻿# Project Overview
 
 ## Project goal
 
-Design ARC Holdings OS as a digital, agent-run company operating system that uses a fixed capital allowance to identify, evaluate, acquire, route, and monetize used electronics opportunities for profit.
+Build ARC Holdings OS as a practical multi-agent company OS that evaluates, approves, routes, and monetizes used-electronics opportunities with clear human control.
 
 ## Core concept
 
-The product simulates a real company with specialized agents acting like departments. A CEO agent functions as the executive layer, oversees priorities, allocates budget, tracks goals, and keeps the rest of the company on task.
+ARC Holdings OS represents a digital company:
 
-The interface should feel like a polished top-down office where the company appears alive and working, while every visual element maps to operational state.
-
-## Business objective
-
-Increase ROI from a capital allowance by:
-
-- finding undervalued used electronics opportunities
-- selecting the highest-ROI monetization path
-- coordinating the steps needed to realize profit
-- reducing wasted capital and bad decisions
-- improving the company over time through feedback loops
+- department-like agents handle specialized work
+- a CEO orchestration layer sets priority and sequencing
+- a top-down office simulation reflects live operating state
+- every meaningful output conforms to reusable data contracts
 
 ## Primary user
 
-The owner-operator of a small electronics opportunity business who wants:
+Owner-operator of a small used-electronics business who needs:
 
-- executive visibility
-- low cognitive overhead
-- approval control on risky actions
-- clearer prioritization across sourcing, valuation, routing, and resale work
-- a motivating interface that makes the operation feel alive without becoming a toy
+- clear visibility across the company
+- low cognitive load
+- disciplined capital deployment
+- approval control on consequential actions
+- reusable operating playbooks instead of ad hoc decisions
 
-## Core workflow
+## Business objective
 
-1. Ingest a possible electronics opportunity.
-2. Evaluate device quality, price, and likely resale paths.
-3. Review risks, compliance, and operational feasibility.
-4. Decide whether to acquire, skip, or request more information.
-5. Route acquired inventory to the best monetization path.
-6. Surface company status in the office simulation.
-7. Improve future decisions through logged outcomes.
+Improve ROI from fixed capital by:
+
+- filtering weak opportunities earlier
+- picking realistic monetization paths
+- reducing blocked work and handoff loss
+- learning from outcomes through eval loops
 
 ## Product promise
 
-The user should be able to open the app and feel like they are looking at a functioning digital company, not a dashboard graveyard.
+The user should open one system and quickly see:
 
-They should see:
+- what matters now
+- what is blocked
+- what needs approval
+- which opportunities should be acted on or skipped
 
-- a top-down office layout
-- distinct departments
-- visible agent status
-- short thought or speech bubbles
-- a shared company board
-- quick summaries of what is moving, blocked, or risky
+## Version 1 boundaries
 
-## Operating model
+Version 1 includes:
 
-Version 1 should use human approval on key actions.
+- one realistic opportunity pipeline
+- explicit approval gates
+- contract-based handoffs
+- office simulation tied to operating truth
 
-The system may later support tightly constrained automation, but only where it is legal, safe, realistic, and clearly justified.
+Version 1 excludes:
 
-## Current phase
+- unsupervised purchasing or listing
+- broad marketplace integration suites
+- ERP depth (accounting, warehouse, repair ops)
+- decorative game features not tied to decisions
 
-The current phase is specification and planning.
+## Definition of done for this planning workspace
 
-The immediate goal is to define the company model, workflow, UX, and guardrails clearly enough to support implementation without overscoping.
+Planning quality is sufficient when:
 
-## What done looks like
-
-This project is succeeding when:
-
-- the company hierarchy is clearly defined
-- the opportunity workflow is realistic and testable
-- the office simulation meaningfully reflects company state
-- approval gates are explicit
-- version 1 stays narrow enough to build
-
-## Version 1 boundary
-
-Version 1 is:
-
-- one realistic electronics opportunity pipeline
-- one CEO-led multi-agent company model
-- one office simulation layer
-- one approval-aware operating flow
-- one clean operational interface
-
-Version 1 is not:
-
-- a fully autonomous business
-- a broad marketplace integration suite
-- a full accounting or ERP system
-- a game-first experience detached from operations
+- agent roles and handoffs are decision-complete
+- workflow stages and failure states are explicit
+- contracts are stable and reused across prompts
+- eval artifacts can detect drift and regression
+- implementation can proceed without high-impact ambiguity

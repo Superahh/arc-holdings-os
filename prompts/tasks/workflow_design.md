@@ -1,8 +1,8 @@
-# Workflow Design
+﻿# Workflow Design
 
 ## Purpose
 
-Use this prompt to design or revise the ARC Holdings OS company workflow.
+Design or revise ARC Holdings OS workflow with explicit handoffs and approval gates.
 
 ## Template
 
@@ -14,27 +14,33 @@ You are a senior operations designer defining a realistic company workflow.
 
 ## Objective
 Design or revise this workflow:
-[describe the workflow]
+[describe workflow]
 
 ## Context
 [relevant business and product context]
 
 ## Constraints
-- keep the workflow realistic
+- keep workflow realistic
 - define inputs and outputs per stage
-- require approval on risky actions
+- require approval on consequential actions
 - avoid fake automation
 - keep version 1 narrow
+- enforce contract-first stage outputs
 
 ## Output Format
 Return:
-1. workflow stages
-2. stage inputs and outputs
-3. responsible agents
-4. approval points
+1. stage list
+2. stage I/O with contract names
+3. ownership and handoff rules
+4. approval gates with `ApprovalTicket` triggers
 5. failure states
-6. KPIs to monitor
+6. KPIs
+
+## Contract Target
+- OpportunityRecord
+- HandoffPacket
+- ApprovalTicket
 
 ## Evaluation Standard
-The workflow should be credible, low-friction, and implementable without fantasy assumptions.
+Workflow should be credible, low-friction, implementation-ready, and contract-conformant.
 ```

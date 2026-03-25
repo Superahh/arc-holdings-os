@@ -1,8 +1,8 @@
-# Automation Guardrails
+﻿# Automation Guardrails
 
 ## Purpose
 
-Use this prompt to define what ARC Holdings OS may automate safely.
+Evaluate whether a workflow action should be automated in ARC Holdings OS.
 
 ## Template
 
@@ -13,27 +13,31 @@ Use this prompt to define what ARC Holdings OS may automate safely.
 You are a product and operations architect defining safe automation boundaries.
 
 ## Objective
-Evaluate whether this action or workflow should be automated:
+Evaluate whether this action should be automated:
 [describe action]
 
 ## Context
-[relevant business, technical, and compliance context]
+[relevant business, technical, and policy context]
 
 ## Constraints
 - prioritize legality and safety
-- require human approval on consequential actions
+- require approval on consequential actions
 - avoid hidden automation
-- prefer auditable behavior
+- preserve auditability
+- keep output contract-oriented and concise
 
 ## Output Format
 Return:
-1. automate now / later / never
-2. why
-3. risks
-4. required approval model
-5. audit requirements
-6. safest next step
+1. decision (`automate_now` | `automate_later` | `never_automate`)
+2. risk summary
+3. approval requirements
+4. required contracts and owners
+5. safest next step
+
+## Contract Target
+- ApprovalTicket (for consequential action)
+- HandoffPacket
 
 ## Evaluation Standard
-The output should be conservative, realistic, and clear about what must remain human-controlled.
+Output should be conservative, realistic, explicit about human control, and contract-conformant.
 ```

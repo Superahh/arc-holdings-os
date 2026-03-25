@@ -1,8 +1,8 @@
-# UI Generation
+﻿# UI Generation
 
 ## Purpose
 
-Use this prompt to design ARC Holdings OS screens without letting visual ambition outrun operational truth.
+Design ARC Holdings OS interfaces without letting visual ambition outrun operational truth.
 
 ## Template
 
@@ -10,33 +10,37 @@ Use this prompt to design ARC Holdings OS screens without letting visual ambitio
 # Task Brief
 
 ## Role
-You are a product-minded UI engineer designing a clean version 1 interface for ARC Holdings OS.
+You are a product-minded UI engineer designing a clean v1 interface for ARC Holdings OS.
 
 ## Objective
-Design a UI for:
-[describe screen or workflow]
+Design UI for:
+[screen or workflow]
 
 ## Context
-[relevant ARC workflow, agents, and state]
+[relevant workflow, agents, and company state]
 
 ## Constraints
-- keep the UI simple
+- keep layout simple and scannable
 - reduce cognitive load
 - make current state obvious
-- avoid clutter
-- preserve room for future extension
-- every visual element must map to real business meaning
-- do not invent decorative game mechanics
+- avoid decorative mechanics
+- map each visual element to business meaning
+- output contract mapping explicitly
 
 ## Output Format
 Return:
 1. screen goal
 2. layout structure
-3. key components
-4. visual element to business meaning mapping
-5. user flow
+3. component list
+4. explicit mapping to contracts
+5. interaction flow
 6. implementation notes
 
+## Contract Target
+- AgentStatusCard
+- CompanyBoardSnapshot
+- ApprovalTicket (if approval queue is present)
+
 ## Evaluation Standard
-The result should be clear, premium, low-friction, and operationally meaningful for version 1.
+Result should be clear, low-friction, operationally meaningful, and contract-aware.
 ```

@@ -1,8 +1,8 @@
-# Agent Design
+﻿# Agent Design
 
 ## Purpose
 
-Use this prompt to define one ARC Holdings OS agent clearly.
+Define one ARC Holdings OS agent with explicit scope and contract outputs.
 
 ## Template
 
@@ -25,18 +25,20 @@ Design this agent:
 - define handoffs clearly
 - include approval and escalation rules
 - keep version 1 practical
+- keep output concise and contract-oriented
 
 ## Output Format
 Return:
-1. job description
-2. goals
-3. constraints
-4. inputs
-5. outputs
-6. handoffs
-7. KPIs
-8. failure modes
+1. `agent_profile` (job, goals, constraints, KPIs)
+2. `inputs`
+3. `outputs`
+4. `handoff_rules` with contract usage
+5. `approval_conditions`
+
+## Contract Target
+- HandoffPacket
+- ApprovalTicket (if consequential actions are possible)
 
 ## Evaluation Standard
-The agent should feel like a real department role, not a vague AI persona.
+The agent definition should be realistic, non-overlapping, implementation-ready, and contract-aware.
 ```

@@ -1,52 +1,44 @@
-# Current Focus
+﻿# Current Focus
 
 ## Active goal
 
-Turn the generic Prompt Lab workspace into the planning and specification system for ARC Holdings OS.
+Complete Prompt Lab migration into a lean, contract-driven ARC Holdings OS planning system and validate one end-to-end v1 scenario.
 
 ## Current milestone
 
-Define the version 1 company model, workflow, UX direction, and automation boundaries clearly enough to guide implementation.
+Stabilize contracts, align prompts to those contracts, and verify approval-aware workflow outputs.
 
-## This week's target
+## This week target
 
-Write or revise:
-
-- core product and technical specs
-- the multi-agent company hierarchy
-- the operational workflow
-- the office simulation rules
-- the first ARC-specific planning prompts
+- lock [specs/contracts.md](./specs/contracts.md)
+- align system/task prompts with contract outputs
+- run scenario: intake -> valuation -> risk -> approval -> routing -> status summary
+- log first benchmark and iteration notes
 
 ## Current blockers
 
-- the product can easily sprawl into a fake empire
-- the visual dream can overwhelm the operational core
-- agent roles need to feel realistic, not theatrical
-- automation boundaries must be explicit before implementation starts
+- need one additional scenario to stress-test `request_more_info` and rejection paths
+- freeze v1 contract fields for implementation handoff
 
 ## Next actions
 
-- [ ] finalize the version 1 company workflow
-- [ ] define each core agent with KPIs and handoffs
-- [ ] lock the office simulation to real business state
-- [ ] define approval gates and automation policy
-- [ ] use the new prompts to test one realistic opportunity flow
+- [x] run contract conformance check on updated prompts
+- [x] execute and log one full scenario in [evals/test_cases.md](./evals/test_cases.md)
+- [x] collect one failure and one win from real prompt runs
+- [x] freeze v1 interface contracts for implementation handoff
 
-## Intentionally out of scope
+## Out of scope
 
-- autonomous purchasing or listing
-- deep integrations across many marketplaces
-- advanced animation systems
-- warehouse, accounting, or repair ERP depth
-- game mechanics that do not improve operational clarity
+- autonomous financial commitments
+- broad external integration work
+- game mechanics detached from operations
+- deep ERP modeling
 
 ## Exit criteria
 
-This focus area is done when:
+This milestone is done when:
 
-- the version 1 product boundary is stable
-- agent responsibilities and handoffs are defined
-- the workflow is realistic and approval-aware
-- the office simulation has clear rules
-- implementation can begin without major conceptual gaps
+- all key prompts emit contract-shaped outputs
+- approval-critical actions always produce `ApprovalTicket`
+- one end-to-end scenario passes acceptance checks
+- implementation can start with low ambiguity

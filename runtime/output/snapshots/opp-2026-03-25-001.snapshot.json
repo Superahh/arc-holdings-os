@@ -1,0 +1,88 @@
+{
+  "schema_version": "v1",
+  "opportunity_id": "opp-2026-03-25-001",
+  "normalized_output": {
+    "opportunity_record": {
+      "opportunity_id": "opp-2026-03-25-001",
+      "source": "facebook_marketplace",
+      "captured_at": "2026-03-25T18:30:00.000Z",
+      "device_summary": "iPhone 14 Pro 256GB, powers on, back glass cracked, 89% battery health, accessories: none",
+      "ask_price_usd": 460,
+      "estimated_value_range_usd": [
+        550,
+        630
+      ],
+      "recommended_path": "request_more_info",
+      "recommendation": "request_more_info",
+      "confidence": "medium",
+      "risks": [
+        "carrier lock or blacklist risk",
+        "IMEI mismatch risk",
+        "condition variance risk",
+        "carrier status unverified"
+      ],
+      "notes": "best_net_usd=5 using request_more_info"
+    },
+    "approval_ticket": null,
+    "handoff_packet": {
+      "handoff_id": "hof-opp-2026-03-25-001",
+      "opportunity_id": "opp-2026-03-25-001",
+      "from_agent": "Valuation Agent",
+      "to_agent": "Risk and Compliance Agent",
+      "reason": "Need additional verification before acquisition decision.",
+      "payload_type": "OpportunityRecord",
+      "payload_ref": "opp-2026-03-25-001",
+      "blocking_items": [
+        "carrier status unverified"
+      ],
+      "next_action": "Request remote IMEI proof and verify carrier status.",
+      "due_by": "__IGNORED_TEMPORAL__"
+    },
+    "agent_status_cards": [
+      {
+        "agent": "CEO Agent",
+        "status": "working",
+        "active_task": "Monitor pipeline priorities",
+        "opportunity_id": "opp-2026-03-25-001",
+        "blocker": null,
+        "urgency": "medium",
+        "updated_at": "__IGNORED_TEMPORAL__"
+      },
+      {
+        "agent": "Risk and Compliance Agent",
+        "status": "working",
+        "active_task": "Request and validate remote IMEI/carrier evidence",
+        "opportunity_id": "opp-2026-03-25-001",
+        "blocker": null,
+        "urgency": "high",
+        "updated_at": "__IGNORED_TEMPORAL__"
+      },
+      {
+        "agent": "Operations Coordinator Agent",
+        "status": "blocked",
+        "active_task": "Awaiting blocker resolution before execution",
+        "opportunity_id": "opp-2026-03-25-001",
+        "blocker": "carrier status unverified",
+        "urgency": "high",
+        "updated_at": "__IGNORED_TEMPORAL__"
+      }
+    ],
+    "company_board_snapshot": {
+      "snapshot_id": "brd-opp-2026-03-25-001",
+      "timestamp": "__IGNORED_TEMPORAL__",
+      "priorities": [
+        "Advance active opportunity workflow.",
+        "Clear blocking verification dependencies."
+      ],
+      "approvals_waiting": 0,
+      "blocked_count": 1,
+      "active_opportunities": [
+        "opp-2026-03-25-001"
+      ],
+      "alerts": [
+        "carrier status unverified"
+      ],
+      "capital_note": "No capital approval pending for this opportunity."
+    }
+  }
+}

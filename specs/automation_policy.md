@@ -1,52 +1,47 @@
-# Automation Policy
+﻿# Automation Policy
 
 ## Purpose
 
-Define what ARC Holdings OS may automate, what must stay approval-gated, and what is out of bounds.
+Define what can be automated, what must stay approval-gated, and what is out of bounds in v1.
 
 ## Operating principle
 
-Automation is allowed only when it is:
+Automation is allowed only when it is legal, safe, auditable, and operationally realistic.
 
-- legal
-- safe
-- operationally realistic
-- auditable
-- clearly better than manual handling
+## Approval-gated actions (v1)
 
-## Human approval required in version 1
+These actions must emit an `ApprovalTicket`:
 
 - acquisition actions
-- listing creation or pricing actions
-- outbound buyer or seller communications with real consequences
+- pricing and listing actions
+- outbound actions with real consequences
 - policy overrides
 - actions that move money or commit inventory
 
-## Conditionally automatable later
+## Conditionally automatable
 
 - duplicate detection
-- opportunity normalization
-- internal routing suggestions
-- status summaries
-- low-risk internal note generation
-- KPI summaries
+- normalization helpers
+- low-risk routing suggestions
+- KPI and status summaries
 
 ## Not allowed
 
 - illegal or deceptive behavior
+- hidden automation that user cannot inspect
 - unsupervised financial commitments
-- hidden automation that the user cannot inspect
-- automation that depends on unsupported credentials or fragile assumptions
+- reliance on unsupported credentials
 
 ## Audit expectations
 
-The system should always make it clear:
+Every recommendation should expose:
 
-- what recommendation was made
-- which agent made it
-- what assumptions were used
-- whether approval is still required
+- what was recommended
+- which agent produced it
+- key assumptions
+- whether approval is required
+- which contract output was emitted
 
 ## Integration rule
 
-Version 1 should not depend on the user manually supplying API keys during normal use.
+Version 1 should not depend on user-supplied API keys during normal operation.

@@ -1,77 +1,39 @@
-# UX Spec
+﻿# UX Spec
 
 ## UX goal
 
-Make ARC Holdings OS feel like a living company while staying clear, low-clutter, and operationally useful.
+Make ARC Holdings OS feel like a living company while keeping the interface low-clutter, scannable, and decision-first.
 
 ## Design principles
 
-- show the company state at a glance
-- keep the visual language playful but disciplined
-- preserve strong operational clarity
-- reduce cognitive overhead
-- make priorities and blockers obvious
-- ensure every visual cue maps to real state
-
-## Interface concept
-
-The primary interface is a top-down office simulation with visible departments and agents.
-
-The user should be able to understand:
-
-- what the company is doing
-- which agent is handling what
-- what is blocked or urgent
-- where approval is needed
-- which opportunities are worth attention
+- show company state at a glance
+- emphasize priorities, blockers, and approvals
+- keep controls and status language consistent
+- ensure each visual cue maps to real state
 
 ## Core screen regions
 
 - office canvas
-- department or agent detail panel
+- selected agent/opportunity detail panel
 - shared company board
-- approval queue or alert area
-- high-level KPI summary
+- approval queue
+- KPI strip
 
-## Agent representation
+## Contract-driven UX mapping
 
-Each agent should visually expose:
-
-- role
-- current status
-- active task summary
-- short thought or speech bubble
-- urgency or health signal
-
-## Shared board behavior
-
-The shared board should surface:
-
-- company priorities
-- active initiatives
-- blocked tasks
-- alerts
-- capital or operational notes
+- detail panel reads `OpportunityRecord` and `HandoffPacket`
+- approval queue reads `ApprovalTicket`
+- agent cards read `AgentStatusCard`
+- board reads `CompanyBoardSnapshot`
 
 ## ADHD-friendly rules
 
-- keep the main screen scannable in seconds
-- minimize hidden state
-- avoid dense control clusters
-- use consistent status language
-- make next actions explicit
-- prefer one strong screen over many fragmented views
+- main state readable in seconds
+- minimal hidden state
+- no dense control clusters
+- explicit next actions
 
-## Visual guardrails
-
-- no decorative elements without operational meaning
-- no animation-first design
-- no cluttered command centers
-- no dark-pattern dashboards stuffed with tiny numbers
-
-## Interaction states
-
-Version 1 should support:
+## Interaction states (v1)
 
 - agent selected
 - opportunity selected
@@ -80,9 +42,9 @@ Version 1 should support:
 - alert active
 - board updated
 
-## Anti-patterns
+## Visual guardrails
 
-- game aesthetics disconnected from business logic
-- visual complexity that hides actual risk or priority
-- too many panels competing for attention
-- fake “AI is thinking” signals without useful content
+- avoid decorative clutter
+- avoid fake "AI thinking" cues
+- avoid dashboard overload with tiny metrics
+- use motion only to reinforce state change

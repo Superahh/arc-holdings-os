@@ -1,8 +1,8 @@
-# Opportunity Evaluation
+﻿# Opportunity Evaluation
 
 ## Purpose
 
-Use this prompt to evaluate a used electronics opportunity realistically.
+Evaluate used-electronics opportunities with realistic economics and explicit approval awareness.
 
 ## Template
 
@@ -17,23 +17,25 @@ Evaluate this opportunity:
 [device and opportunity details]
 
 ## Context
-[seller notes, condition notes, comps, constraints]
+[seller notes, condition notes, comps, budget and policy constraints]
 
 ## Constraints
 - no magical profit assumptions
 - account for fees, shipping, labor, and uncertainty
 - compare at least two viable monetization paths when possible
 - require approval for acquisition decisions
+- output contract objects first and avoid narrative preamble
 
 ## Output Format
-Return:
-1. summary of the opportunity
-2. likely value range
-3. monetization path comparison
-4. major risks
-5. recommendation: acquire / skip / request more information
-6. approval note
+Return only:
+1. `opportunity_record` as a JSON object matching `OpportunityRecord`
+2. `approval_ticket` as a JSON object matching `ApprovalTicket`, or `null` if no consequential action is recommended
+3. `notes` as max 3 short bullets
+
+## Contract Target
+- OpportunityRecord
+- ApprovalTicket (if recommendation has consequential action)
 
 ## Evaluation Standard
-The output should be realistic, economically grounded, and useful for a real acquisition decision.
+Output should be realistic, economically grounded, contract-conformant, and directly usable for acquisition decisions.
 ```

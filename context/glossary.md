@@ -1,37 +1,61 @@
-# Glossary
+﻿# Glossary
 
 ## Capital allowance
 
-The fixed amount of deployable capital the company can use for acquisitions.
+Fixed deployable budget for acquisitions.
 
 ## Opportunity
 
-A possible used electronics deal worth evaluating.
+Potential used-electronics deal to evaluate.
 
 ## Monetization path
 
-The recommended route to profit, such as repair and resale, part-out, resale-as-is, or skip.
+Route to realize value (repair and resale, resale as-is, part-out, skip).
 
 ## Approval gate
 
-A point where human review is required before the system can proceed.
+Point where human decision is required before progress.
 
 ## Company state
 
-The current operational snapshot across opportunities, tasks, agents, KPIs, and alerts.
+Current operational snapshot across opportunities, tasks, approvals, KPIs, and alerts.
 
 ## Office simulation
 
-The top-down visual layer that represents the digital company at work.
+Top-down visual layer representing real company operations.
 
 ## Agent
 
-A specialized digital department role with defined inputs, outputs, constraints, and KPIs.
+Specialized role with defined inputs, outputs, constraints, and KPIs.
 
 ## Shared board
 
-The central company summary surface showing priorities, blockers, alerts, and active initiatives.
+Central operational summary (priorities, blockers, alerts, approvals).
 
 ## Prompt asset
 
-A prompt treated as a reusable, revisable project artifact rather than a one-off message.
+Reusable prompt artifact designed for iterative refinement.
+
+## Output contract
+
+Stable data/interface shape used across prompts and handoffs.
+
+## OpportunityRecord
+
+Canonical contract for opportunity evaluation state.
+
+## HandoffPacket
+
+Canonical contract for cross-agent transfer of ownership.
+
+## ApprovalTicket
+
+Canonical contract for consequential decision requests.
+
+## AgentStatusCard
+
+Canonical contract for per-agent live status display.
+
+## CompanyBoardSnapshot
+
+Canonical contract for high-level board summary.

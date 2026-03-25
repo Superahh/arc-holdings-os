@@ -1,6 +1,6 @@
-# Decisions
+﻿# Decisions
 
-Important decisions go here so the project does not lose its own memory.
+Important decisions go here so the project keeps operational memory.
 
 ## Decision log template
 
@@ -8,29 +8,29 @@ Important decisions go here so the project does not lose its own memory.
 ## YYYY-MM-DD
 
 ### Decision
-Write the decision in one sentence.
+One-sentence decision.
 
 ### Why
-Why this was chosen now.
+Why this is the right move now.
 
 ### Tradeoff
-What you gain and what you give up.
+What is gained and what is given up.
 
 ### Revisit later
 Yes or No.
-If yes, state the trigger for revisiting it.
+If yes, define the trigger.
 ```
 
 ## 2026-03-25
 
 ### Decision
-Use the existing Prompt Lab workspace as the ARC Holdings OS planning system.
+Use the existing Prompt Lab workspace as ARC Holdings OS planning system.
 
 ### Why
-The workspace already has the right operating model: specs, prompts, constraints, evals, and revision loops.
+The architecture already supports specs, prompts, context, evals, and iteration.
 
 ### Tradeoff
-Some generic language must be rewritten, but this is much lower risk than creating a second parallel planning repo.
+Requires targeted rewrites, but avoids creating a parallel planning repo.
 
 ### Revisit later
 No.
@@ -38,58 +38,57 @@ No.
 ## 2026-03-25
 
 ### Decision
-Version 1 will require human approval on key actions.
+Version 1 requires human approval on consequential actions.
 
 ### Why
-Purchasing, marketplace activity, pricing, and fulfillment decisions have real financial and operational consequences.
+Financial, marketplace, and policy actions require trust and auditability.
 
 ### Tradeoff
-The system will feel less autonomous at first, but it will be safer, more realistic, and easier to trust.
+Less automation initially, more safety and realism.
 
 ### Revisit later
 Yes.
-Revisit after the company workflow and audit trail are stable.
+Trigger: stable workflow plus audit trail quality.
 
 ## 2026-03-25
 
 ### Decision
-The office simulation is a presentation layer over real company state.
+Office simulation is a representation layer, not a game layer.
 
 ### Why
-This keeps the interface motivating and memorable without letting the product drift into a fake game.
+This preserves operational clarity and avoids visual drift.
 
 ### Tradeoff
-Some visually fun ideas will be cut if they do not improve clarity or decision-making.
+Some fun ideas are intentionally rejected.
 
 ### Revisit later
 No.
 
-## 2026-03-25
+## 2026-03-26
 
 ### Decision
-Define the company hierarchy in one file first.
+Standardize prompt outputs with shared contracts in [specs/contracts.md](./specs/contracts.md).
 
 ### Why
-Keeping all core agents in [`specs/agent_roles.md`](./specs/agent_roles.md) makes version 1 easier to reason about and prevents prompt sprawl.
+A single shape system reduces handoff ambiguity and accelerates implementation.
 
 ### Tradeoff
-That file may get long, but it keeps the operating model centralized while the system is still forming.
+Slightly more structure in prompts, less output flexibility.
 
 ### Revisit later
 Yes.
-Split only if the file becomes difficult to maintain.
+Trigger: implementation proves specific fields are unnecessary or missing.
 
-## 2026-03-25
+## 2026-03-26
 
 ### Decision
-Keep version 1 focused on one realistic opportunity pipeline.
+Consolidate duplicate templates and fragmented experiments into single sources.
 
 ### Why
-This proves the company model without pretending to run an entire electronics empire on day one.
+Lean structure improves maintainability and reduces context switching.
 
 ### Tradeoff
-Coverage is narrower, but execution quality and implementation speed are much better.
+Less file granularity, better coherence.
 
 ### Revisit later
-Yes.
-Expand once the first pipeline is validated.
+No.

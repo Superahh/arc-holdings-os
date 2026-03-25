@@ -1,52 +1,49 @@
-# Success Criteria
+﻿# Success Criteria
 
 An output is good if it:
 
 - solves the specific task
-- matches project constraints
+- respects constraints and non-goals
 - is practical and implementation-ready
-- avoids unnecessary complexity
-- is easy to revise later
-- reduces ambiguity instead of adding it
-- makes the next action obvious
+- stays lean and revisable
+- conforms to required contract shapes
 
 ## Product-level success
 
-ARC Holdings OS is succeeding if:
+ARC Holdings OS succeeds when:
 
-- the company workflow is credible
-- the office simulation reflects real work state
+- workflow is credible and approval-aware
 - agent roles are clear and non-overlapping
-- risky actions stay approval-aware
-- version 1 stays narrow enough to build
+- office simulation reflects real operational state
+- v1 scope remains narrow and executable
 
 ## Prompt-level success
 
-Prompts are good if they:
+Prompts succeed when they:
 
 - produce realistic business reasoning
-- respect capital, risk, and approval constraints
 - avoid fantasy automation
-- return structured outputs that can be used directly in specs or implementation
+- emit the expected contract outputs
+- reduce ambiguity for next owner/action
 
 ## UX-level success
 
-The interface is good if:
+UX succeeds when:
 
-- the user can read company state quickly
-- priorities and blockers are obvious
-- the office simulation feels alive without becoming noisy
-- operational meaning is stronger than decoration
+- user can scan company state quickly
+- blockers and approvals are obvious
+- simulation feels alive without noise
+- visual elements map to operational meaning
 
 ## Workflow-level success
 
-The workflow is good if:
+Workflow succeeds when:
 
-- each stage has clear inputs and outputs
-- approval gates are explicit
-- bad opportunities are filtered out early
-- handoffs are visible and understandable
+- stage inputs/outputs are explicit
+- handoffs declare next owner and due-by
+- risky actions generate `ApprovalTicket`
+- weak opportunities are filtered early
 
 ## Revision success
 
-This workspace is working if repeated use makes the product clearer, more realistic, and easier to implement.
+The workspace succeeds over time when repeated use improves clarity, realism, and implementation speed.

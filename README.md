@@ -1,73 +1,65 @@
-# ARC Holdings OS
+﻿# ARC Holdings OS
 
-ARC Holdings OS is a markdown-first planning and specification workspace for a digital, agent-run electronics opportunity company.
+ARC Holdings OS is a markdown-first Prompt Lab workspace for running a lean, multi-agent company OS around used-electronics opportunities.
 
-The workspace preserves the Prompt Lab operating model:
+Core philosophy:
 
-- prompts are reusable assets
-- specs are explicit
-- failures are logged
-- revisions are deliberate
-
-## Core project idea
-
-ARC Holdings OS is not just a sourcing tool.
-
-It is a top-down company operating system where specialized agents act like departments inside a business. The user should be able to see the company working through a polished office simulation while the underlying system handles real business reasoning around used electronics opportunities.
+- reusable prompts
+- explicit specs
+- repeatable evals
+- durable context
+- tight iteration loops
 
 ## What this repo is for
 
 Use this repo to:
 
-- define the business and product boundaries of ARC Holdings OS
-- specify the agent hierarchy and workflow handoffs
-- design the office simulation as a visual layer over real company state
-- write reusable prompts for planning, orchestration, evaluation, and UI work
-- log failures and decisions as the system evolves
+- define product, workflow, and policy boundaries
+- keep agent roles and handoffs explicit
+- design office simulation as a view of true company state
+- produce reusable prompt assets that emit contract-shaped outputs
+- evaluate quality and log revisions
 
 ## Operating loop
 
-1. Update [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md).
-2. Set the active milestone in [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md).
-3. Define or revise the relevant specs in [`specs/`](./specs).
-4. Use or revise prompts in [`prompts/`](./prompts).
-5. Evaluate outputs against [`specs/constraints.md`](./specs/constraints.md) and [`specs/success_criteria.md`](./specs/success_criteria.md).
-6. Log results in [`evals/`](./evals).
-7. Capture decisions and scope cuts in [`DECISIONS.md`](./DECISIONS.md).
-
-## Fast start
-
-If you want the shortest path, open [`RUNBOOK.md`](./RUNBOOK.md).
+1. Update [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) and [CURRENT_FOCUS.md](./CURRENT_FOCUS.md).
+2. Lock constraints and interfaces in [specs/constraints.md](./specs/constraints.md) and [specs/contracts.md](./specs/contracts.md).
+3. Draft or revise docs/prompts.
+4. Run prompts on real scenarios.
+5. Evaluate against [specs/success_criteria.md](./specs/success_criteria.md).
+6. Log outcomes in [evals/](./evals).
+7. Record decisions and cuts in [DECISIONS.md](./DECISIONS.md).
 
 ## Repo map
 
-- [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md): project goal, business model, and definition of done
-- [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md): active milestone, blockers, and next actions
-- [`RUNBOOK.md`](./RUNBOOK.md): how to use the system without overthinking it
-- [`DECISIONS.md`](./DECISIONS.md): major product, technical, and scope decisions
-- [`specs/product_spec.md`](./specs/product_spec.md): product truth
-- [`specs/technical_spec.md`](./specs/technical_spec.md): architecture and system design
-- [`specs/ux_spec.md`](./specs/ux_spec.md): interface and interaction rules
-- [`specs/agent_roles.md`](./specs/agent_roles.md): company hierarchy and department roles
-- [`specs/workflow_spec.md`](./specs/workflow_spec.md): operational pipeline
-- [`specs/office_simulation.md`](./specs/office_simulation.md): top-down office visual system
-- [`specs/automation_policy.md`](./specs/automation_policy.md): approval and automation guardrails
+- [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md): product target and definition of done
+- [CURRENT_FOCUS.md](./CURRENT_FOCUS.md): active milestone and next actions
+- [RUNBOOK.md](./RUNBOOK.md): practical execution flow
+- [IMPLEMENTATION_HANDOFF_CHECKLIST.md](./IMPLEMENTATION_HANDOFF_CHECKLIST.md): contract-to-prompt-to-eval build handoff gate
+- [DECISIONS.md](./DECISIONS.md): durable decision memory
+- [specs/](./specs): product, workflow, UX, policy, and interface contracts
+- [prompts/system/](./prompts/system): reusable system roles
+- [prompts/tasks/](./prompts/tasks): reusable task prompts
+- [prompts/templates/](./prompts/templates): prompt and eval templates
+- [context/](./context): domain assumptions and examples
+- [evals/](./evals): test cases, wins, failures, benchmarks
+- [experiments/prompt_iterations.md](./experiments/prompt_iterations.md): unified experiment log
+- [runtime/](./runtime): implementation slice(s) aligned to frozen contracts
 
-## First files to use
+## First files to open
 
-- [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md)
-- [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md)
-- [`specs/product_spec.md`](./specs/product_spec.md)
-- [`specs/constraints.md`](./specs/constraints.md)
-- [`specs/agent_roles.md`](./specs/agent_roles.md)
-- [`specs/workflow_spec.md`](./specs/workflow_spec.md)
-- [`specs/office_simulation.md`](./specs/office_simulation.md)
-- [`prompts/tasks/feature_planning.md`](./prompts/tasks/feature_planning.md)
+- [specs/product_spec.md](./specs/product_spec.md)
+- [specs/workflow_spec.md](./specs/workflow_spec.md)
+- [specs/contracts.md](./specs/contracts.md)
+- [specs/automation_policy.md](./specs/automation_policy.md)
+- [prompts/tasks/opportunity_evaluation.md](./prompts/tasks/opportunity_evaluation.md)
+- [IMPLEMENTATION_HANDOFF_CHECKLIST.md](./IMPLEMENTATION_HANDOFF_CHECKLIST.md)
+- [runtime/README.md](./runtime/README.md)
 
-## Working principles
+## Minimal rules
 
-- keep the company model realistic
-- keep version 1 narrow
-- treat visuals as a view of real state, not fantasy decoration
-- preserve ADHD-friendly clarity
-- prefer one clean operating system over too many disconnected docs
+- keep v1 narrow
+- map visuals to true state
+- keep risky actions approval-gated
+- avoid one-off prompt sprawl
+- prefer small, reversible changes

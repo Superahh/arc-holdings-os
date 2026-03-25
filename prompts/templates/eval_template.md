@@ -1,4 +1,4 @@
-# Eval Template
+﻿# Eval Template
 
 Use this template to evaluate a prompt run with a repeatable standard.
 
@@ -20,22 +20,26 @@ Use this template to evaluate a prompt run with a repeatable standard.
 ## Prompt version
 [v1, v2, etc.]
 
+## Contract target
+[required output contract(s)]
+
 ## Output summary
 [short summary]
 
 ## What worked
 - [point]
-- [point]
 
 ## What failed
-- [point]
 - [point]
 
 ## What was missing
 - [point]
-- [point]
 
 ## Constraint adherence
+- Passed:
+- Failed:
+
+## Contract conformance
 - Passed:
 - Failed:
 

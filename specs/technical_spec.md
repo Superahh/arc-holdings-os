@@ -1,56 +1,52 @@
-# Technical Spec
+﻿# Technical Spec
 
 ## System overview
 
-ARC Holdings OS should be designed as a multi-layer system:
+ARC Holdings OS is a layered system:
 
-- business state
-- agent orchestration
-- approval and policy control
-- office simulation UI
-- evaluation and feedback loop
+- business state layer
+- agent orchestration layer
+- approval/policy layer
+- office simulation view layer
+- evaluation and iteration layer
 
 ## Core modules
 
-- company state store
-- opportunity intake and evaluation pipeline
-- agent role engine
-- CEO orchestration layer
+- opportunity intake and normalization
+- valuation and risk evaluation
+- CEO routing and prioritization
 - approval queue
-- office simulation presentation layer
-- evaluation and logging layer
+- workflow/state tracker
+- office status composer
+- eval logger
 
-## Data flow
+## Canonical interfaces
 
-1. A new opportunity enters the system.
-2. The sourcing and valuation functions assess likely economics.
-3. Risk and compliance checks flag concerns.
-4. Repair and listing strategy functions propose monetization paths.
-5. The CEO layer prioritizes, routes, and requests approval where needed.
-6. Approved work updates company state.
-7. The office simulation reflects the current tasks, alerts, and priorities.
-8. Outcomes are logged for later evaluation and prompt revision.
+All cross-agent outputs must use contracts in [contracts.md](./contracts.md):
 
-## Key entities
+- `OpportunityRecord`
+- `HandoffPacket`
+- `ApprovalTicket`
+- `AgentStatusCard`
+- `CompanyBoardSnapshot`
 
-- opportunity
-- device
-- acquisition recommendation
-- monetization path
-- approval request
-- task
-- agent
-- department
-- KPI snapshot
-- alert
+## Data flow (v1)
+
+1. Intake creates `OpportunityRecord`.
+2. Valuation and risk enrich the record.
+3. CEO produces route recommendation and `HandoffPacket`.
+4. Consequential action generates `ApprovalTicket`.
+5. Approved action updates workflow state.
+6. Office layer emits `AgentStatusCard` and `CompanyBoardSnapshot`.
+7. Evals log quality, failures, and revisions.
 
 ## State model
 
-Each opportunity should move through explicit states such as:
+Opportunity states:
 
 - discovered
 - researching
-- awaiting approval
+- awaiting_approval
 - approved
 - acquired
 - routed
@@ -58,45 +54,40 @@ Each opportunity should move through explicit states such as:
 - closed
 - rejected
 
-Each agent should also expose a simple operating state such as:
+Agent states:
 
 - idle
 - working
 - blocked
-- awaiting approval
+- awaiting_approval
 - alert
 
 ## Approval model
 
-Human approval is required in version 1 for:
+Human approval required for:
 
-- acquisition decisions
-- pricing or listing actions
-- outbound marketplace or buyer actions
+- acquisition
+- pricing/listing actions
 - policy overrides
-- any action with real monetary or compliance consequences
+- any monetary or compliance consequence
+
+Approval requests must emit `ApprovalTicket`.
 
 ## Integration strategy
 
-Version 1 should not depend on the user supplying API keys during normal use.
+- no required user API-key setup for normal v1 operation
+- use mocked/internal inputs where needed
+- keep external integrations optional behind interfaces
 
-That means:
+## Key implementation risks
 
-- start with mocked or internal data paths where needed
-- keep external integrations optional
-- treat real integrations as later modules behind clear interfaces
-
-## Risks
-
-- building a beautiful simulation before the workflow is credible
-- giving agents vague responsibilities with overlapping authority
-- assuming data quality or marketplace access that does not exist
-- overdesigning automation before approval rules are stable
-- creating too many one-off prompts instead of reusable patterns
+- contract drift across prompts
+- overlapping agent authority
+- simulation-first output with weak operational core
+- unclear ownership at handoffs
 
 ## Open questions
 
-- What is the first concrete opportunity source for version 1?
-- How much historical data is required to make valuation useful?
-- What minimal persistence layer is needed for the first build?
-- Which visual states matter most in the office simulation at launch?
+- first concrete source feed for opportunity intake
+- minimum persistence model for v1 build
+- KPI subset required at launch

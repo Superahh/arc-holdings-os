@@ -1,55 +1,47 @@
-# RUNBOOK
+﻿# RUNBOOK
 
-This is the shortest path for using ARC Holdings OS planning docs without overthinking it.
+Use this flow to operate ARC Holdings OS planning without overscoping.
 
-## For a new product idea or direction change
+## 1) Start from objective and boundary
 
-1. Write or update [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md).
-2. Set [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md).
-3. Add relevant constraints in [`specs/constraints.md`](./specs/constraints.md).
-4. Update the relevant spec in [`specs/`](./specs).
-5. Run the prompt.
-6. Log the result in [`evals/failure_log.md`](./evals/failure_log.md) or [`evals/wins.md`](./evals/wins.md).
-7. Revise the prompt or spec if needed.
+1. Update [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md).
+2. Set active milestone in [CURRENT_FOCUS.md](./CURRENT_FOCUS.md).
+3. Confirm non-negotiables in [specs/constraints.md](./specs/constraints.md).
 
-## For a new agent
+## 2) Lock interface contracts before prompt churn
 
-1. Update [`specs/agent_roles.md`](./specs/agent_roles.md).
-2. Define the job, goals, inputs, outputs, constraints, handoffs, and KPIs.
-3. Use [`prompts/tasks/agent_design.md`](./prompts/tasks/agent_design.md).
-4. Record scope or hierarchy decisions in [`DECISIONS.md`](./DECISIONS.md).
+1. Check [specs/contracts.md](./specs/contracts.md).
+2. If output shape is unclear, define or revise the contract first.
+3. Keep contract changes minimal and explicit.
 
-## For workflow design or revision
+## 3) Revise specs and prompts
 
-1. Update [`specs/workflow_spec.md`](./specs/workflow_spec.md).
-2. Use [`prompts/tasks/workflow_design.md`](./prompts/tasks/workflow_design.md).
-3. Require human approval points and failure states.
-4. Reject steps that depend on magical automation.
+1. Update relevant docs in [specs/](./specs).
+2. Use task prompts from [prompts/tasks/](./prompts/tasks).
+3. Keep outputs implementation-oriented and contract-shaped.
 
-## For UI and office simulation work
+## 4) Run and evaluate
 
-1. Update [`specs/ux_spec.md`](./specs/ux_spec.md) and [`specs/office_simulation.md`](./specs/office_simulation.md).
-2. Use [`prompts/tasks/ui_generation.md`](./prompts/tasks/ui_generation.md).
-3. Require visual element to business meaning mapping.
-4. Cut any visual concept that does not improve clarity, motivation, or decision quality.
+1. Run prompt on a realistic scenario.
+2. Evaluate against [specs/success_criteria.md](./specs/success_criteria.md).
+3. Log failures in [evals/failure_log.md](./evals/failure_log.md) and wins in [evals/wins.md](./evals/wins.md).
+4. Add/refresh repeatable checks in [evals/test_cases.md](./evals/test_cases.md).
 
-## For debugging
+## 5) Record memory and next step
 
-1. Gather the error, context, logs, and affected files.
-2. Use [`prompts/tasks/bug_hunting.md`](./prompts/tasks/bug_hunting.md).
-3. Require root cause, fix approach, and verification steps.
-4. Save any useful pattern into [`context/examples.md`](./context/examples.md).
+1. Capture decisions in [DECISIONS.md](./DECISIONS.md).
+2. Record what changed in [CHANGELOG.md](./CHANGELOG.md).
+3. Add experiment notes in [experiments/prompt_iterations.md](./experiments/prompt_iterations.md).
 
-## For prompt revision
+## 6) Implementation handoff gate
 
-1. Run the prompt on a real ARC task.
-2. Log failures in [`evals/failure_log.md`](./evals/failure_log.md).
-3. Compare the output against [`specs/success_criteria.md`](./specs/success_criteria.md).
-4. Revise the prompt with the smallest useful improvement.
+1. Run [IMPLEMENTATION_HANDOFF_CHECKLIST.md](./IMPLEMENTATION_HANDOFF_CHECKLIST.md).
+2. Confirm all contract, prompt, and eval checks pass.
+3. Start implementation only after checklist sign-off.
 
-## Minimal rule
+## Practical guardrails
 
-If a visual idea is not tied to company state, cut it.
-If a workflow step is not operationally realistic, cut it.
-If a prompt was useful, preserve it.
-If a prompt failed, log why and revise it.
+- If a visual element has no operational meaning, cut it.
+- If a workflow step is not realistic, cut it.
+- If a prompt is one-off, template it or remove it.
+- If risky action is proposed without approval ticket, reject it.

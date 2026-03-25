@@ -1,79 +1,58 @@
-# Office Simulation
+﻿# Office Simulation
 
 ## Purpose
 
-Define how the top-down office interface represents the digital company without drifting away from operational truth.
+Define how office visuals represent live company operations without decorative drift.
 
 ## Core rule
 
-Every visible office element must map to a real company state, task, risk, or KPI.
+Every visible element must map to a real workflow state, task, risk, or KPI.
 
-## Version 1 visual elements
+## Required v1 visual elements
 
 - top-down office layout
 - department zones
-- individual agent presence
-- status indicators
-- thought or speech bubbles
+- per-agent status cards
 - shared company board
 - approval and alert indicators
 
-## Department zones
+## Contract-backed UI data
 
-Version 1 should include distinct spaces for:
+Office simulation should be driven by:
 
-- CEO oversight
-- finance
-- sourcing
-- valuation
-- risk and compliance
-- repair strategy
-- listing
-- operations
-- growth
+- `AgentStatusCard` for agent tiles/bubbles
+- `CompanyBoardSnapshot` for board area
+- `ApprovalTicket` count/status for approval queue indicators
 
 ## Agent status states
-
-Each agent should show one simple state:
 
 - idle
 - working
 - blocked
-- awaiting approval
+- awaiting_approval
 - alert
 
-## Thought or speech bubbles
+## Bubble content rules
 
-Bubbles should show short, useful statements such as:
+Bubbles may include only:
 
 - active task
 - blocker
-- warning
-- request for approval
-- progress note
+- approval request
+- risk warning
+- concise progress note
 
-Do not use bubbles for fake personality filler.
-
-## Shared company board
-
-The board should show:
-
-- top priorities
-- active opportunities
-- current blockers
-- approvals waiting
-- alerts that affect company performance
+No personality filler.
 
 ## Visual intensity rules
 
-- keep animation minimal in version 1
-- prioritize readability over novelty
-- avoid too many simultaneous motion cues
-- preserve a clean hierarchy between office view and actionable controls
+- minimal motion in v1
+- no animation-first design
+- prioritize readability and queue clarity
+- highlight blockers and approvals first
 
 ## Anti-patterns
 
-- purely decorative rooms
-- visual gags without operational meaning
-- fake chatter that obscures important information
-- simulation detail that delays shipping core functionality
+- decorative rooms without operational meaning
+- fake chatter that hides decisions
+- visual complexity that obscures risk or priority

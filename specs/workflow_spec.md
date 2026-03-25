@@ -1,83 +1,81 @@
-# Workflow Spec
+﻿# Workflow Spec
 
 ## Purpose
 
-Define the core operating flow for ARC Holdings OS from opportunity intake to monetization.
+Define the v1 operating flow from opportunity intake to outcome logging with explicit contracts and approvals.
 
 ## Version 1 workflow
 
 1. Opportunity discovered
-2. Opportunity normalized into a structured record
-3. Valuation review
+2. Opportunity normalized
+3. Valuation assessment
 4. Risk and compliance review
-5. Repair or monetization path recommendation
+5. Routing recommendation
 6. CEO prioritization
-7. Human approval on key actions
-8. Acquisition or rejection
-9. Operations routing
-10. Listing or monetization execution
-11. Outcome logging
+7. Approval gate (when required)
+8. Execution (acquire/skip/route)
+9. Monetization execution
+10. Outcome logging and iteration
 
-## Stage definitions
+## Stage contracts
 
-### Opportunity discovered
+### 1) Opportunity discovered
 
-- raw source enters the system
-- duplicate check runs
-- obvious junk is filtered out
+- output: initial `OpportunityRecord`
+- checks: duplicate filter, obvious junk filter
 
-### Structured review
+### 2) Opportunity normalized
 
-- basic device details are captured
-- missing information is noted
-- confidence level is set
+- output: updated `OpportunityRecord`
+- checks: missing fields, confidence level
 
-### Economic assessment
+### 3) Valuation assessment
 
-- likely value range is estimated
-- fees, labor, and uncertainty are considered
-- candidate monetization paths are compared
+- output: enriched `OpportunityRecord`
+- checks: value range, path comparison, cost realism
 
-### Risk review
+### 4) Risk and compliance review
 
-- fraud, compliance, platform, and operational risk are checked
-- opportunities may be blocked, downgraded, or escalated
+- output: enriched `OpportunityRecord`
+- checks: fraud, policy, legal, operational risk flags
 
-### Routing recommendation
+### 5) Routing recommendation
 
-- recommend acquire, skip, or request more information
-- recommend repair, part-out, resale-as-is, or other approved path
+- output: `HandoffPacket` to CEO
+- checks: recommended path and fallback path
 
-### Approval gate
+### 6) CEO prioritization
 
-- user approves or rejects risky actions
-- approval state is recorded visibly
+- output: routed `HandoffPacket` to next owner
+- checks: capital exposure, queue priority, blocker impact
 
-### Operational execution
+### 7) Approval gate
 
-- the item moves into the chosen path
-- the operations coordinator updates stage state
-- the office simulation reflects the new status
+- output: `ApprovalTicket`
+- checks: recommendation, exposure, risk summary, deadline
 
-### Outcome logging
+### 8) Execution
 
-- realized result is captured
-- the system records what worked, what failed, and what should improve
+- output: workflow state update + `HandoffPacket`
+- checks: decision recorded, next owner explicit
 
-## Required approval points
+### 9) Monetization execution
 
-- acquisition recommendation
-- pricing recommendation
-- listing or sale actions
-- exceptions to normal policy
+- output: status updates and route outcome notes
+- checks: pricing/listing actions remain approval-aware
+
+### 10) Outcome logging
+
+- output: eval entry in wins/failures/benchmarks
+- checks: expected vs realized result noted
 
 ## Failure states
 
-- insufficient information
+- insufficient data
 - weak economics
 - elevated fraud or policy risk
-- budget exhausted or constrained
-- route blocked by operational capacity
+- budget constrained
+- blocked operational capacity
 
 ## Metrics to watch
 
@@ -86,3 +84,4 @@ Define the core operating flow for ARC Holdings OS from opportunity intake to mo
 - realized margin vs expected margin
 - time in stage
 - blocked task count
+- contract conformance rate

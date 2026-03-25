@@ -1,0 +1,29 @@
+{
+  "opportunity_id": "opp-2026-03-25-001",
+  "source": "facebook_marketplace",
+  "captured_at": "2026-03-25T14:30:00-04:00",
+  "device": {
+    "name": "iPhone 14 Pro 256GB",
+    "condition": "powers on, back glass cracked, 89% battery health",
+    "carrier_status": "unverified",
+    "accessories": "none"
+  },
+  "ask_price_usd": 460,
+  "seller_notes": "Needs quick cash, shipping only; can provide IMEI photo/video before payment.",
+  "market_comps_usd": [590, 620, 640],
+  "estimated_costs": {
+    "repair_usd": 120,
+    "fees_usd": 72,
+    "shipping_usd": 18,
+    "labor_usd": 25
+  },
+  "policy_constraints": {
+    "approval_required_for_acquisition": true,
+    "max_single_acquisition_without_review_usd": 300
+  },
+  "known_risks": [
+    "carrier lock or blacklist risk",
+    "IMEI mismatch risk",
+    "condition variance risk"
+  ]
+}
