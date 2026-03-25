@@ -46,6 +46,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add one-command runtime test runner for operator/dev workflows
 - [x] harden pipeline tests for remote-safe handoff wording across scenario branches
 - [x] add one-command markdown link integrity check utility
+- [x] add one-command repo quality gate wrapper
 
 ## Out of scope
 

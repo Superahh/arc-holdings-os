@@ -26,9 +26,7 @@ Use this flow to operate ARC Holdings OS planning without overscoping.
 2. Evaluate against [specs/success_criteria.md](./specs/success_criteria.md).
 3. Log failures in [evals/failure_log.md](./evals/failure_log.md) and wins in [evals/wins.md](./evals/wins.md).
 4. Add/refresh repeatable checks in [evals/test_cases.md](./evals/test_cases.md).
-5. Run quality checks:
-   - `node runtime/tests/run_all_tests.js`
-   - `node tools/check_markdown_links.js --root .`
+5. Run quality gate: `node tools/run_quality_checks.js --root .`.
 
 ## 5) Record memory and next step
 

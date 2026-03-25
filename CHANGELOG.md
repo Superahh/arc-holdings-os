@@ -44,6 +44,7 @@
 - Added single-command runtime test runner helper to execute all CLI/unit tests in deterministic order (`runtime/tests/run_all_tests.js`, `runtime/tests/run_all_tests.test.js`, `runtime/README.md`).
 - Hardened pipeline scenario tests with explicit remote-safe handoff assertions across request-more-info, acquisition, and skip paths (`runtime/tests/pipeline.test.js`).
 - Added reusable markdown link checker utility and wired it into repo quality-check docs (`tools/check_markdown_links.js`, `README.md`, `RUNBOOK.md`).
+- Added one-command quality gate wrapper to run runtime tests + markdown link checks from repo root (`tools/run_quality_checks.js`, `README.md`, `RUNBOOK.md`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.

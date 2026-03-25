@@ -69,6 +69,12 @@ Use this repo to:
 Run these from repo root:
 
 ```powershell
+node tools/run_quality_checks.js --root .
+```
+
+Or run each command separately:
+
+```powershell
 node runtime/tests/run_all_tests.js
 node tools/check_markdown_links.js --root .
 ```
