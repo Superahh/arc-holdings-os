@@ -31,6 +31,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `batch_ops_cli.js`: CLI to run ops loop across multiple fixtures and emit batch artifact
 - `artifact_index_cli.js`: CLI to index runtime output artifacts by type
 - `artifact_prune_cli.js`: CLI to prune old output artifacts (dry-run by default)
+- `acceptance_cli.js`: CLI to run acceptance checks for golden + rejection drill scenarios
 - `fixtures/golden-scenario.json`: baseline `request_more_info` scenario input
 - `fixtures/rejection-scenario.json`: acquisition candidate fixture for rejection-path testing
 - `tests/pipeline.test.js`: unit tests using Node built-in test runner
@@ -46,6 +47,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/batch_ops_cli.test.js`: multi-fixture batch ops CLI tests
 - `tests/artifact_index_cli.test.js`: artifact index CLI tests
 - `tests/artifact_prune_cli.test.js`: artifact prune CLI tests
+- `tests/acceptance_cli.test.js`: acceptance CLI scenario gate tests
 - `output/`: generated runs and maintained snapshots
 - `state/`: mutable local state files (runtime artifacts)
 
@@ -65,6 +67,7 @@ node runtime/tests/ops_loop_cli.test.js
 node runtime/tests/batch_ops_cli.test.js
 node runtime/tests/artifact_index_cli.test.js
 node runtime/tests/artifact_prune_cli.test.js
+node runtime/tests/acceptance_cli.test.js
 ```
 
 ## Execute pipeline and persist artifacts
@@ -156,6 +159,12 @@ Apply prune:
 
 ```powershell
 node runtime/artifact_prune_cli.js --base-dir runtime/output --keep 20 --apply
+```
+
+Run acceptance scenario gate:
+
+```powershell
+node runtime/acceptance_cli.js
 ```
 
 ## Scope note

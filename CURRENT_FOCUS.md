@@ -26,6 +26,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] collect one failure and one win from real prompt runs
 - [x] freeze v1 interface contracts for implementation handoff
 - [x] add additional runtime scenario coverage for `request_more_info` and rejection paths
+- [x] add acceptance gate CLI for repeatable scenario validation
 
 ## Out of scope
 

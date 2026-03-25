@@ -23,6 +23,7 @@
 - Added artifact prune CLI for retention management (`runtime/artifact_prune_cli.js`, `runtime/tests/artifact_prune_cli.test.js`).
 - Added rejection-path runtime scenario fixture and decision coverage (`runtime/fixtures/rejection-scenario.json`, `runtime/tests/queue_decision_cli.test.js`).
 - Updated scenario docs to include explicit rejection drill acceptance checks (`context/examples.md`, `evals/test_cases.md`, `CURRENT_FOCUS.md`).
+- Added acceptance scenario gate CLI for contract checks across golden + rejection drills (`runtime/acceptance_cli.js`, `runtime/tests/acceptance_cli.test.js`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.
