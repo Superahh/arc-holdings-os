@@ -42,6 +42,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] include awaiting-task summary in consolidated ops report and loop/batch controls
 - [x] source awaiting workflow task details from latest handoff artifacts
 - [x] source awaiting workflow task details in ops report from latest handoff artifacts
+- [x] enforce remote-safe handoff actions for shipping-only scenarios in acceptance gate
 
 ## Out of scope
 

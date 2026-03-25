@@ -40,6 +40,7 @@
 - Added awaiting-task summary to consolidated ops reports and propagated task-limit controls through ops loop/batch CLIs (`runtime/ops_report_cli.js`, `runtime/ops_loop_cli.js`, `runtime/batch_ops_cli.js`, related tests).
 - Enhanced ops status workflow tasks to use latest run-artifact handoff `next_action` and `due_by` when available (`runtime/ops_status_cli.js`, `runtime/tests/ops_status_cli.test.js`).
 - Enhanced ops report workflow tasks to use latest run-artifact handoff `next_action` and `due_by` when available (`runtime/ops_report_cli.js`, `runtime/tests/ops_report_cli.test.js`).
+- Added shipping-only delivery-mode acceptance guardrail to require remote-safe handoff actions (no in-person instructions) in scenario checks (`runtime/acceptance_cli.js`, `runtime/tests/acceptance_cli.test.js`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.

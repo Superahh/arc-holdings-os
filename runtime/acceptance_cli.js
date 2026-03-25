@@ -106,6 +106,33 @@ function pushContractChecks(checks, prefix, output) {
   );
 }
 
+const IN_PERSON_ACTION_PATTERN = /\b(in[- ]person|face[- ]to[- ]face|meet(?:ing)?|pickup|on[- ]site|onsite)\b/i;
+const REMOTE_ACTION_PATTERN = /\b(remote|ship(?:ping)?|video|photo|imei|carrier)\b/i;
+
+function isShippingOnlyScenario(input) {
+  const notes = String(input?.seller_notes || "").toLowerCase();
+  return notes.includes("shipping only");
+}
+
+function evaluateHandoffDeliveryMode(input, output) {
+  if (!isShippingOnlyScenario(input)) {
+    return {
+      pass: true,
+      detail: "Delivery-mode check not required for non-shipping-only scenario.",
+    };
+  }
+
+  const nextAction = String(output?.handoff_packet?.next_action || "");
+  const includesInPerson = IN_PERSON_ACTION_PATTERN.test(nextAction);
+  const includesRemoteSignal = REMOTE_ACTION_PATTERN.test(nextAction);
+  return {
+    pass: !includesInPerson && includesRemoteSignal,
+    detail: !includesInPerson && includesRemoteSignal
+      ? "Shipping-only scenario handoff stays remote-safe."
+      : `Shipping-only scenario handoff must be remote-safe. next_action=\"${nextAction}\"`,
+  };
+}
+
 function runAcceptanceAction(args) {
   const checks = [];
   const workflowState = createEmptyWorkflowState(args.nowGolden);
@@ -132,6 +159,8 @@ function runAcceptanceAction(args) {
     goldenWorkflow.current_status === "researching",
     "Golden scenario should map to researching lifecycle status."
   );
+  const goldenDeliveryMode = evaluateHandoffDeliveryMode(golden.input, goldenOutput);
+  pushCheck(checks, "golden.remote_safe_handoff", goldenDeliveryMode.pass, goldenDeliveryMode.detail);
 
   const rejection = readFixture(args.rejectionFixture);
   const rejectionOutput = runOpportunityPipeline(rejection.input, new Date(args.nowRejection).toISOString());
@@ -160,6 +189,8 @@ function runAcceptanceAction(args) {
     rejectionWorkflow.current_status === "awaiting_approval",
     "Rejection drill should map to awaiting_approval before decision."
   );
+  const rejectionDeliveryMode = evaluateHandoffDeliveryMode(rejection.input, rejectionOutput);
+  pushCheck(checks, "rejection.remote_safe_handoff", rejectionDeliveryMode.pass, rejectionDeliveryMode.detail);
 
   if (rejectionOutput.approval_ticket) {
     const queue = createEmptyQueue(args.nowRejection);
@@ -254,5 +285,7 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   runAcceptanceAction,
+  evaluateHandoffDeliveryMode,
+  isShippingOnlyScenario,
   main,
 };

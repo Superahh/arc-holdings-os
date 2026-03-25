@@ -6,7 +6,12 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { parseArgs, runAcceptanceAction } = require("../acceptance_cli");
+const {
+  parseArgs,
+  runAcceptanceAction,
+  evaluateHandoffDeliveryMode,
+  isShippingOnlyScenario,
+} = require("../acceptance_cli");
 
 test("parseArgs validates timestamp inputs", () => {
   assert.throws(() => parseArgs(["--now-golden", "not-a-date"]), /--now-golden/);
@@ -26,6 +31,14 @@ test("runAcceptanceAction passes for default fixtures", () => {
     report.checks.some(
       (check) => check.id === "rejection.workflow_awaiting_approval" && check.pass === true
     ),
+    true
+  );
+  assert.equal(
+    report.checks.some((check) => check.id === "golden.remote_safe_handoff" && check.pass === true),
+    true
+  );
+  assert.equal(
+    report.checks.some((check) => check.id === "rejection.remote_safe_handoff" && check.pass === true),
     true
   );
   assert.equal(
@@ -70,4 +83,24 @@ test("runAcceptanceAction fails when golden fixture does not hit request_more_in
     report.checks.some((check) => check.id === "golden.workflow_researching" && check.pass === false),
     true
   );
+});
+
+test("delivery-mode guardrail requires remote-safe handoff for shipping-only scenarios", () => {
+  assert.equal(
+    isShippingOnlyScenario({ seller_notes: "Shipping only, IMEI video available." }),
+    true
+  );
+
+  const passResult = evaluateHandoffDeliveryMode(
+    { seller_notes: "Shipping only, IMEI video available." },
+    { handoff_packet: { next_action: "Request remote IMEI proof and verify carrier status." } }
+  );
+  assert.equal(passResult.pass, true);
+
+  const failResult = evaluateHandoffDeliveryMode(
+    { seller_notes: "Shipping only, IMEI video available." },
+    { handoff_packet: { next_action: "Schedule in-person meetup to inspect device." } }
+  );
+  assert.equal(failResult.pass, false);
+  assert.match(failResult.detail, /remote-safe/);
 });
