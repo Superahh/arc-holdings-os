@@ -36,6 +36,7 @@ Deterministic movement foundation:
 - `office.events` provides read-only operational transition signals
 - `office.zone_anchors` provides explicit spatial anchors and connection graph
 - `office.route_hints` provides deterministic handoff waypoints
+- client rendering should expose zone connection rails and highlight only state-backed active routes
 - future room-to-room walking must route through these contracts (no random movement)
 
 ## Agent status states

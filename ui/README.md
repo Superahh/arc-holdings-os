@@ -8,6 +8,7 @@ This folder contains the first visible ARC Holdings OS UI shell.
 - contract-driven rendering from runtime state and latest run artifacts
 - zero external dependencies
 - no new write-paths or backend mutation logic
+- deterministic office transition visuals (handoff overlays + zone connection rails) from read-only snapshot data
 
 ## Regions
 

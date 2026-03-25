@@ -572,6 +572,119 @@ function resolveFallbackNodeCenter(node, layoutRect) {
   };
 }
 
+function zoneEdgeKey(fromZoneId, toZoneId) {
+  return [fromZoneId || "", toZoneId || ""].sort().join("|");
+}
+
+function buildActiveZoneEdges(renderableHandoffs, routeHintLookup) {
+  const activeEdges = new Set();
+  const activeZones = new Set();
+  for (const signal of renderableHandoffs) {
+    const fromZoneId =
+      signal.from_zone_id ||
+      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.from_agent)?.zone_id ||
+      null;
+    const toZoneId =
+      signal.to_zone_id ||
+      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.to_agent)?.zone_id ||
+      null;
+    if (!fromZoneId || !toZoneId) {
+      continue;
+    }
+
+    const routeKey = `${signal.opportunity_id}|${fromZoneId}|${toZoneId}`;
+    const routeHint = routeHintLookup.get(routeKey) || null;
+    const routePath = Array.isArray(routeHint && routeHint.path_zone_ids)
+      ? routeHint.path_zone_ids
+      : [fromZoneId, toZoneId];
+    if (routePath.length <= 1) {
+      continue;
+    }
+
+    for (let index = 0; index < routePath.length - 1; index += 1) {
+      const from = routePath[index];
+      const to = routePath[index + 1];
+      activeEdges.add(zoneEdgeKey(from, to));
+      activeZones.add(from);
+      activeZones.add(to);
+    }
+  }
+  return { activeEdges, activeZones };
+}
+
+function renderZoneNetworkOverlay(renderableHandoffs) {
+  const overlay = elements.officeCanvas.querySelector(".zone-network-overlay");
+  const svg = elements.officeCanvas.querySelector(".zone-network-svg");
+  const layout = elements.officeCanvas.querySelector(".office-layout");
+  if (!overlay || !svg || !layout) {
+    return;
+  }
+
+  svg.replaceChildren();
+  const layoutRect = layout.getBoundingClientRect();
+  const width = Math.max(1, layoutRect.width);
+  const height = Math.max(1, layoutRect.height);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", `${width}`);
+  svg.setAttribute("height", `${height}`);
+
+  const zoneLookup = buildZoneAnchorLookup();
+  const routeHintLookup = buildRouteHintLookup();
+  const { activeEdges, activeZones } = buildActiveZoneEdges(renderableHandoffs, routeHintLookup);
+  const namespace = "http://www.w3.org/2000/svg";
+  const renderedEdges = new Set();
+
+  for (const zone of zoneLookup.values()) {
+    const connections = Array.isArray(zone.connections) ? zone.connections : [];
+    for (const connection of connections) {
+      if (!zoneLookup.has(connection)) {
+        continue;
+      }
+      const key = zoneEdgeKey(zone.zone_id, connection);
+      if (renderedEdges.has(key)) {
+        continue;
+      }
+      renderedEdges.add(key);
+
+      const start =
+        resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "handoff_dock", layoutRect) ||
+        resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "anchor", layoutRect);
+      const end =
+        resolveZoneAnchorPoint(zoneLookup, connection, "handoff_dock", layoutRect) ||
+        resolveZoneAnchorPoint(zoneLookup, connection, "anchor", layoutRect);
+      if (!start || !end) {
+        continue;
+      }
+
+      const lineNode = document.createElementNS(namespace, "path");
+      lineNode.setAttribute("d", `M ${start.x} ${start.y} L ${end.x} ${end.y}`);
+      lineNode.setAttribute(
+        "class",
+        `zone-network-edge ${activeEdges.has(key) ? "is-active" : "is-idle"}`
+      );
+      svg.append(lineNode);
+    }
+  }
+
+  for (const zone of zoneLookup.values()) {
+    const point =
+      resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "handoff_dock", layoutRect) ||
+      resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "anchor", layoutRect);
+    if (!point) {
+      continue;
+    }
+    const node = document.createElementNS(namespace, "circle");
+    node.setAttribute("cx", `${point.x}`);
+    node.setAttribute("cy", `${point.y}`);
+    node.setAttribute("r", activeZones.has(zone.zone_id) ? "4.5" : "3.2");
+    node.setAttribute(
+      "class",
+      `zone-network-node ${activeZones.has(zone.zone_id) ? "is-active" : "is-idle"}`
+    );
+    svg.append(node);
+  }
+}
+
 function renderHandoffOverlay(renderableHandoffs) {
   const overlay = elements.officeCanvas.querySelector(".handoff-overlay");
   const svg = elements.officeCanvas.querySelector(".handoff-svg");
@@ -804,6 +917,9 @@ function renderOfficeCanvas() {
     ${floorBanner}
     ${flowEventsHtml}
     <div class="office-layout-wrap">
+      <div class="zone-network-overlay" aria-hidden="true">
+        <svg class="zone-network-svg"></svg>
+      </div>
       <div class="office-layout">${zonesHtml}</div>
       <div class="handoff-overlay hidden" aria-hidden="true">
         <svg class="handoff-svg"></svg>
@@ -819,6 +935,7 @@ function renderOfficeCanvas() {
     });
   });
 
+  renderZoneNetworkOverlay(renderableHandoffs);
   renderHandoffOverlay(renderableHandoffs);
 }
 
