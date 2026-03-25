@@ -30,6 +30,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `queue_health_cli.js`: CLI to compute queue KPIs and emit health artifacts
 - `company_cycle_cli.js`: CLI to run end-to-end cycle and emit cycle artifact
 - `ops_report_cli.js`: CLI to emit consolidated ops report (JSON + Markdown)
+- `ops_status_cli.js`: CLI to emit fast terminal status snapshot (queue + optional workflow health)
 - `ops_loop_cli.js`: CLI to run full ops loop and emit loop artifact
 - `batch_ops_cli.js`: CLI to run ops loop across multiple fixtures and emit batch artifact
 - `artifact_index_cli.js`: CLI to index runtime output artifacts by type
@@ -50,6 +51,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/queue_health_cli.test.js`: queue health KPI CLI tests
 - `tests/company_cycle_cli.test.js`: end-to-end cycle CLI tests
 - `tests/ops_report_cli.test.js`: consolidated ops report CLI tests
+- `tests/ops_status_cli.test.js`: fast status CLI tests
 - `tests/ops_loop_cli.test.js`: full ops loop orchestration tests
 - `tests/batch_ops_cli.test.js`: multi-fixture batch ops CLI tests
 - `tests/artifact_index_cli.test.js`: artifact index CLI tests
@@ -74,6 +76,7 @@ node runtime/tests/queue_replay_cli.test.js
 node runtime/tests/queue_health_cli.test.js
 node runtime/tests/company_cycle_cli.test.js
 node runtime/tests/ops_report_cli.test.js
+node runtime/tests/ops_status_cli.test.js
 node runtime/tests/ops_loop_cli.test.js
 node runtime/tests/batch_ops_cli.test.js
 node runtime/tests/artifact_index_cli.test.js
@@ -177,6 +180,12 @@ Generate consolidated ops report with workflow health:
 
 ```powershell
 node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --pending-limit 10 --sla-minutes 120 --workflow-stale-minutes 240
+```
+
+Get fast status snapshot (no report artifact generation):
+
+```powershell
+node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --workflow-stale-minutes 240
 ```
 
 Run full ops loop in one command:

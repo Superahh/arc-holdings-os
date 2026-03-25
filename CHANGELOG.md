@@ -32,6 +32,7 @@
 - Extended batch ops summary to include final workflow health signal (`runtime/batch_ops_cli.js`, `runtime/tests/batch_ops_cli.test.js`).
 - Extended acceptance gate to verify workflow lifecycle transitions for golden and rejection scenarios (`runtime/acceptance_cli.js`, `runtime/tests/acceptance_cli.test.js`).
 - Refined ops report artifact indexing to separate queue-health and workflow-health references in latest artifact metadata (`runtime/ops_report_cli.js`, `runtime/tests/ops_report_cli.test.js`).
+- Added fast operator status CLI for queue + optional workflow health snapshot without full report generation (`runtime/ops_status_cli.js`, `runtime/tests/ops_status_cli.test.js`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.
