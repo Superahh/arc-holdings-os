@@ -42,6 +42,7 @@
 - Enhanced ops report workflow tasks to use latest run-artifact handoff `next_action` and `due_by` when available (`runtime/ops_report_cli.js`, `runtime/tests/ops_report_cli.test.js`).
 - Added shipping-only delivery-mode acceptance guardrail to require remote-safe handoff actions (no in-person instructions) in scenario checks (`runtime/acceptance_cli.js`, `runtime/tests/acceptance_cli.test.js`).
 - Added single-command runtime test runner helper to execute all CLI/unit tests in deterministic order (`runtime/tests/run_all_tests.js`, `runtime/tests/run_all_tests.test.js`, `runtime/README.md`).
+- Hardened pipeline scenario tests with explicit remote-safe handoff assertions across request-more-info, acquisition, and skip paths (`runtime/tests/pipeline.test.js`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.
