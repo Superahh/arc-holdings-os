@@ -5,6 +5,7 @@ const path = require("node:path");
 const { runCycleAction } = require("./company_cycle_cli");
 const { runReplayAction } = require("./queue_replay_cli");
 const { runHealthAction } = require("./queue_health_cli");
+const { runWorkflowHealthAction } = require("./workflow_health_cli");
 const { runOpsReportAction } = require("./ops_report_cli");
 const { writeLoopArtifact } = require("./output");
 
@@ -17,6 +18,7 @@ function parseArgs(argv) {
     queueActor: "ops_loop_runner",
     workflowStatePath: null,
     workflowActor: "ops_loop_runner",
+    workflowStaleMinutes: 240,
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -45,6 +47,9 @@ function parseArgs(argv) {
     } else if (token === "--workflow-actor") {
       args.workflowActor = argv[i + 1];
       i += 1;
+    } else if (token === "--workflow-stale-minutes") {
+      args.workflowStaleMinutes = Number(argv[i + 1]);
+      i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
       i += 1;
@@ -71,6 +76,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.pendingLimit) || args.pendingLimit <= 0) {
     throw new Error("--pending-limit must be a positive integer.");
+  }
+  if (!Number.isInteger(args.workflowStaleMinutes) || args.workflowStaleMinutes <= 0) {
+    throw new Error("--workflow-stale-minutes must be a positive integer.");
   }
   return args;
 }
@@ -107,12 +115,23 @@ function runOpsLoopAction(args) {
     slaMinutes: args.slaMinutes,
   });
 
+  const workflowHealth = args.workflowStatePath
+    ? runWorkflowHealthAction({
+        statePath: args.workflowStatePath,
+        baseDir,
+        now: nowIso,
+        staleMinutes: args.workflowStaleMinutes,
+      })
+    : null;
+
   const report = runOpsReportAction({
     queuePath,
     baseDir,
     now: nowIso,
     pendingLimit: args.pendingLimit,
     slaMinutes: args.slaMinutes,
+    workflowStatePath: args.workflowStatePath,
+    workflowStaleMinutes: args.workflowStaleMinutes,
   });
 
   const loopArtifact = {
@@ -127,14 +146,17 @@ function runOpsLoopAction(args) {
       workflow_state_path: cycle.workflow_summary ? cycle.workflow_summary.workflow_state_path : null,
       timeline_artifact_path: replay.timeline_artifact_path,
       health_artifact_path: health.health_artifact_path,
+      workflow_health_artifact_path: workflowHealth ? workflowHealth.health_artifact_path : null,
       report_json_path: report.report_json_path,
       report_markdown_path: report.report_markdown_path,
     },
     summary: {
       recommendation: cycle.recommendation,
       queue_health: health.queue_health,
+      workflow_health: workflowHealth ? workflowHealth.workflow_health : null,
       pending_count: health.pending_count,
       pending_over_sla_count: health.pending_over_sla_count,
+      stale_non_terminal_count: workflowHealth ? workflowHealth.stale_non_terminal_count : null,
     },
   };
 
@@ -144,6 +166,7 @@ function runOpsLoopAction(args) {
     workflow_state_path: cycle.workflow_summary ? cycle.workflow_summary.workflow_state_path : null,
     recommendation: cycle.recommendation,
     queue_health: health.queue_health,
+    workflow_health: workflowHealth ? workflowHealth.workflow_health : null,
     pending_count: health.pending_count,
   };
 }

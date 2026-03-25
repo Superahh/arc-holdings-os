@@ -5,6 +5,8 @@ const path = require("node:path");
 
 const { loadQueue, getPendingTickets } = require("./approval_queue");
 const { computeHealth } = require("./queue_health_cli");
+const { loadWorkflowState } = require("./workflow_state");
+const { computeWorkflowHealth } = require("./workflow_health_cli");
 const { writeReportArtifacts } = require("./output");
 
 function parseArgs(argv) {
@@ -14,6 +16,8 @@ function parseArgs(argv) {
     now: new Date().toISOString(),
     pendingLimit: 10,
     slaMinutes: 120,
+    workflowStatePath: null,
+    workflowStaleMinutes: 240,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -33,6 +37,12 @@ function parseArgs(argv) {
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
       i += 1;
+    } else if (token === "--workflow-state-path") {
+      args.workflowStatePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-stale-minutes") {
+      args.workflowStaleMinutes = Number(argv[i + 1]);
+      i += 1;
     }
   }
 
@@ -44,6 +54,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.slaMinutes) || args.slaMinutes <= 0) {
     throw new Error("--sla-minutes must be a positive integer.");
+  }
+  if (!Number.isInteger(args.workflowStaleMinutes) || args.workflowStaleMinutes <= 0) {
+    throw new Error("--workflow-stale-minutes must be a positive integer.");
   }
   return args;
 }
@@ -89,6 +102,16 @@ function buildMarkdownReport(report) {
           )
           .join("\n");
 
+  const workflowLines =
+    report.workflow_health == null
+      ? ["- Workflow health: not provided (no workflow state path)."]
+      : [
+          `- Workflow health: ${report.workflow_health.observations.workflow_health}`,
+          `- Note: ${report.workflow_health.observations.note}`,
+          `- Non-terminal opportunities: ${report.workflow_health.kpis.non_terminal_count}`,
+          `- Stale non-terminal opportunities: ${report.workflow_health.kpis.stale_non_terminal_count}`,
+        ];
+
   return [
     "# ARC Runtime Ops Report",
     "",
@@ -101,6 +124,9 @@ function buildMarkdownReport(report) {
     `- Pending: ${report.health.queue_totals.pending}`,
     `- Pending over SLA: ${report.health.kpis.pending_over_sla_count}`,
     `- Avg turnaround (min): ${report.health.kpis.avg_decision_turnaround_minutes}`,
+    "",
+    "## Workflow health",
+    ...workflowLines,
     "",
     "## Pending tickets",
     pendingRows,
@@ -122,14 +148,23 @@ function runOpsReportAction(args) {
   const health = computeHealth(queue, nowIso, args.slaMinutes);
   const pending = getPendingTickets(queue).slice(0, args.pendingLimit);
   const latestArtifacts = collectLatestArtifacts(baseDir);
+  let workflowHealth = null;
+  let workflowStatePath = null;
+  if (args.workflowStatePath) {
+    workflowStatePath = path.resolve(args.workflowStatePath);
+    const workflowState = loadWorkflowState(workflowStatePath);
+    workflowHealth = computeWorkflowHealth(workflowState, nowIso, args.workflowStaleMinutes);
+  }
 
   const reportArtifact = {
     schema_version: "v1",
     generated_at: nowIso,
     source_label: "ops_report",
     queue_path: queuePath,
+    workflow_state_path: workflowStatePath,
     pending_tickets: pending,
     health,
+    workflow_health: workflowHealth,
     latest_artifacts: latestArtifacts,
   };
 
@@ -139,6 +174,7 @@ function runOpsReportAction(args) {
     report_json_path: reportPaths.jsonPath,
     report_markdown_path: reportPaths.markdownPath,
     queue_health: health.observations.queue_health,
+    workflow_health: workflowHealth ? workflowHealth.observations.workflow_health : null,
     pending_count: health.queue_totals.pending,
   };
 }

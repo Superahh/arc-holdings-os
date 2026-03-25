@@ -173,6 +173,12 @@ Generate consolidated ops report:
 node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --pending-limit 10 --sla-minutes 120
 ```
 
+Generate consolidated ops report with workflow health:
+
+```powershell
+node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --pending-limit 10 --sla-minutes 120 --workflow-stale-minutes 240
+```
+
 Run full ops loop in one command:
 
 ```powershell
@@ -182,7 +188,7 @@ node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --q
 Run ops loop with workflow lifecycle persistence:
 
 ```powershell
-node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --replay-limit 50 --pending-limit 10
+node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --workflow-stale-minutes 240 --sla-minutes 120 --replay-limit 50 --pending-limit 10
 ```
 
 Run batch ops across all JSON fixtures in a directory:

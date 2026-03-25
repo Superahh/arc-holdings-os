@@ -30,6 +30,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] implement minimum lifecycle persistence model for v1 runtime
 - [x] add workflow state inspection CLI for operator visibility
 - [x] add workflow lifecycle health KPI checks
+- [x] integrate workflow health into consolidated ops reporting
 
 ## Out of scope
 

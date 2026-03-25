@@ -31,6 +31,11 @@ test("parseArgs validates required values", () => {
     () => parseArgs(["--fixture", "f.json", "--queue-path", "q.json", "--pending-limit", "0"]),
     /positive integer/
   );
+  assert.throws(
+    () =>
+      parseArgs(["--fixture", "f.json", "--queue-path", "q.json", "--workflow-stale-minutes", "0"]),
+    /positive integer/
+  );
 });
 
 test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
@@ -59,6 +64,8 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
   assert.ok(fs.existsSync(loopArtifact.outputs.workflow_state_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.timeline_artifact_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.health_artifact_path));
+  assert.ok(fs.existsSync(loopArtifact.outputs.workflow_health_artifact_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.report_json_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.report_markdown_path));
+  assert.equal(result.workflow_health, "watch");
 });
