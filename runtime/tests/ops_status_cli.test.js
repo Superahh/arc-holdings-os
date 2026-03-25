@@ -53,6 +53,10 @@ test("parseArgs validates required and numeric arguments", () => {
     () => parseArgs(["--queue-path", "q.json", "--workflow-stale-minutes", "0"]),
     /positive integer/
   );
+  assert.throws(
+    () => parseArgs(["--queue-path", "q.json", "--task-limit", "0"]),
+    /positive integer/
+  );
 });
 
 test("runStatusAction returns queue-only summary when workflow path is absent", () => {
@@ -67,11 +71,15 @@ test("runStatusAction returns queue-only summary when workflow path is absent", 
     workflowStaleMinutes: 240,
     pendingLimit: 5,
     staleLimit: 5,
+    taskLimit: 20,
   });
 
   assert.equal(result.queue.health.queue_totals.pending, 1);
   assert.equal(result.queue.health.observations.queue_health, "watch");
   assert.equal(result.workflow, null);
+  assert.equal(result.awaiting_tasks.total_count, 1);
+  assert.equal(result.awaiting_tasks.returned_count, 1);
+  assert.equal(result.awaiting_tasks.tasks[0].source, "approval_queue");
 });
 
 test("runStatusAction returns queue and workflow summary when workflow path is provided", () => {
@@ -87,10 +95,17 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
     workflowStaleMinutes: 240,
     pendingLimit: 5,
     staleLimit: 5,
+    taskLimit: 20,
   });
 
   assert.equal(result.queue.health.observations.queue_health, "watch");
   assert.ok(result.workflow, "Expected workflow summary.");
   assert.equal(result.workflow.health.observations.workflow_health, "watch");
   assert.equal(Array.isArray(result.workflow.stale_opportunities), true);
+  assert.equal(result.awaiting_tasks.total_count, 2);
+  assert.equal(result.awaiting_tasks.returned_count, 2);
+  assert.equal(
+    result.awaiting_tasks.tasks.some((task) => task.source === "workflow_state" && task.status === "researching"),
+    true
+  );
 });

@@ -36,6 +36,7 @@
 - Added state bootstrap/reset CLI for queue/workflow state initialization with safe default and force override (`runtime/state_bootstrap_cli.js`, `runtime/tests/state_bootstrap_cli.test.js`).
 - Added workflow replay CLI for timeline artifacts from lifecycle event logs (`runtime/workflow_replay_cli.js`, `runtime/tests/workflow_replay_cli.test.js`).
 - Added workflow update CLI with transition policy checks and force override for manual lifecycle progression (`runtime/workflow_update_cli.js`, `runtime/tests/workflow_update_cli.test.js`, `runtime/workflow_state.js`).
+- Extended ops status CLI with actionable awaiting-task queue output (queue approvals + workflow follow-ups, due/overdue flags) (`runtime/ops_status_cli.js`, `runtime/tests/ops_status_cli.test.js`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.
