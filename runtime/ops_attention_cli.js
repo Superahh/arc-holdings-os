@@ -4,9 +4,20 @@ const { parseArgs: parseStatusArgs, runStatusAction } = require("./ops_status_cl
 
 function parseArgs(argv) {
   const statusArgs = parseStatusArgs(argv);
+  let nudgeLimit = 5;
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--nudge-limit") {
+      nudgeLimit = Number(argv[i + 1]);
+      i += 1;
+    }
+  }
+  if (!Number.isInteger(nudgeLimit) || nudgeLimit <= 0) {
+    throw new Error("--nudge-limit must be a positive integer.");
+  }
   return {
     ...statusArgs,
     failOnOverdue: argv.includes("--fail-on-overdue"),
+    nudgeLimit,
   };
 }
 
@@ -14,6 +25,18 @@ function runAttentionAction(args) {
   const status = runStatusAction(args);
   const result =
     args.failOnOverdue && status.awaiting_tasks.overdue_count > 0 ? "fail_overdue_tasks" : "pass";
+  const nudges = status.awaiting_tasks.tasks
+    .filter((task) => task.urgency === "overdue" || task.urgency === "due_soon")
+    .slice(0, args.nudgeLimit)
+    .map((task) => ({
+      severity: task.urgency === "overdue" ? "high" : "medium",
+      opportunity_id: task.opportunity_id,
+      owner: task.owner,
+      urgency: task.urgency,
+      due_by: task.due_by,
+      minutes_to_due: task.minutes_to_due,
+      message: `${task.owner}: ${task.next_action}`,
+    }));
 
   return {
     schema_version: "v1",
@@ -28,6 +51,7 @@ function runAttentionAction(args) {
       urgency_counts: status.awaiting_tasks.urgency_counts,
     },
     attention: status.attention,
+    nudges,
     result,
   };
 }

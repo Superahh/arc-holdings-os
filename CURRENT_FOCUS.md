@@ -51,6 +51,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add per-task urgency and minutes-to-due fields for awaiting-task triage
 - [x] add top-task attention summary for status/report operator clarity
 - [x] add compact attention CLI with fail-on-overdue mode for automation hooks
+- [x] add urgency-based nudge generation to compact attention output
 
 ## Out of scope
 

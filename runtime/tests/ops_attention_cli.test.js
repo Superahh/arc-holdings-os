@@ -31,6 +31,10 @@ function seedQueue(tempDir, requiredBy) {
 
 test("parseArgs keeps status args and detects --fail-on-overdue flag", () => {
   assert.throws(() => parseArgs([]), /--queue-path/);
+  assert.throws(
+    () => parseArgs(["--queue-path", "queue.json", "--nudge-limit", "0"]),
+    /--nudge-limit/
+  );
   const parsed = parseArgs([
     "--queue-path",
     "queue.json",
@@ -38,9 +42,12 @@ test("parseArgs keeps status args and detects --fail-on-overdue flag", () => {
     "5",
     "--task-limit",
     "10",
+    "--nudge-limit",
+    "3",
     "--fail-on-overdue",
   ]);
   assert.equal(parsed.queuePath, "queue.json");
+  assert.equal(parsed.nudgeLimit, 3);
   assert.equal(parsed.failOnOverdue, true);
 });
 
@@ -59,6 +66,7 @@ test("runAttentionAction passes when no overdue tasks exist", () => {
     pendingLimit: 5,
     staleLimit: 5,
     taskLimit: 10,
+    nudgeLimit: 5,
     failOnOverdue: true,
   });
 
@@ -66,6 +74,7 @@ test("runAttentionAction passes when no overdue tasks exist", () => {
   assert.equal(result.awaiting_tasks.overdue_count, 0);
   assert.ok(result.attention.top_task, "Expected top task summary.");
   assert.equal(result.attention.top_task.source, "approval_queue");
+  assert.equal(result.nudges.length, 0);
 });
 
 test("runAttentionAction fails when overdue tasks exist and flag is enabled", () => {
@@ -83,10 +92,14 @@ test("runAttentionAction fails when overdue tasks exist and flag is enabled", ()
     pendingLimit: 5,
     staleLimit: 5,
     taskLimit: 10,
+    nudgeLimit: 5,
     failOnOverdue: true,
   });
 
   assert.equal(result.result, "fail_overdue_tasks");
   assert.equal(result.awaiting_tasks.overdue_count, 1);
   assert.equal(result.attention.top_task.overdue, true);
+  assert.equal(result.nudges.length, 1);
+  assert.equal(result.nudges[0].severity, "high");
+  assert.match(result.nudges[0].message, /Review and decide approval ticket/);
 });
