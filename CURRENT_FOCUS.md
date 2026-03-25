@@ -33,6 +33,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] integrate workflow health into consolidated ops reporting
 - [x] propagate workflow health into batch run summaries
 - [x] harden acceptance gate with workflow transition checks
+- [x] split queue vs workflow health artifact references in ops report
 
 ## Out of scope
 

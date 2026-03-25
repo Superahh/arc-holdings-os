@@ -76,7 +76,8 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   seedArtifact(tempDir, "runs", "sample.artifact.json", "{}\n");
   seedArtifact(tempDir, "decisions", "sample.decision.json", "{}\n");
   seedArtifact(tempDir, "timelines", "sample.timeline.json", "{}\n");
-  seedArtifact(tempDir, "health", "sample.health.json", "{}\n");
+  seedArtifact(tempDir, "health", "approval_queue--20260325T191000Z.health.json", "{}\n");
+  seedArtifact(tempDir, "health", "workflow_state_workflow--20260325T191001Z.health.json", "{}\n");
   seedArtifact(tempDir, "cycles", "sample.cycle.json", "{}\n");
 
   const result = runOpsReportAction({
@@ -101,6 +102,8 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   assert.equal(jsonReport.pending_tickets.length, 1);
   assert.ok(jsonReport.workflow_health, "Expected workflow health block in report.");
   assert.ok(jsonReport.latest_artifacts.run, "Expected latest run artifact reference.");
+  assert.ok(jsonReport.latest_artifacts.queue_health, "Expected latest queue health artifact reference.");
+  assert.ok(jsonReport.latest_artifacts.workflow_health, "Expected latest workflow health artifact reference.");
   assert.ok(markdownReport.includes("# ARC Runtime Ops Report"));
   assert.ok(markdownReport.includes("Queue health: watch"));
   assert.ok(markdownReport.includes("Workflow health: watch"));

@@ -61,13 +61,14 @@ function parseArgs(argv) {
   return args;
 }
 
-function getLatestFilePath(directoryPath, suffix) {
+function getLatestFilePath(directoryPath, suffix, includeFilter = null) {
   if (!fs.existsSync(directoryPath)) {
     return null;
   }
   const entries = fs
     .readdirSync(directoryPath)
     .filter((entry) => entry.endsWith(suffix))
+    .filter((entry) => (includeFilter ? includeFilter(entry) : true))
     .map((entry) => path.join(directoryPath, entry));
 
   if (entries.length === 0) {
@@ -82,11 +83,24 @@ function getLatestFilePath(directoryPath, suffix) {
 }
 
 function collectLatestArtifacts(baseDir) {
+  const healthDir = path.join(baseDir, "health");
+  const queueHealth = getLatestFilePath(
+    healthDir,
+    ".health.json",
+    (entry) => !entry.includes("_workflow--")
+  );
+  const workflowHealth = getLatestFilePath(
+    healthDir,
+    ".health.json",
+    (entry) => entry.includes("_workflow--")
+  );
   return {
     run: getLatestFilePath(path.join(baseDir, "runs"), ".artifact.json"),
     decision: getLatestFilePath(path.join(baseDir, "decisions"), ".decision.json"),
     timeline: getLatestFilePath(path.join(baseDir, "timelines"), ".timeline.json"),
-    health: getLatestFilePath(path.join(baseDir, "health"), ".health.json"),
+    health: queueHealth,
+    queue_health: queueHealth,
+    workflow_health: workflowHealth,
     cycle: getLatestFilePath(path.join(baseDir, "cycles"), ".cycle.json"),
   };
 }
@@ -135,7 +149,8 @@ function buildMarkdownReport(report) {
     `- Run: ${report.latest_artifacts.run || "none"}`,
     `- Decision: ${report.latest_artifacts.decision || "none"}`,
     `- Timeline: ${report.latest_artifacts.timeline || "none"}`,
-    `- Health: ${report.latest_artifacts.health || "none"}`,
+    `- Queue health: ${report.latest_artifacts.queue_health || report.latest_artifacts.health || "none"}`,
+    `- Workflow health: ${report.latest_artifacts.workflow_health || "none"}`,
     `- Cycle: ${report.latest_artifacts.cycle || "none"}`,
   ].join("\n");
 }
