@@ -246,6 +246,10 @@ h2 {
   grid-template-columns: 1fr 1fr;
 }
 
+.office-layout-wrap {
+  position: relative;
+}
+
 .zone-card {
   padding: 18px;
   border-radius: 18px;
@@ -285,6 +289,72 @@ h2 {
 
 .zone-card-forest {
   background: linear-gradient(180deg, rgba(47, 107, 79, 0.12), rgba(255, 255, 255, 0.72));
+}
+
+.zone-lane-ribbon {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(20, 35, 34, 0.14);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.lane-verification.zone-card,
+.zone-lane-ribbon.lane-verification,
+.lane-verification.opportunity-chip {
+  border-color: rgba(104, 114, 61, 0.34);
+}
+
+.lane-approval.zone-card,
+.zone-lane-ribbon.lane-approval,
+.lane-approval.opportunity-chip {
+  border-color: rgba(124, 99, 30, 0.34);
+}
+
+.lane-execution.zone-card,
+.zone-lane-ribbon.lane-execution,
+.lane-execution.opportunity-chip {
+  border-color: rgba(145, 101, 58, 0.34);
+}
+
+.lane-market.zone-card,
+.zone-lane-ribbon.lane-market,
+.lane-market.opportunity-chip {
+  border-color: rgba(47, 107, 79, 0.36);
+}
+
+.has-focus-shift {
+  animation: focusShiftPulse 850ms ease;
+}
+
+.has-lane-shift {
+  animation: laneShiftPulse 1.1s ease;
+}
+
+.has-handoff-source,
+.has-handoff-target {
+  box-shadow:
+    var(--shadow),
+    0 0 0 2px rgba(175, 95, 45, 0.2),
+    0 0 0 6px rgba(175, 95, 45, 0.08);
+}
+
+.has-handoff-target {
+  box-shadow:
+    var(--shadow),
+    0 0 0 2px rgba(47, 107, 79, 0.22),
+    0 0 0 6px rgba(47, 107, 79, 0.08);
+}
+
+.has-handoff-source-muted,
+.has-handoff-target-muted {
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(20, 35, 34, 0.18);
 }
 
 .zone-card h3,
@@ -545,6 +615,94 @@ h2 {
   flex-wrap: wrap;
 }
 
+.handoff-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.handoff-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.handoff-path {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.handoff-path.is-transition {
+  stroke: rgba(175, 95, 45, 0.62);
+  stroke-dasharray: 8 8;
+  animation: handoffFlow 1.4s linear infinite;
+}
+
+.handoff-path.is-steady {
+  stroke: rgba(20, 35, 34, 0.24);
+}
+
+.handoff-path.is-blocked {
+  stroke: rgba(163, 52, 52, 0.55);
+}
+
+.handoff-pulse {
+  opacity: 0.88;
+}
+
+.handoff-pulse.is-transition {
+  fill: rgba(175, 95, 45, 0.78);
+  animation: handoffPulse 1s ease-in-out infinite;
+}
+
+.handoff-pulse.is-steady {
+  fill: rgba(20, 35, 34, 0.42);
+}
+
+.handoff-pulse.is-blocked {
+  fill: rgba(163, 52, 52, 0.72);
+}
+
+.handoff-chip-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.handoff-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 35, 34, 0.16);
+  background: rgba(255, 252, 245, 0.94);
+  box-shadow: var(--shadow);
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  display: grid;
+  gap: 2px;
+  min-width: 110px;
+}
+
+.handoff-chip strong {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.handoff-chip span {
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+
+.handoff-chip.is-transition {
+  border-color: rgba(175, 95, 45, 0.32);
+}
+
+.handoff-chip.is-blocked {
+  border-color: rgba(163, 52, 52, 0.34);
+  background: rgba(249, 238, 238, 0.96);
+}
+
 .opportunity-chip {
   min-width: 240px;
   padding: 16px;
@@ -781,6 +939,54 @@ h2 {
   }
 }
 
+@keyframes focusShiftPulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.014);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes laneShiftPulse {
+  0% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 0 rgba(175, 95, 45, 0.18);
+  }
+  50% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 6px rgba(175, 95, 45, 0.12);
+  }
+  100% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 0 rgba(175, 95, 45, 0);
+  }
+}
+
+@keyframes handoffFlow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+@keyframes handoffPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-idle .avatar-body,
   .motion-working .avatar-body,
@@ -789,7 +995,11 @@ h2 {
   .motion-alert .avatar-ring,
   .motion-alert .avatar-body,
   .motion-awaiting_approval .avatar-ring,
-  .motion-awaiting_approval .avatar-body {
+  .motion-awaiting_approval .avatar-body,
+  .has-focus-shift,
+  .has-lane-shift,
+  .handoff-path.is-transition,
+  .handoff-pulse.is-transition {
     animation: none;
   }
 }

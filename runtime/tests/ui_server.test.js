@@ -113,6 +113,8 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.kpis.approvals_waiting, 1);
     assert.equal(snapshot.office.agent_status_cards[0].agent, "CEO Agent");
     assert.equal(snapshot.office.presence[0].zone_label, "Executive Suite");
+    assert.equal(snapshot.office.presence[0].lane_stage, "verification");
+    assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
     assert.match(snapshot.office.presence[1].bubble_text, /purchase recommendation remains blocked/i);
   } finally {
     await new Promise((resolve, reject) => {

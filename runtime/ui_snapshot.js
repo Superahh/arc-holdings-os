@@ -476,6 +476,22 @@ function getPresenceBlueprint(agentName) {
   return mapping[agentName] || defaults;
 }
 
+function mapStatusToLaneStage(status) {
+  if (["awaiting_seller_verification", "researching"].includes(status)) {
+    return "verification";
+  }
+  if (status === "awaiting_approval") {
+    return "approval";
+  }
+  if (["approved", "acquired"].includes(status)) {
+    return "execution";
+  }
+  if (["routed", "monetizing"].includes(status)) {
+    return "market";
+  }
+  return "monitor";
+}
+
 function buildPresenceBubble(card, attentionTask) {
   if (card.blocker) {
     return {
@@ -527,6 +543,11 @@ function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso)
       status: card.status,
       urgency: card.urgency,
       motion_state: card.status,
+      lane_stage: mapStatusToLaneStage(
+        focusedOpportunity && focusedOpportunity.current_status
+          ? focusedOpportunity.current_status
+          : "idle"
+      ),
       opportunity_id: card.opportunity_id,
       headline: card.active_task,
       bubble_kind: bubble.bubble_kind,
@@ -549,6 +570,36 @@ function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso)
       updated_at: nowIso,
     };
   });
+}
+
+function buildOfficeHandoffSignals(opportunities) {
+  const signals = [];
+  for (const entry of opportunities) {
+    const packet =
+      entry &&
+      entry.contract_bundle &&
+      entry.contract_bundle.handoff_packet &&
+      typeof entry.contract_bundle.handoff_packet === "object"
+        ? entry.contract_bundle.handoff_packet
+        : null;
+    if (!packet) {
+      continue;
+    }
+    if (typeof packet.from_agent !== "string" || typeof packet.to_agent !== "string") {
+      continue;
+    }
+    signals.push({
+      opportunity_id: entry.opportunity_id,
+      from_agent: packet.from_agent,
+      to_agent: packet.to_agent,
+      next_action: packet.next_action,
+      due_by: packet.due_by,
+      blocking_count: Array.isArray(packet.blocking_items) ? packet.blocking_items.length : 0,
+      source_stale: Boolean(entry.latest_artifact && entry.latest_artifact.is_stale),
+    });
+  }
+  signals.sort((a, b) => Date.parse(a.due_by || 0) - Date.parse(b.due_by || 0));
+  return signals;
 }
 
 function buildUiSnapshot(options = {}) {
@@ -590,6 +641,7 @@ function buildUiSnapshot(options = {}) {
     statusSnapshot.attention,
     nowIso
   );
+  const officeHandoffSignals = buildOfficeHandoffSignals(opportunities);
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
     opportunities,
     statusSnapshot.awaiting_tasks.tasks,
@@ -636,6 +688,7 @@ function buildUiSnapshot(options = {}) {
     office: {
       agent_status_cards: agentStatusCards,
       presence: officePresence,
+      handoff_signals: officeHandoffSignals,
       company_board_snapshot: companyBoardSnapshot,
     },
     awaiting_tasks: statusSnapshot.awaiting_tasks,
@@ -652,6 +705,7 @@ module.exports = {
   buildOpportunityEntries,
   buildAgentStatusCards,
   buildOfficePresence,
+  buildOfficeHandoffSignals,
   buildCompanyBoardSnapshot,
   buildKpis,
 };

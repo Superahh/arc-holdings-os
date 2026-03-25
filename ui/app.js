@@ -1,8 +1,22 @@
 "use strict";
 
+const TRANSITION_WINDOW_MS = 14000;
+
+function createEmptyTransitionState() {
+  return {
+    generatedAt: 0,
+    handoffs: [],
+    focusShiftAgents: new Set(),
+    laneShiftAgents: new Set(),
+    laneShiftOpportunities: new Set(),
+  };
+}
+
 const state = {
   snapshot: null,
   selected: null,
+  transitions: createEmptyTransitionState(),
+  transitionTimerId: null,
 };
 
 const elements = {
@@ -24,6 +38,12 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizeToken(value) {
+  return String(value || "")
+    .replaceAll(/[^a-z0-9_]+/gi, "_")
+    .toLowerCase();
 }
 
 function formatTimestamp(value) {
@@ -54,15 +74,56 @@ function formatCurrency(value) {
 }
 
 function formatStatusClass(value) {
-  return `status-${String(value || "unknown").replaceAll(/[^a-z0-9_]+/gi, "_").toLowerCase()}`;
+  return `status-${normalizeToken(value || "unknown")}`;
 }
 
 function formatMotionClass(value) {
-  return `motion-${String(value || "idle").replaceAll(/[^a-z0-9_]+/gi, "_").toLowerCase()}`;
+  return `motion-${normalizeToken(value || "idle")}`;
 }
 
 function formatBubbleClass(value) {
-  return `bubble-${String(value || "task").replaceAll(/[^a-z0-9_]+/gi, "_").toLowerCase()}`;
+  return `bubble-${normalizeToken(value || "task")}`;
+}
+
+function formatLaneClass(value) {
+  return `lane-${normalizeToken(value || "monitor")}`;
+}
+
+function mapStatusToLaneStage(status) {
+  if (["awaiting_seller_verification", "researching"].includes(status)) {
+    return "verification";
+  }
+  if (status === "awaiting_approval") {
+    return "approval";
+  }
+  if (["approved", "acquired"].includes(status)) {
+    return "execution";
+  }
+  if (["routed", "monetizing"].includes(status)) {
+    return "market";
+  }
+  return "monitor";
+}
+
+function formatLaneLabel(value) {
+  const mapping = {
+    verification: "Verification lane",
+    approval: "Approval lane",
+    execution: "Execution lane",
+    market: "Market lane",
+    monitor: "Monitor lane",
+  };
+  return mapping[value] || "Monitor lane";
+}
+
+function shortAgentLabel(agent) {
+  const mapping = {
+    "CEO Agent": "CEO",
+    "Risk and Compliance Agent": "Risk",
+    "Operations Coordinator Agent": "Ops",
+    "Department Operator Agent": "Market",
+  };
+  return mapping[agent] || String(agent || "Agent");
 }
 
 function findAgentByName(name) {
@@ -78,6 +139,170 @@ function findOpportunityById(opportunityId) {
     state.snapshot.workflow.opportunities.find((entry) => entry.opportunity_id === opportunityId) ||
     null
   );
+}
+
+function opportunityTaskOwner(opportunity) {
+  if (!opportunity) {
+    return null;
+  }
+  const latestTask = opportunity.latest_task;
+  if (latestTask && typeof latestTask.owner === "string" && latestTask.owner) {
+    return latestTask.owner;
+  }
+  const handoff = opportunity.contract_bundle && opportunity.contract_bundle.handoff_packet;
+  if (handoff && typeof handoff.to_agent === "string" && handoff.to_agent) {
+    return handoff.to_agent;
+  }
+  return null;
+}
+
+function buildSignalKey(signal) {
+  return [
+    signal.opportunity_id,
+    signal.from_agent,
+    signal.to_agent,
+    signal.next_action,
+    signal.due_by,
+  ]
+    .map((item) => normalizeToken(item || ""))
+    .join("|");
+}
+
+function computeTransitionState(previousSnapshot, nextSnapshot) {
+  const transitions = createEmptyTransitionState();
+  if (!previousSnapshot || !nextSnapshot) {
+    return transitions;
+  }
+
+  const prevOppById = new Map(
+    (previousSnapshot.workflow.opportunities || []).map((entry) => [entry.opportunity_id, entry])
+  );
+  const prevPresenceByAgent = new Map(
+    (previousSnapshot.office.presence || []).map((entry) => [entry.agent, entry])
+  );
+  const prevSignalKeys = new Set(
+    (previousSnapshot.office.handoff_signals || []).map((entry) => buildSignalKey(entry))
+  );
+  const handoffByKey = new Map();
+
+  for (const nextOpportunity of nextSnapshot.workflow.opportunities || []) {
+    const prevOpportunity = prevOppById.get(nextOpportunity.opportunity_id);
+    if (!prevOpportunity) {
+      continue;
+    }
+
+    const prevOwner = opportunityTaskOwner(prevOpportunity);
+    const nextOwner = opportunityTaskOwner(nextOpportunity);
+    if (prevOwner && nextOwner && prevOwner !== nextOwner) {
+      const signal = {
+        opportunity_id: nextOpportunity.opportunity_id,
+        from_agent: prevOwner,
+        to_agent: nextOwner,
+        next_action:
+          (nextOpportunity.latest_task && nextOpportunity.latest_task.next_action) ||
+          (nextOpportunity.contract_bundle &&
+            nextOpportunity.contract_bundle.handoff_packet &&
+            nextOpportunity.contract_bundle.handoff_packet.next_action) ||
+          "Ownership transfer",
+        due_by:
+          (nextOpportunity.latest_task && nextOpportunity.latest_task.due_by) ||
+          (nextOpportunity.contract_bundle &&
+            nextOpportunity.contract_bundle.handoff_packet &&
+            nextOpportunity.contract_bundle.handoff_packet.due_by) ||
+          null,
+        blocking_count:
+          nextOpportunity.workflow_record &&
+          nextOpportunity.workflow_record.purchase_recommendation_blocked
+            ? 1
+            : 0,
+        source_stale: Boolean(
+          nextOpportunity.latest_artifact && nextOpportunity.latest_artifact.is_stale
+        ),
+        is_transition: true,
+      };
+      handoffByKey.set(buildSignalKey(signal), signal);
+    }
+
+    if (prevOpportunity.current_status !== nextOpportunity.current_status) {
+      transitions.laneShiftOpportunities.add(nextOpportunity.opportunity_id);
+    }
+  }
+
+  for (const signal of nextSnapshot.office.handoff_signals || []) {
+    const key = buildSignalKey(signal);
+    if (prevSignalKeys.has(key)) {
+      continue;
+    }
+    handoffByKey.set(key, {
+      ...signal,
+      is_transition: true,
+    });
+  }
+
+  for (const presence of nextSnapshot.office.presence || []) {
+    const prevPresence = prevPresenceByAgent.get(presence.agent);
+    if (!prevPresence) {
+      continue;
+    }
+    if (prevPresence.opportunity_id !== presence.opportunity_id) {
+      transitions.focusShiftAgents.add(presence.agent);
+    }
+    if (prevPresence.lane_stage !== presence.lane_stage) {
+      transitions.laneShiftAgents.add(presence.agent);
+    }
+  }
+
+  transitions.handoffs = [...handoffByKey.values()]
+    .sort((a, b) => Date.parse(a.due_by || 0) - Date.parse(b.due_by || 0))
+    .slice(0, 4);
+  transitions.generatedAt = Date.now();
+  return transitions;
+}
+
+function setTransitionState(nextTransitionState) {
+  state.transitions = nextTransitionState;
+  if (state.transitionTimerId !== null) {
+    window.clearTimeout(state.transitionTimerId);
+    state.transitionTimerId = null;
+  }
+
+  const hasSignals =
+    nextTransitionState.handoffs.length > 0 ||
+    nextTransitionState.focusShiftAgents.size > 0 ||
+    nextTransitionState.laneShiftAgents.size > 0 ||
+    nextTransitionState.laneShiftOpportunities.size > 0;
+
+  if (!hasSignals) {
+    return;
+  }
+
+  state.transitionTimerId = window.setTimeout(() => {
+    state.transitions = createEmptyTransitionState();
+    if (state.snapshot) {
+      renderOfficeCanvas();
+    }
+  }, TRANSITION_WINDOW_MS);
+}
+
+function getActiveTransitionState() {
+  if (!state.transitions.generatedAt) {
+    return createEmptyTransitionState();
+  }
+  if (Date.now() - state.transitions.generatedAt > TRANSITION_WINDOW_MS) {
+    return createEmptyTransitionState();
+  }
+  return state.transitions;
+}
+
+function getRenderableHandoffs(activeTransitions) {
+  if (activeTransitions.handoffs.length) {
+    return activeTransitions.handoffs;
+  }
+
+  return (state.snapshot.office.handoff_signals || []).slice(0, 3).map((signal) => ({
+    ...signal,
+    is_transition: false,
+  }));
 }
 
 function ensureSelection() {
@@ -166,16 +391,121 @@ function renderPresenceMeta(presence) {
         : `${presence.queue_signal.minutes_to_due} min to due`
     );
   }
+  if (presence.lane_stage) {
+    pieces.push(formatLaneLabel(presence.lane_stage));
+  }
   if (!pieces.length) {
     pieces.push("No live blocker");
   }
   return pieces.join(" | ");
 }
 
+function buildZoneSignalClasses(agent, activeTransitions, renderableHandoffs) {
+  const classes = [];
+  if (activeTransitions.focusShiftAgents.has(agent)) {
+    classes.push("has-focus-shift");
+  }
+  if (activeTransitions.laneShiftAgents.has(agent)) {
+    classes.push("has-lane-shift");
+  }
+
+  for (const signal of renderableHandoffs) {
+    if (signal.from_agent === agent) {
+      classes.push(signal.is_transition ? "has-handoff-source" : "has-handoff-source-muted");
+    }
+    if (signal.to_agent === agent) {
+      classes.push(signal.is_transition ? "has-handoff-target" : "has-handoff-target-muted");
+    }
+  }
+  return classes.join(" ");
+}
+
+function renderHandoffOverlay(renderableHandoffs) {
+  const overlay = elements.officeCanvas.querySelector(".handoff-overlay");
+  const svg = elements.officeCanvas.querySelector(".handoff-svg");
+  const chipLayer = elements.officeCanvas.querySelector(".handoff-chip-layer");
+  const layout = elements.officeCanvas.querySelector(".office-layout");
+
+  if (!overlay || !svg || !chipLayer || !layout) {
+    return;
+  }
+
+  svg.replaceChildren();
+  chipLayer.replaceChildren();
+
+  if (!renderableHandoffs.length) {
+    overlay.classList.add("hidden");
+    return;
+  }
+
+  const layoutRect = layout.getBoundingClientRect();
+  const width = Math.max(1, layoutRect.width);
+  const height = Math.max(1, layoutRect.height);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", `${width}`);
+  svg.setAttribute("height", `${height}`);
+
+  const namespace = "http://www.w3.org/2000/svg";
+
+  for (const signal of renderableHandoffs) {
+    const fromNode = layout.querySelector(
+      `[data-type="agent"][data-id="${CSS.escape(signal.from_agent)}"]`
+    );
+    const toNode = layout.querySelector(
+      `[data-type="agent"][data-id="${CSS.escape(signal.to_agent)}"]`
+    );
+    if (!fromNode || !toNode) {
+      continue;
+    }
+
+    const fromRect = fromNode.getBoundingClientRect();
+    const toRect = toNode.getBoundingClientRect();
+    const startX = fromRect.left - layoutRect.left + fromRect.width / 2;
+    const startY = fromRect.top - layoutRect.top + fromRect.height / 2;
+    const endX = toRect.left - layoutRect.left + toRect.width / 2;
+    const endY = toRect.top - layoutRect.top + toRect.height / 2;
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    const curveY = midY - 32;
+
+    const pathNode = document.createElementNS(namespace, "path");
+    pathNode.setAttribute("d", `M ${startX} ${startY} Q ${midX} ${curveY} ${endX} ${endY}`);
+    pathNode.setAttribute(
+      "class",
+      `handoff-path ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim()
+    );
+    svg.append(pathNode);
+
+    const pulseNode = document.createElementNS(namespace, "circle");
+    pulseNode.setAttribute("cx", `${midX}`);
+    pulseNode.setAttribute("cy", `${curveY}`);
+    pulseNode.setAttribute("r", signal.is_transition ? "6" : "4");
+    pulseNode.setAttribute(
+      "class",
+      `handoff-pulse ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim()
+    );
+    svg.append(pulseNode);
+
+    const chipNode = document.createElement("div");
+    chipNode.className = `handoff-chip ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim();
+    chipNode.style.left = `${midX}px`;
+    chipNode.style.top = `${curveY - 12}px`;
+    chipNode.innerHTML = `
+      <strong>${escapeHtml(signal.opportunity_id)}</strong>
+      <span>${escapeHtml(shortAgentLabel(signal.from_agent))} → ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>
+    `;
+    chipLayer.append(chipNode);
+  }
+
+  overlay.classList.remove("hidden");
+}
+
 function renderOfficeCanvas() {
   const presenceEntries = state.snapshot.office.presence || [];
   const opportunities = state.snapshot.workflow.opportunities;
   const topTask = state.snapshot.attention.top_task;
+  const activeTransitions = getActiveTransitionState();
+  const renderableHandoffs = getRenderableHandoffs(activeTransitions);
 
   const floorBanner = `
     <div class="floor-banner">
@@ -194,6 +524,7 @@ function renderOfficeCanvas() {
         <span class="priority-pill">${state.snapshot.kpis.active_opportunities} active</span>
         <span class="priority-pill">${state.snapshot.kpis.blocked_opportunities} blocked</span>
         <span class="priority-pill">${state.snapshot.kpis.approvals_waiting} approvals</span>
+        <span class="priority-pill">${renderableHandoffs.length} handoffs</span>
       </div>
     </div>
   `;
@@ -202,10 +533,15 @@ function renderOfficeCanvas() {
     .map((presence) => {
       const isSelected =
         state.selected && state.selected.type === "agent" && state.selected.id === presence.agent;
+      const signalClasses = buildZoneSignalClasses(
+        presence.agent,
+        activeTransitions,
+        renderableHandoffs
+      );
       return `
         <button
           type="button"
-          class="zone-card zone-card-${escapeHtml(presence.accent_token)} ${isSelected ? "is-selected" : ""}"
+          class="zone-card zone-card-${escapeHtml(presence.accent_token)} ${formatLaneClass(presence.lane_stage)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
           data-type="agent"
           data-id="${escapeHtml(presence.agent)}"
         >
@@ -216,6 +552,8 @@ function renderOfficeCanvas() {
             </div>
             <span class="status-pill ${formatStatusClass(presence.status)}">${escapeHtml(presence.status)}</span>
           </div>
+
+          <div class="zone-lane-ribbon ${formatLaneClass(presence.lane_stage)}">${escapeHtml(formatLaneLabel(presence.lane_stage))}</div>
 
           <div class="zone-stage">
             <div class="presence-strip">
@@ -262,8 +600,12 @@ function renderOfficeCanvas() {
             state.selected &&
             state.selected.type === "opportunity" &&
             state.selected.id === entry.opportunity_id;
+          const laneStage = mapStatusToLaneStage(entry.current_status);
+          const laneShiftClass = activeTransitions.laneShiftOpportunities.has(entry.opportunity_id)
+            ? "has-lane-shift"
+            : "";
           return `
-            <button type="button" class="opportunity-chip ${isSelected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(entry.opportunity_id)}">
+            <button type="button" class="opportunity-chip ${formatLaneClass(laneStage)} ${laneShiftClass} ${isSelected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(entry.opportunity_id)}">
               <strong>${escapeHtml(entry.opportunity_id)}</strong>
               <span class="status-pill ${formatStatusClass(entry.current_status)}">${escapeHtml(entry.current_status)}</span>
               <p class="muted">${escapeHtml(record ? record.device_summary : entry.source)}</p>
@@ -275,7 +617,13 @@ function renderOfficeCanvas() {
 
   elements.officeCanvas.innerHTML = `
     ${floorBanner}
-    <div class="office-layout">${zonesHtml}</div>
+    <div class="office-layout-wrap">
+      <div class="office-layout">${zonesHtml}</div>
+      <div class="handoff-overlay hidden" aria-hidden="true">
+        <svg class="handoff-svg"></svg>
+        <div class="handoff-chip-layer"></div>
+      </div>
+    </div>
     <div class="workflow-rail">${opportunityRailHtml}</div>
   `;
 
@@ -284,6 +632,8 @@ function renderOfficeCanvas() {
       setSelection(node.dataset.type, node.dataset.id);
     });
   });
+
+  renderHandoffOverlay(renderableHandoffs);
 }
 
 function renderDetailForOpportunity(entry) {
@@ -317,6 +667,7 @@ function renderDetailForOpportunity(entry) {
         <div class="card-tags">
           <span class="priority-pill ${formatStatusClass(entry.priority)}">${escapeHtml(entry.priority)} priority</span>
           <span class="priority-pill">${escapeHtml(record ? record.confidence : workflow && workflow.confidence ? workflow.confidence : "unknown")} confidence</span>
+          <span class="priority-pill">${escapeHtml(formatLaneLabel(mapStatusToLaneStage(entry.current_status)))}</span>
           ${
             workflow && workflow.purchase_recommendation_blocked
               ? `<span class="alert-pill ${formatStatusClass("blocked")}">purchase blocked</span>`
@@ -416,6 +767,7 @@ function renderDetailForAgent(card) {
         <li>Department: ${escapeHtml(presence ? presence.department_label : "Unknown")}</li>
         <li>Bubble state: ${escapeHtml(presence ? presence.bubble_label : "N/A")}</li>
         <li>Bubble text: ${escapeHtml(presence ? presence.bubble_text : "N/A")}</li>
+        <li>Lane: ${escapeHtml(formatLaneLabel(presence ? presence.lane_stage : "monitor"))}</li>
       </ul>
     </section>
 
@@ -634,7 +986,10 @@ async function loadSnapshot() {
     if (!response.ok) {
       throw new Error(`Snapshot request failed (${response.status})`);
     }
-    state.snapshot = await response.json();
+    const nextSnapshot = await response.json();
+    const transitions = computeTransitionState(state.snapshot, nextSnapshot);
+    state.snapshot = nextSnapshot;
+    setTransitionState(transitions);
     render();
   } catch (error) {
     elements.detailPanel.innerHTML = `<div class="empty-state">${escapeHtml(

@@ -69,6 +69,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.kpis.approvals_waiting, 1);
   assert.equal(snapshot.office.agent_status_cards.length, 4);
   assert.equal(snapshot.office.presence.length, 4);
+  assert.equal(snapshot.office.handoff_signals.length, 1);
   assert.equal(snapshot.office.company_board_snapshot.approvals_waiting, 1);
   assert.equal(snapshot.capital_controls.status, "manual_only");
   assert.equal(snapshot.workflow.opportunities.length, 1);
@@ -86,5 +87,8 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   );
   assert.equal(snapshot.office.presence[0].zone_label, "Executive Suite");
   assert.equal(snapshot.office.presence[0].motion_state, "awaiting_approval");
+  assert.equal(snapshot.office.presence[0].lane_stage, "verification");
   assert.match(snapshot.office.presence[0].bubble_text, /approval queue is waiting on owner action/i);
+  assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
+  assert.equal(snapshot.office.handoff_signals[0].to_agent, "Risk and Compliance Agent");
 });
