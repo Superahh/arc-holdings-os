@@ -50,6 +50,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add due-soon awaiting-task signal for status/report and loop/batch operator visibility
 - [x] add per-task urgency and minutes-to-due fields for awaiting-task triage
 - [x] add top-task attention summary for status/report operator clarity
+- [x] add compact attention CLI with fail-on-overdue mode for automation hooks
 
 ## Out of scope
 
