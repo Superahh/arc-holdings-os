@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 
 const { loadQueue, getPendingTickets } = require("./approval_queue");
@@ -67,6 +68,33 @@ function buildDueBy(baseIso, dueMinutes) {
   return base.toISOString();
 }
 
+function getLatestRunArtifactForOpportunity(baseDir, opportunityId) {
+  const runsDir = path.join(baseDir, "runs");
+  if (!fs.existsSync(runsDir)) {
+    return null;
+  }
+  const files = fs
+    .readdirSync(runsDir)
+    .filter((entry) => entry.endsWith(".artifact.json"))
+    .map((entry) => path.join(runsDir, entry));
+  if (files.length === 0) {
+    return null;
+  }
+
+  files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+  for (const filePath of files) {
+    try {
+      const artifact = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      if (artifact.opportunity_id === opportunityId && artifact.output && artifact.output.handoff_packet) {
+        return artifact;
+      }
+    } catch {
+      // Ignore malformed artifacts and continue scanning.
+    }
+  }
+  return null;
+}
+
 function buildPendingApprovalTasks(pendingTickets, nowIso) {
   return pendingTickets.map((ticket) => {
     const dueBy = toIso(ticket.ticket.required_by || ticket.created_at);
@@ -87,14 +115,27 @@ function buildPendingApprovalTasks(pendingTickets, nowIso) {
   });
 }
 
-function buildWorkflowTasks(workflowState, nowIso) {
+function buildWorkflowTasks(workflowState, nowIso, baseDir = null) {
   const tasks = [];
   for (const record of Object.values(workflowState.opportunities)) {
     const rule = WORKFLOW_TASK_RULES[record.current_status];
     if (!rule) {
       continue;
     }
-    const dueBy = buildDueBy(record.last_updated_at, rule.due_minutes);
+    let nextAction = rule.next_action;
+    let dueBy = buildDueBy(record.last_updated_at, rule.due_minutes);
+    if (baseDir) {
+      const latestArtifact = getLatestRunArtifactForOpportunity(baseDir, record.opportunity_id);
+      if (latestArtifact && latestArtifact.output && latestArtifact.output.handoff_packet) {
+        const handoff = latestArtifact.output.handoff_packet;
+        if (typeof handoff.next_action === "string" && handoff.next_action) {
+          nextAction = handoff.next_action;
+        }
+        if (typeof handoff.due_by === "string" && !Number.isNaN(Date.parse(handoff.due_by))) {
+          dueBy = new Date(handoff.due_by).toISOString();
+        }
+      }
+    }
     const overdue = Date.parse(nowIso) > Date.parse(dueBy);
     tasks.push({
       source: "workflow_state",
@@ -102,7 +143,7 @@ function buildWorkflowTasks(workflowState, nowIso) {
       opportunity_id: record.opportunity_id,
       ticket_id: record.approval_ticket_id || null,
       status: record.current_status,
-      next_action: rule.next_action,
+      next_action: nextAction,
       due_by: dueBy,
       overdue,
       age_minutes: minutesBetween(record.last_updated_at, nowIso),
@@ -125,6 +166,7 @@ function parseArgs(argv) {
   const args = {
     queuePath: null,
     workflowStatePath: null,
+    baseDir: path.join(__dirname, "output"),
     now: new Date().toISOString(),
     slaMinutes: 120,
     workflowStaleMinutes: 240,
@@ -140,6 +182,9 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--workflow-state-path") {
       args.workflowStatePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--base-dir") {
+      args.baseDir = argv[i + 1];
       i += 1;
     } else if (token === "--now") {
       args.now = argv[i + 1];
@@ -181,6 +226,7 @@ function parseArgs(argv) {
 
 function runStatusAction(args) {
   const nowIso = new Date(args.now).toISOString();
+  const baseDir = path.resolve(args.baseDir);
   const queuePath = path.resolve(args.queuePath);
   const queue = loadQueue(queuePath);
   const queueHealth = computeHealth(queue, nowIso, args.slaMinutes);
@@ -193,7 +239,7 @@ function runStatusAction(args) {
     const workflowPath = path.resolve(args.workflowStatePath);
     const workflowState = loadWorkflowState(workflowPath);
     const workflowHealth = computeWorkflowHealth(workflowState, nowIso, args.workflowStaleMinutes);
-    workflowTasks = buildWorkflowTasks(workflowState, nowIso);
+    workflowTasks = buildWorkflowTasks(workflowState, nowIso, baseDir);
     workflow = {
       state_path: workflowPath,
       health: workflowHealth,

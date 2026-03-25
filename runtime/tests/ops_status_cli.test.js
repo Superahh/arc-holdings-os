@@ -43,6 +43,24 @@ function seedWorkflow(tempDir) {
   return statePath;
 }
 
+function seedRunArtifact(tempDir, opportunityId, nextAction, dueBy) {
+  const runsDir = path.join(tempDir, "runs");
+  fs.mkdirSync(runsDir, { recursive: true });
+  const artifactPath = path.join(runsDir, `${opportunityId}--test.artifact.json`);
+  const artifact = {
+    schema_version: "v1",
+    generated_at: "2026-03-25T19:05:00.000Z",
+    opportunity_id: opportunityId,
+    output: {
+      handoff_packet: {
+        next_action: nextAction,
+        due_by: dueBy,
+      },
+    },
+  };
+  fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+}
+
 test("parseArgs validates required and numeric arguments", () => {
   assert.throws(() => parseArgs([]), /--queue-path/);
   assert.throws(
@@ -66,6 +84,7 @@ test("runStatusAction returns queue-only summary when workflow path is absent", 
   const result = runStatusAction({
     queuePath,
     workflowStatePath: null,
+    baseDir: tempDir,
     now: "2026-03-25T19:30:00.000Z",
     slaMinutes: 120,
     workflowStaleMinutes: 240,
@@ -90,6 +109,7 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
   const result = runStatusAction({
     queuePath,
     workflowStatePath,
+    baseDir: tempDir,
     now: "2026-03-25T19:30:00.000Z",
     slaMinutes: 120,
     workflowStaleMinutes: 240,
@@ -108,4 +128,34 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
     result.awaiting_tasks.tasks.some((task) => task.source === "workflow_state" && task.status === "researching"),
     true
   );
+});
+
+test("runStatusAction uses latest handoff next_action and due_by when available", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-ops-status-"));
+  const queuePath = seedQueue(tempDir);
+  const workflowStatePath = seedWorkflow(tempDir);
+
+  seedRunArtifact(
+    tempDir,
+    "opp-2026-03-25-001",
+    "Request remote IMEI proof and verify carrier status.",
+    "2026-03-25T20:00:00.000Z"
+  );
+
+  const result = runStatusAction({
+    queuePath,
+    workflowStatePath,
+    baseDir: tempDir,
+    now: "2026-03-25T19:30:00.000Z",
+    slaMinutes: 120,
+    workflowStaleMinutes: 240,
+    pendingLimit: 5,
+    staleLimit: 5,
+    taskLimit: 20,
+  });
+
+  const workflowTask = result.awaiting_tasks.tasks.find((task) => task.source === "workflow_state");
+  assert.ok(workflowTask, "Expected workflow task.");
+  assert.equal(workflowTask.next_action, "Request remote IMEI proof and verify carrier status.");
+  assert.equal(workflowTask.due_by, "2026-03-25T20:00:00.000Z");
 });

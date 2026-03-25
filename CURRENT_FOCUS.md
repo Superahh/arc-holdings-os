@@ -40,6 +40,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add transition-checked manual workflow update CLI
 - [x] add actionable awaiting-task queue to ops status output
 - [x] include awaiting-task summary in consolidated ops report and loop/batch controls
+- [x] source awaiting workflow task details from latest handoff artifacts
 
 ## Out of scope
 

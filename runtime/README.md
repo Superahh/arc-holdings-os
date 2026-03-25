@@ -233,6 +233,12 @@ Limit returned awaiting tasks:
 node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --task-limit 10
 ```
 
+Use custom output base dir for handoff-driven task details:
+
+```powershell
+node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --base-dir runtime/output
+```
+
 Run full ops loop in one command:
 
 ```powershell
