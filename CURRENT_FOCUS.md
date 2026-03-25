@@ -45,6 +45,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] enforce remote-safe handoff actions for shipping-only scenarios in acceptance gate
 - [x] add one-command runtime test runner for operator/dev workflows
 - [x] harden pipeline tests for remote-safe handoff wording across scenario branches
+- [x] add one-command markdown link integrity check utility
 
 ## Out of scope
 

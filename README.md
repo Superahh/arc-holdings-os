@@ -63,3 +63,12 @@ Use this repo to:
 - keep risky actions approval-gated
 - avoid one-off prompt sprawl
 - prefer small, reversible changes
+
+## Quality checks
+
+Run these from repo root:
+
+```powershell
+node runtime/tests/run_all_tests.js
+node tools/check_markdown_links.js --root .
+```
