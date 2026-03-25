@@ -63,10 +63,20 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/artifact_index_cli.test.js`: artifact index CLI tests
 - `tests/artifact_prune_cli.test.js`: artifact prune CLI tests
 - `tests/acceptance_cli.test.js`: acceptance CLI scenario gate tests
+- `tests/run_all_tests.js`: helper script to execute all runtime tests in deterministic order
+- `tests/run_all_tests.test.js`: test coverage for the runtime test runner helper
 - `output/`: generated runs and maintained snapshots
 - `state/`: mutable local state files (runtime artifacts)
 
 ## Run tests
+
+Run the full runtime test suite:
+
+```powershell
+node runtime/tests/run_all_tests.js
+```
+
+Or run tests individually:
 
 ```powershell
 node runtime/tests/pipeline.test.js
