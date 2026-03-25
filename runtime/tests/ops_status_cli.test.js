@@ -141,12 +141,14 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
   assert.equal(result.attention.next_attention_at, result.attention.top_task.due_by);
   assert.equal(result.awaiting_tasks.total_count, 2);
   assert.equal(result.awaiting_tasks.returned_count, 2);
-  assert.equal(result.awaiting_tasks.due_soon_count, 0);
+  assert.equal(result.awaiting_tasks.due_soon_count, 1);
   assert.equal(result.awaiting_tasks.urgency_counts.overdue, 0);
-  assert.equal(result.awaiting_tasks.urgency_counts.due_soon, 0);
-  assert.equal(result.awaiting_tasks.urgency_counts.normal, 2);
+  assert.equal(result.awaiting_tasks.urgency_counts.due_soon, 1);
+  assert.equal(result.awaiting_tasks.urgency_counts.normal, 1);
   assert.equal(
-    result.awaiting_tasks.tasks.some((task) => task.source === "workflow_state" && task.status === "researching"),
+    result.awaiting_tasks.tasks.some(
+      (task) => task.source === "workflow_state" && task.status === "awaiting_seller_verification"
+    ),
     true
   );
 });

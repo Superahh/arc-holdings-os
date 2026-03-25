@@ -12,6 +12,7 @@ function writeFixture(tempDir, carrierStatus = "verified") {
   const sourcePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
   const fixture = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
   fixture.device.carrier_status = carrierStatus;
+  fixture.device.imei_proof_verified = carrierStatus === "verified";
   const fixturePath = path.join(tempDir, `fixture-${carrierStatus}.json`);
   fs.writeFileSync(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
   return fixturePath;

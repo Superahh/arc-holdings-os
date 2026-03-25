@@ -27,6 +27,7 @@ test("parseArgs enforces required arguments", () => {
 test("runDecisionAction updates queue and writes decision artifact", () => {
   const input = loadFixture("golden-scenario.json");
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
   assert.ok(output.approval_ticket, "Expected approval ticket.");
 
@@ -65,6 +66,7 @@ test("runDecisionAction updates queue and writes decision artifact", () => {
 test("request_more_info decision marks blocked state in office artifact", () => {
   const input = loadFixture("golden-scenario.json");
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-decision-cli-"));

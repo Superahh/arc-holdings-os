@@ -35,6 +35,20 @@ test("parseArgs validates required fields and status enum", () => {
       parseArgs(["--state-path", "s.json", "--opportunity-id", "opp-1", "--status", "invalid_status"]),
     /Invalid --status/
   );
+  assert.throws(
+    () =>
+      parseArgs([
+        "--state-path",
+        "s.json",
+        "--opportunity-id",
+        "opp-1",
+        "--status",
+        "researching",
+        "--priority",
+        "invalid",
+      ]),
+    /Invalid --priority/
+  );
 });
 
 test("runUpdateAction applies valid transition", () => {
@@ -47,10 +61,12 @@ test("runUpdateAction applies valid transition", () => {
     reason: "Remote verification complete; waiting approval gate.",
     now: "2026-03-25T19:10:00.000Z",
     forceTransition: false,
+    priority: "urgent",
   });
 
-  assert.equal(result.previous_status, "researching");
+  assert.equal(result.previous_status, "awaiting_seller_verification");
   assert.equal(result.current_status, "awaiting_approval");
+  assert.equal(result.priority, "urgent");
   assert.equal(result.force_transition, false);
 });
 

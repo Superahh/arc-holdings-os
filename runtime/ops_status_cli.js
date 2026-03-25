@@ -19,6 +19,11 @@ const WORKFLOW_TASK_RULES = {
     next_action: "Collect missing verification data and unblock decision.",
     due_minutes: 120,
   },
+  awaiting_seller_verification: {
+    owner: "Risk and Compliance Agent",
+    next_action: "Request seller IMEI proof and carrier verification immediately.",
+    due_minutes: 60,
+  },
   awaiting_approval: {
     owner: "CEO Agent",
     next_action: "Review and decide approval ticket.",
@@ -157,7 +162,11 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null, dueSoonMinute
       continue;
     }
     let nextAction = rule.next_action;
-    let dueBy = buildDueBy(record.last_updated_at, rule.due_minutes);
+    const dueMinutes = record.priority === "urgent" ? Math.min(rule.due_minutes, 60) : rule.due_minutes;
+    let dueBy = buildDueBy(record.last_updated_at, dueMinutes);
+    if (record.alternative_opportunities_required) {
+      nextAction = "Downgrade confidence and surface alternative opportunities.";
+    }
     if (baseDir) {
       const latestArtifact = getLatestRunArtifactForOpportunity(baseDir, record.opportunity_id);
       if (latestArtifact && latestArtifact.output && latestArtifact.output.handoff_packet) {

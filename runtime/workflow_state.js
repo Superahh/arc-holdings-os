@@ -6,6 +6,7 @@ const path = require("node:path");
 const OPPORTUNITY_STATES = new Set([
   "discovered",
   "researching",
+  "awaiting_seller_verification",
   "awaiting_approval",
   "approved",
   "acquired",
@@ -15,10 +16,14 @@ const OPPORTUNITY_STATES = new Set([
   "rejected",
 ]);
 
+const PRIORITY_LEVELS = new Set(["low", "normal", "urgent"]);
+const VERIFICATION_RESPONSE_STATUSES = new Set(["pending", "satisfactory", "unsatisfactory"]);
+
 const ALLOWED_STATUS_TRANSITIONS = {
-  discovered: new Set(["researching", "closed", "rejected"]),
-  researching: new Set(["awaiting_approval", "closed", "rejected"]),
-  awaiting_approval: new Set(["approved", "rejected", "researching"]),
+  discovered: new Set(["researching", "awaiting_seller_verification", "closed", "rejected"]),
+  researching: new Set(["awaiting_seller_verification", "awaiting_approval", "closed", "rejected"]),
+  awaiting_seller_verification: new Set(["researching", "awaiting_approval", "closed", "rejected"]),
+  awaiting_approval: new Set(["approved", "rejected", "researching", "awaiting_seller_verification"]),
   approved: new Set(["acquired", "rejected", "closed"]),
   acquired: new Set(["routed", "closed"]),
   routed: new Set(["monetizing", "closed"]),
@@ -65,6 +70,13 @@ function loadWorkflowState(statePath) {
   }
   const state = JSON.parse(fs.readFileSync(absolutePath, "utf8"));
   ensureWorkflowShape(state);
+  for (const [opportunityId, opportunity] of Object.entries(state.opportunities)) {
+    const source =
+      opportunity && typeof opportunity.source === "string" && opportunity.source.trim().length > 0
+        ? opportunity.source
+        : "unknown_source";
+    ensureOpportunityRecord(state, opportunityId, source, state.updated_at);
+  }
   return state;
 }
 
@@ -83,7 +95,7 @@ function mapRecommendationToStatus(output) {
     return "awaiting_approval";
   }
   if (recommendation === "request_more_info") {
-    return "researching";
+    return "awaiting_seller_verification";
   }
   if (recommendation === "skip") {
     return "closed";
@@ -98,7 +110,7 @@ function mapDecisionToStatus(decision) {
   if (decision === "reject") {
     return "rejected";
   }
-  return "researching";
+  return "awaiting_seller_verification";
 }
 
 function ensureOpportunityRecord(state, opportunityId, source = "unknown_source", timestamp = new Date().toISOString()) {
@@ -109,7 +121,20 @@ function ensureOpportunityRecord(state, opportunityId, source = "unknown_source"
       source,
       current_status: "discovered",
       recommendation: null,
+      confidence: null,
+      priority: "normal",
       approval_ticket_id: null,
+      purchase_recommendation_blocked: false,
+      alternative_opportunities_required: false,
+      seller_verification: {
+        imei_proof_verified: false,
+        carrier_status_verified: false,
+        request_sent_at: null,
+        request_message: null,
+        response_status: null,
+        response_received_at: null,
+        response_notes: null,
+      },
       last_updated_at: toIso(timestamp),
       status_history: [],
     };
@@ -119,6 +144,47 @@ function ensureOpportunityRecord(state, opportunityId, source = "unknown_source"
   }
   if (!Array.isArray(record.status_history)) {
     throw new Error("Opportunity status_history must be an array.");
+  }
+  if (!PRIORITY_LEVELS.has(record.priority)) {
+    record.priority = "normal";
+  }
+  if (typeof record.purchase_recommendation_blocked !== "boolean") {
+    record.purchase_recommendation_blocked = false;
+  }
+  if (typeof record.alternative_opportunities_required !== "boolean") {
+    record.alternative_opportunities_required = false;
+  }
+  if (typeof record.confidence !== "string" && record.confidence !== null) {
+    record.confidence = null;
+  }
+  if (!record.seller_verification || typeof record.seller_verification !== "object") {
+    record.seller_verification = {
+      imei_proof_verified: false,
+      carrier_status_verified: false,
+      request_sent_at: null,
+      request_message: null,
+      response_status: null,
+      response_received_at: null,
+      response_notes: null,
+    };
+  }
+  if (typeof record.seller_verification.imei_proof_verified !== "boolean") {
+    record.seller_verification.imei_proof_verified = false;
+  }
+  if (typeof record.seller_verification.carrier_status_verified !== "boolean") {
+    record.seller_verification.carrier_status_verified = false;
+  }
+  if (
+    record.seller_verification.response_status !== null &&
+    !VERIFICATION_RESPONSE_STATUSES.has(record.seller_verification.response_status)
+  ) {
+    record.seller_verification.response_status = null;
+  }
+  for (const field of ["request_sent_at", "request_message", "response_received_at", "response_notes"]) {
+    const value = record.seller_verification[field];
+    if (!(typeof value === "string" || value === null)) {
+      record.seller_verification[field] = null;
+    }
   }
   state.opportunities[opportunityId] = record;
   return record;
@@ -173,8 +239,20 @@ function upsertFromPipeline(state, output, actor = "pipeline_runner", timestamp 
     timestamp
   );
   record.recommendation = output.opportunity_record.recommendation;
+  record.confidence = output.opportunity_record.confidence;
   record.source = output.opportunity_record.source;
   record.approval_ticket_id = output.approval_ticket ? output.approval_ticket.ticket_id : null;
+  const risks = Array.isArray(output.opportunity_record.risks) ? output.opportunity_record.risks : [];
+  record.seller_verification.carrier_status_verified = !risks.includes("carrier status unverified");
+  record.seller_verification.imei_proof_verified = !risks.includes("imei proof unverified");
+  record.purchase_recommendation_blocked = !(
+    record.recommendation === "acquire" &&
+    record.seller_verification.carrier_status_verified &&
+    record.seller_verification.imei_proof_verified
+  );
+  if (record.recommendation === "request_more_info") {
+    record.priority = "urgent";
+  }
 
   const nextStatus = mapRecommendationToStatus(output);
   setOpportunityStatus(
@@ -242,10 +320,11 @@ function updateOpportunityStatus(
     throw new Error(`Unknown opportunity status: ${status}`);
   }
 
-  const record = state.opportunities[opportunityId];
-  if (!record) {
+  const existing = state.opportunities[opportunityId];
+  if (!existing) {
     throw new Error(`Opportunity not found in workflow state: ${opportunityId}`);
   }
+  const record = ensureOpportunityRecord(state, opportunityId, existing.source || "unknown_source", timestamp);
 
   const forceTransition = Boolean(options.forceTransition);
   if (!forceTransition && !canTransitionStatus(record.current_status, status)) {
@@ -261,8 +340,178 @@ function updateOpportunityStatus(
   return record;
 }
 
+function updateOpportunityPriority(
+  state,
+  opportunityId,
+  priority,
+  actor = "owner_operator",
+  reason = "",
+  timestamp = new Date().toISOString()
+) {
+  ensureWorkflowShape(state);
+  if (typeof opportunityId !== "string" || !opportunityId) {
+    throw new Error("opportunityId is required.");
+  }
+  if (!PRIORITY_LEVELS.has(priority)) {
+    throw new Error(`Unknown priority level: ${priority}`);
+  }
+  const existing = state.opportunities[opportunityId];
+  if (!existing) {
+    throw new Error(`Opportunity not found in workflow state: ${opportunityId}`);
+  }
+  const record = ensureOpportunityRecord(state, opportunityId, existing.source || "unknown_source", timestamp);
+  const at = toIso(timestamp);
+  const previousPriority = record.priority;
+  record.priority = priority;
+  appendEvent(state, {
+    action: "priority_update",
+    opportunity_id: opportunityId,
+    previous_priority: previousPriority,
+    priority,
+    actor,
+    reason: reason || `Priority updated: ${previousPriority} -> ${priority}`,
+    timestamp: at,
+  });
+  record.last_updated_at = at;
+  state.updated_at = at;
+  return record;
+}
+
+function requestSellerVerification(
+  state,
+  opportunityId,
+  actor = "risk_and_compliance_agent",
+  timestamp = new Date().toISOString(),
+  options = {}
+) {
+  ensureWorkflowShape(state);
+  const existing = state.opportunities[opportunityId];
+  if (!existing) {
+    throw new Error(`Opportunity not found in workflow state: ${opportunityId}`);
+  }
+  const record = ensureOpportunityRecord(state, opportunityId, existing.source || "unknown_source", timestamp);
+  const at = toIso(timestamp);
+  const requestMessage =
+    typeof options.message === "string" && options.message.trim().length > 0
+      ? options.message
+      : "Please send IMEI photo/video proof and confirm carrier status verification before we proceed.";
+  const priority = options.priority || "urgent";
+  if (!PRIORITY_LEVELS.has(priority)) {
+    throw new Error(`Unknown priority level: ${priority}`);
+  }
+
+  record.seller_verification.request_sent_at = at;
+  record.seller_verification.request_message = requestMessage;
+  record.seller_verification.response_status = "pending";
+  record.seller_verification.response_received_at = null;
+  record.seller_verification.response_notes = null;
+  record.purchase_recommendation_blocked = true;
+  record.priority = priority;
+
+  setOpportunityStatus(
+    state,
+    record,
+    "awaiting_seller_verification",
+    actor,
+    options.reason || "Seller verification requested.",
+    at
+  );
+  appendEvent(state, {
+    action: "seller_verification_request",
+    opportunity_id: opportunityId,
+    actor,
+    message: requestMessage,
+    timestamp: at,
+  });
+  state.updated_at = at;
+  return record;
+}
+
+function applySellerVerificationResponse(
+  state,
+  opportunityId,
+  responseStatus,
+  actor = "risk_and_compliance_agent",
+  timestamp = new Date().toISOString(),
+  options = {}
+) {
+  ensureWorkflowShape(state);
+  if (!["satisfactory", "unsatisfactory"].includes(responseStatus)) {
+    throw new Error("responseStatus must be one of: satisfactory, unsatisfactory.");
+  }
+  const existing = state.opportunities[opportunityId];
+  if (!existing) {
+    throw new Error(`Opportunity not found in workflow state: ${opportunityId}`);
+  }
+  const record = ensureOpportunityRecord(state, opportunityId, existing.source || "unknown_source", timestamp);
+  const at = toIso(timestamp);
+  const notes = typeof options.notes === "string" ? options.notes : "";
+
+  if (typeof options.imeiVerified === "boolean") {
+    record.seller_verification.imei_proof_verified = options.imeiVerified;
+  }
+  if (typeof options.carrierVerified === "boolean") {
+    record.seller_verification.carrier_status_verified = options.carrierVerified;
+  }
+  record.seller_verification.response_status = responseStatus;
+  record.seller_verification.response_received_at = at;
+  record.seller_verification.response_notes = notes || null;
+
+  const verificationSatisfied =
+    record.seller_verification.imei_proof_verified && record.seller_verification.carrier_status_verified;
+  if (responseStatus === "unsatisfactory") {
+    record.confidence = "low";
+    record.alternative_opportunities_required = true;
+    record.purchase_recommendation_blocked = true;
+    record.priority = "urgent";
+    setOpportunityStatus(
+      state,
+      record,
+      "awaiting_seller_verification",
+      actor,
+      "Seller response unsatisfactory; downgrade confidence and pursue alternatives.",
+      at
+    );
+  } else if (verificationSatisfied) {
+    record.purchase_recommendation_blocked = false;
+    record.alternative_opportunities_required = false;
+    setOpportunityStatus(
+      state,
+      record,
+      "researching",
+      actor,
+      "Seller verification satisfied; resume opportunity evaluation.",
+      at
+    );
+  } else {
+    record.purchase_recommendation_blocked = true;
+    setOpportunityStatus(
+      state,
+      record,
+      "awaiting_seller_verification",
+      actor,
+      "Seller response received but verification remains incomplete.",
+      at
+    );
+  }
+
+  appendEvent(state, {
+    action: "seller_verification_response",
+    opportunity_id: opportunityId,
+    actor,
+    response_status: responseStatus,
+    verification_satisfied: verificationSatisfied,
+    notes: notes || null,
+    timestamp: at,
+  });
+  state.updated_at = at;
+  return record;
+}
+
 module.exports = {
   OPPORTUNITY_STATES,
+  PRIORITY_LEVELS,
+  VERIFICATION_RESPONSE_STATUSES,
   ALLOWED_STATUS_TRANSITIONS,
   createEmptyWorkflowState,
   loadWorkflowState,
@@ -270,6 +519,9 @@ module.exports = {
   upsertFromPipeline,
   applyDecisionToOpportunity,
   updateOpportunityStatus,
+  updateOpportunityPriority,
+  requestSellerVerification,
+  applySellerVerificationResponse,
   canTransitionStatus,
   mapRecommendationToStatus,
   mapDecisionToStatus,

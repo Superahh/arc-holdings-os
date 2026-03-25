@@ -68,7 +68,7 @@ test("summary mode reports status counts", () => {
 
   assert.equal(result.mode, "summary");
   assert.equal(result.totals.opportunities, 2);
-  assert.equal(result.status_counts.researching, 1);
+  assert.equal(result.status_counts.awaiting_seller_verification, 1);
   assert.equal(result.status_counts.rejected, 1);
 });
 

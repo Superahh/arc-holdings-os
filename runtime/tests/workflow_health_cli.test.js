@@ -59,7 +59,7 @@ test("computeWorkflowHealth reports stale non-terminal opportunities", () => {
 
   assert.equal(health.workflow_totals.opportunities, 2);
   assert.equal(health.workflow_totals.status_counts.rejected, 1);
-  assert.equal(health.workflow_totals.status_counts.researching, 1);
+  assert.equal(health.workflow_totals.status_counts.awaiting_seller_verification, 1);
   assert.equal(health.kpis.stale_non_terminal_count, 1);
   assert.equal(health.observations.workflow_health, "at_risk");
 });

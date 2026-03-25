@@ -2,7 +2,14 @@
 
 const path = require("node:path");
 
-const { OPPORTUNITY_STATES, loadWorkflowState, saveWorkflowState, updateOpportunityStatus } = require("./workflow_state");
+const {
+  OPPORTUNITY_STATES,
+  PRIORITY_LEVELS,
+  loadWorkflowState,
+  saveWorkflowState,
+  updateOpportunityStatus,
+  updateOpportunityPriority,
+} = require("./workflow_state");
 
 function parseArgs(argv) {
   const args = {
@@ -13,6 +20,7 @@ function parseArgs(argv) {
     reason: "",
     now: new Date().toISOString(),
     forceTransition: false,
+    priority: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -37,6 +45,9 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--force-transition") {
       args.forceTransition = true;
+    } else if (token === "--priority") {
+      args.priority = argv[i + 1];
+      i += 1;
     }
   }
 
@@ -51,6 +62,9 @@ function parseArgs(argv) {
   }
   if (!OPPORTUNITY_STATES.has(args.status)) {
     throw new Error(`Invalid --status value. Must be one of: ${[...OPPORTUNITY_STATES].join(", ")}`);
+  }
+  if (args.priority !== null && !PRIORITY_LEVELS.has(args.priority)) {
+    throw new Error(`Invalid --priority value. Must be one of: ${[...PRIORITY_LEVELS].join(", ")}`);
   }
   if (Number.isNaN(Date.parse(args.now))) {
     throw new Error("Invalid --now value. Must be ISO-8601 datetime.");
@@ -77,13 +91,25 @@ function runUpdateAction(args) {
     nowIso,
     { forceTransition: args.forceTransition }
   );
+  if (typeof args.priority === "string") {
+    updateOpportunityPriority(
+      state,
+      args.opportunityId,
+      args.priority,
+      args.actor,
+      args.reason || `Priority set to ${args.priority}`,
+      nowIso
+    );
+  }
   const savedPath = saveWorkflowState(statePath, state, nowIso);
+  const current = state.opportunities[args.opportunityId];
 
   return {
     state_path: savedPath,
     opportunity_id: updated.opportunity_id,
     previous_status: previousStatus,
     current_status: updated.current_status,
+    priority: current.priority,
     status_history_count: updated.status_history.length,
     force_transition: args.forceTransition,
   };

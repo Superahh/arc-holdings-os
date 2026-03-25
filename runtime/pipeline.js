@@ -55,10 +55,12 @@ function buildOpportunityRecord(input, nowIso = new Date().toISOString()) {
   }
 
   const carrierStatus = input.device?.carrier_status || "unknown";
+  const imeiProofVerified = input.device?.imei_proof_verified === true;
+  const carrierVerified = carrierStatus === "verified";
   let recommendation = "acquire";
   if (recommendedPath === "skip") {
     recommendation = "skip";
-  } else if (carrierStatus !== "verified") {
+  } else if (!carrierVerified || !imeiProofVerified) {
     recommendation = "request_more_info";
     recommendedPath = "request_more_info";
   }
@@ -74,8 +76,11 @@ function buildOpportunityRecord(input, nowIso = new Date().toISOString()) {
   const rangeFloor = Math.max(0, Math.round(Math.min(asIsValue, repairValue) - 30));
   const rangeCeil = Math.max(rangeFloor, Math.round(Math.max(asIsValue, repairValue)));
   const baseRisks = Array.isArray(input.known_risks) ? [...input.known_risks] : [];
-  if (carrierStatus !== "verified") {
+  if (!carrierVerified) {
     baseRisks.push("carrier status unverified");
+  }
+  if (!imeiProofVerified) {
+    baseRisks.push("imei proof unverified");
   }
 
   const deviceSummary = [

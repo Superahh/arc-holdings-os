@@ -13,6 +13,7 @@ function writeFixture(filePath, carrierStatus) {
   const fixture = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
   fixture.opportunity_id = `${fixture.opportunity_id}-${carrierStatus}`;
   fixture.device.carrier_status = carrierStatus;
+  fixture.device.imei_proof_verified = carrierStatus === "verified";
   fs.writeFileSync(filePath, `${JSON.stringify(fixture, null, 2)}\n`, "utf8");
 }
 

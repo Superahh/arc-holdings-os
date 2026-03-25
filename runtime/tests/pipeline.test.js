@@ -61,6 +61,7 @@ test("unverified carrier yields request_more_info and no approval ticket", () =>
 test("verified carrier yields acquisition path with valid ApprovalTicket", () => {
   const input = loadGoldenFixture();
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   assert.equal(output.opportunity_record.recommendation, "acquire");
@@ -77,10 +78,23 @@ test("verified carrier yields acquisition path with valid ApprovalTicket", () =>
   assert.equal(output.agent_status_cards[0].status, "awaiting_approval");
 });
 
+test("verified carrier without IMEI proof stays blocked at request_more_info", () => {
+  const input = loadGoldenFixture();
+  input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = false;
+  const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
+
+  assert.equal(output.opportunity_record.recommendation, "request_more_info");
+  assert.equal(output.opportunity_record.recommended_path, "request_more_info");
+  assert.equal(output.approval_ticket, null);
+  assert.equal(output.opportunity_record.risks.includes("imei proof unverified"), true);
+});
+
 test("weak economics yields skip recommendation", () => {
   const input = loadGoldenFixture();
   input.ask_price_usd = 1000;
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   assert.equal(output.opportunity_record.recommendation, "skip");

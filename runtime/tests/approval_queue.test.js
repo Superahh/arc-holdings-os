@@ -24,6 +24,7 @@ function loadGoldenFixture() {
 test("enqueue adds pending ticket and audit event", () => {
   const input = loadGoldenFixture();
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
   assert.ok(output.approval_ticket, "Expected approval ticket.");
 
@@ -40,6 +41,7 @@ test("enqueue adds pending ticket and audit event", () => {
 test("duplicate enqueue is rejected", () => {
   const input = loadGoldenFixture();
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   const queue = createEmptyQueue("2026-03-25T19:20:00.000Z");
@@ -53,6 +55,7 @@ test("duplicate enqueue is rejected", () => {
 test("decide approval updates state and audit trail", () => {
   const input = loadGoldenFixture();
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   const queue = createEmptyQueue("2026-03-25T19:20:00.000Z");
@@ -83,6 +86,7 @@ test("cannot decide missing or already-decided tickets", () => {
 
   const input = loadGoldenFixture();
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
   enqueueApprovalTicket(queue, output.approval_ticket, "pipeline", "2026-03-25T19:21:00.000Z");
   decideApproval(
@@ -111,6 +115,7 @@ test("cannot decide missing or already-decided tickets", () => {
 test("queue persists and reloads from disk", () => {
   const input = loadGoldenFixture();
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   const queue = createEmptyQueue("2026-03-25T19:20:00.000Z");

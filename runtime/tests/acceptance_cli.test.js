@@ -24,7 +24,9 @@ test("runAcceptanceAction passes for default fixtures", () => {
   assert.equal(report.summary.fail_count, 0);
   assert.ok(report.checks.length > 0, "Expected non-empty check list.");
   assert.equal(
-    report.checks.some((check) => check.id === "golden.workflow_researching" && check.pass === true),
+    report.checks.some(
+      (check) => check.id === "golden.workflow_awaiting_seller_verification" && check.pass === true
+    ),
     true
   );
   assert.equal(
@@ -66,6 +68,7 @@ test("runAcceptanceAction fails when golden fixture does not hit request_more_in
   const modifiedGoldenPath = path.join(tempDir, "golden-modified.json");
   const golden = JSON.parse(fs.readFileSync(goldenPath, "utf8"));
   golden.device.carrier_status = "verified";
+  golden.device.imei_proof_verified = true;
   fs.writeFileSync(modifiedGoldenPath, `${JSON.stringify(golden, null, 2)}\n`, "utf8");
 
   const rejectionPath = path.join(__dirname, "..", "fixtures", "rejection-scenario.json");
@@ -80,7 +83,9 @@ test("runAcceptanceAction fails when golden fixture does not hit request_more_in
     true
   );
   assert.equal(
-    report.checks.some((check) => check.id === "golden.workflow_researching" && check.pass === false),
+    report.checks.some(
+      (check) => check.id === "golden.workflow_awaiting_seller_verification" && check.pass === false
+    ),
     true
   );
 });

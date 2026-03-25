@@ -19,6 +19,7 @@ function buildQueueFixture() {
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
   const input = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
   input.device.carrier_status = "verified";
+  input.device.imei_proof_verified = true;
 
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
   const ticketA = output.approval_ticket;

@@ -34,7 +34,7 @@ test("runPipelineAction writes workflow state for request_more_info path", () =>
 
   assert.equal(result.recommendation, "request_more_info");
   assert.ok(result.workflow_result, "Expected workflow result.");
-  assert.equal(result.workflow_result.current_status, "researching");
+  assert.equal(result.workflow_result.current_status, "awaiting_seller_verification");
   assert.ok(fs.existsSync(workflowPath), "Expected workflow state to be persisted.");
 });
 

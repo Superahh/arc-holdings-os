@@ -155,9 +155,9 @@ function runAcceptanceAction(args) {
   );
   pushCheck(
     checks,
-    "golden.workflow_researching",
-    goldenWorkflow.current_status === "researching",
-    "Golden scenario should map to researching lifecycle status."
+    "golden.workflow_awaiting_seller_verification",
+    goldenWorkflow.current_status === "awaiting_seller_verification",
+    "Golden scenario should map to awaiting_seller_verification lifecycle status."
   );
   const goldenDeliveryMode = evaluateHandoffDeliveryMode(golden.input, goldenOutput);
   pushCheck(checks, "golden.remote_safe_handoff", goldenDeliveryMode.pass, goldenDeliveryMode.detail);

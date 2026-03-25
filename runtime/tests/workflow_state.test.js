@@ -15,6 +15,9 @@ const {
   applyDecisionToOpportunity,
   canTransitionStatus,
   updateOpportunityStatus,
+  updateOpportunityPriority,
+  requestSellerVerification,
+  applySellerVerificationResponse,
 } = require("../workflow_state");
 
 function loadFixture(name) {
@@ -35,15 +38,17 @@ test("workflow state persists and reloads", () => {
   assert.equal(Array.isArray(reloaded.event_log), true);
 });
 
-test("upsertFromPipeline maps request_more_info to researching", () => {
+test("upsertFromPipeline maps request_more_info to awaiting_seller_verification", () => {
   const input = loadFixture("golden-scenario.json");
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
 
   const state = createEmptyWorkflowState("2026-03-25T19:20:00.000Z");
   const record = upsertFromPipeline(state, output, "pipeline_runner", "2026-03-25T19:20:00.000Z");
 
-  assert.equal(record.current_status, "researching");
+  assert.equal(record.current_status, "awaiting_seller_verification");
   assert.equal(record.approval_ticket_id, null);
+  assert.equal(record.priority, "urgent");
+  assert.equal(record.purchase_recommendation_blocked, true);
   assert.equal(record.status_history.length, 1);
 });
 
@@ -86,14 +91,14 @@ test("applyDecisionToOpportunity transitions to rejected and approved", () => {
 });
 
 test("canTransitionStatus and updateOpportunityStatus enforce transition policy", () => {
-  assert.equal(canTransitionStatus("researching", "awaiting_approval"), true);
-  assert.equal(canTransitionStatus("researching", "monetizing"), false);
+  assert.equal(canTransitionStatus("awaiting_seller_verification", "awaiting_approval"), true);
+  assert.equal(canTransitionStatus("awaiting_seller_verification", "monetizing"), false);
 
   const input = loadFixture("golden-scenario.json");
   const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
   const state = createEmptyWorkflowState("2026-03-25T19:20:00.000Z");
   const seeded = upsertFromPipeline(state, output, "pipeline_runner", "2026-03-25T19:20:00.000Z");
-  assert.equal(seeded.current_status, "researching");
+  assert.equal(seeded.current_status, "awaiting_seller_verification");
 
   const updated = updateOpportunityStatus(
     state,
@@ -117,4 +122,45 @@ test("canTransitionStatus and updateOpportunityStatus enforce transition policy"
       ),
     /Invalid status transition/
   );
+});
+
+test("seller verification request/response updates priority, blocking, and fallback flags", () => {
+  const input = loadFixture("golden-scenario.json");
+  const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
+  const state = createEmptyWorkflowState("2026-03-25T19:20:00.000Z");
+  const seeded = upsertFromPipeline(state, output, "pipeline_runner", "2026-03-25T19:20:00.000Z");
+
+  updateOpportunityPriority(
+    state,
+    seeded.opportunity_id,
+    "urgent",
+    "risk_agent",
+    "Escalate for seller verification.",
+    "2026-03-25T19:21:00.000Z"
+  );
+  assert.equal(seeded.priority, "urgent");
+
+  requestSellerVerification(
+    state,
+    seeded.opportunity_id,
+    "risk_agent",
+    "2026-03-25T19:22:00.000Z",
+    { message: "Please share IMEI proof and carrier verification now." }
+  );
+  assert.equal(seeded.current_status, "awaiting_seller_verification");
+  assert.equal(seeded.purchase_recommendation_blocked, true);
+  assert.equal(seeded.seller_verification.response_status, "pending");
+
+  applySellerVerificationResponse(
+    state,
+    seeded.opportunity_id,
+    "unsatisfactory",
+    "risk_agent",
+    "2026-03-25T19:40:00.000Z",
+    { notes: "Seller response incomplete." }
+  );
+  assert.equal(seeded.confidence, "low");
+  assert.equal(seeded.alternative_opportunities_required, true);
+  assert.equal(seeded.purchase_recommendation_blocked, true);
+  assert.equal(seeded.current_status, "awaiting_seller_verification");
 });
