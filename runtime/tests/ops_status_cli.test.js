@@ -101,6 +101,9 @@ test("runStatusAction returns queue-only summary when workflow path is absent", 
   assert.equal(result.queue.health.queue_totals.pending, 1);
   assert.equal(result.queue.health.observations.queue_health, "watch");
   assert.equal(result.workflow, null);
+  assert.ok(result.attention.top_task, "Expected top task summary.");
+  assert.equal(result.attention.top_task.source, "approval_queue");
+  assert.equal(result.attention.next_attention_at, result.attention.top_task.due_by);
   assert.equal(result.awaiting_tasks.total_count, 1);
   assert.equal(result.awaiting_tasks.returned_count, 1);
   assert.equal(result.awaiting_tasks.due_soon_count, 0);
@@ -134,6 +137,8 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
   assert.ok(result.workflow, "Expected workflow summary.");
   assert.equal(result.workflow.health.observations.workflow_health, "watch");
   assert.equal(Array.isArray(result.workflow.stale_opportunities), true);
+  assert.ok(result.attention.top_task, "Expected top task summary.");
+  assert.equal(result.attention.next_attention_at, result.attention.top_task.due_by);
   assert.equal(result.awaiting_tasks.total_count, 2);
   assert.equal(result.awaiting_tasks.returned_count, 2);
   assert.equal(result.awaiting_tasks.due_soon_count, 0);
@@ -173,6 +178,9 @@ test("runStatusAction uses latest handoff next_action and due_by when available"
 
   const workflowTask = result.awaiting_tasks.tasks.find((task) => task.source === "workflow_state");
   assert.ok(workflowTask, "Expected workflow task.");
+  assert.ok(result.attention.top_task, "Expected top task summary.");
+  assert.equal(result.attention.top_task.source, "workflow_state");
+  assert.equal(result.attention.top_task.opportunity_id, "opp-2026-03-25-001");
   assert.equal(workflowTask.next_action, "Request remote IMEI proof and verify carrier status.");
   assert.equal(workflowTask.due_by, "2026-03-25T20:00:00.000Z");
   assert.equal(workflowTask.due_soon, true);

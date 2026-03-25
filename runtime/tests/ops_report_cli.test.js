@@ -128,6 +128,10 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   const jsonReport = JSON.parse(fs.readFileSync(result.report_json_path, "utf8"));
   const markdownReport = fs.readFileSync(result.report_markdown_path, "utf8");
 
+  assert.ok(jsonReport.attention, "Expected attention summary block.");
+  assert.ok(jsonReport.attention.top_task, "Expected top task in attention summary.");
+  assert.equal(jsonReport.attention.top_task.source, "workflow_state");
+  assert.equal(jsonReport.attention.next_attention_at, "2026-03-25T20:00:00.000Z");
   assert.equal(jsonReport.pending_tickets.length, 1);
   assert.equal(jsonReport.awaiting_tasks.total_count, 2);
   assert.equal(jsonReport.awaiting_tasks.returned_count, 2);
@@ -150,6 +154,7 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   assert.ok(markdownReport.includes("# ARC Runtime Ops Report"));
   assert.ok(markdownReport.includes("Queue health: watch"));
   assert.ok(markdownReport.includes("Workflow health: watch"));
+  assert.ok(markdownReport.includes("## Attention"));
   assert.ok(markdownReport.includes("## Awaiting tasks"));
   assert.ok(markdownReport.includes("Due soon: 1"));
   assert.ok(markdownReport.includes("Urgency counts: overdue=0, due_soon=1, normal=1"));

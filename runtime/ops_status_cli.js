@@ -309,6 +309,25 @@ function runStatusAction(args) {
     due_soon: awaitingTasks.filter((task) => task.urgency === "due_soon").length,
     normal: awaitingTasks.filter((task) => task.urgency === "normal").length,
   };
+  const topTask = awaitingTasks[0] || null;
+  const attention = {
+    next_attention_at: topTask ? topTask.due_by : null,
+    top_task: topTask
+      ? {
+          source: topTask.source,
+          opportunity_id: topTask.opportunity_id,
+          ticket_id: topTask.ticket_id,
+          owner: topTask.owner,
+          status: topTask.status,
+          urgency: topTask.urgency,
+          next_action: topTask.next_action,
+          due_by: topTask.due_by,
+          minutes_to_due: topTask.minutes_to_due,
+          due_soon: topTask.due_soon,
+          overdue: topTask.overdue,
+        }
+      : null,
+  };
 
   return {
     schema_version: "v1",
@@ -319,6 +338,7 @@ function runStatusAction(args) {
       pending_tickets: pending,
     },
     workflow,
+    attention,
     awaiting_tasks: {
       total_count: pendingTasks.length + workflowTasks.length,
       returned_count: awaitingTasks.length,

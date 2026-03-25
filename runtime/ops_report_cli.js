@@ -167,6 +167,14 @@ function buildMarkdownReport(report) {
     "## Workflow health",
     ...workflowLines,
     "",
+    "## Attention",
+    `- Next attention at: ${report.attention.next_attention_at || "none"}`,
+    `- Top task: ${
+      report.attention.top_task
+        ? `${report.attention.top_task.urgency} | ${report.attention.top_task.owner} | ${report.attention.top_task.opportunity_id} | ${report.attention.top_task.next_action}`
+        : "none"
+    }`,
+    "",
     "## Pending tickets",
     pendingRows,
     "",
@@ -214,6 +222,25 @@ function runOpsReportAction(args) {
     due_soon: awaitingTasks.filter((task) => task.urgency === "due_soon").length,
     normal: awaitingTasks.filter((task) => task.urgency === "normal").length,
   };
+  const topTask = awaitingTasks[0] || null;
+  const attention = {
+    next_attention_at: topTask ? topTask.due_by : null,
+    top_task: topTask
+      ? {
+          source: topTask.source,
+          opportunity_id: topTask.opportunity_id,
+          ticket_id: topTask.ticket_id,
+          owner: topTask.owner,
+          status: topTask.status,
+          urgency: topTask.urgency,
+          next_action: topTask.next_action,
+          due_by: topTask.due_by,
+          minutes_to_due: topTask.minutes_to_due,
+          due_soon: topTask.due_soon,
+          overdue: topTask.overdue,
+        }
+      : null,
+  };
 
   const reportArtifact = {
     schema_version: "v1",
@@ -221,6 +248,7 @@ function runOpsReportAction(args) {
     source_label: "ops_report",
     queue_path: queuePath,
     workflow_state_path: workflowStatePath,
+    attention,
     pending_tickets: pending,
     awaiting_tasks: {
       total_count: pendingTasks.length + workflowTasks.length,
