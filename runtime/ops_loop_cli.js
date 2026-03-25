@@ -1,0 +1,153 @@
+"use strict";
+
+const path = require("node:path");
+
+const { runCycleAction } = require("./company_cycle_cli");
+const { runReplayAction } = require("./queue_replay_cli");
+const { runHealthAction } = require("./queue_health_cli");
+const { runOpsReportAction } = require("./ops_report_cli");
+const { writeLoopArtifact } = require("./output");
+
+function parseArgs(argv) {
+  const args = {
+    fixture: null,
+    queuePath: null,
+    now: new Date().toISOString(),
+    baseDir: path.join(__dirname, "output"),
+    queueActor: "ops_loop_runner",
+    slaMinutes: 120,
+    replayLimit: 50,
+    pendingLimit: 10,
+  };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const token = argv[i];
+    if (token === "--fixture") {
+      args.fixture = argv[i + 1];
+      i += 1;
+    } else if (token === "--queue-path") {
+      args.queuePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--now") {
+      args.now = argv[i + 1];
+      i += 1;
+    } else if (token === "--base-dir") {
+      args.baseDir = argv[i + 1];
+      i += 1;
+    } else if (token === "--queue-actor") {
+      args.queueActor = argv[i + 1];
+      i += 1;
+    } else if (token === "--sla-minutes") {
+      args.slaMinutes = Number(argv[i + 1]);
+      i += 1;
+    } else if (token === "--replay-limit") {
+      args.replayLimit = Number(argv[i + 1]);
+      i += 1;
+    } else if (token === "--pending-limit") {
+      args.pendingLimit = Number(argv[i + 1]);
+      i += 1;
+    }
+  }
+
+  if (!args.fixture) {
+    throw new Error("Missing required argument: --fixture <path-to-json>");
+  }
+  if (!args.queuePath) {
+    throw new Error("Missing required argument: --queue-path <path-to-queue-json>");
+  }
+  if (!Number.isInteger(args.slaMinutes) || args.slaMinutes <= 0) {
+    throw new Error("--sla-minutes must be a positive integer.");
+  }
+  if (!Number.isInteger(args.replayLimit) || args.replayLimit <= 0) {
+    throw new Error("--replay-limit must be a positive integer.");
+  }
+  if (!Number.isInteger(args.pendingLimit) || args.pendingLimit <= 0) {
+    throw new Error("--pending-limit must be a positive integer.");
+  }
+  return args;
+}
+
+function runOpsLoopAction(args) {
+  const nowIso = new Date(args.now).toISOString();
+  const baseDir = path.resolve(args.baseDir);
+  const fixturePath = path.resolve(args.fixture);
+  const queuePath = path.resolve(args.queuePath);
+
+  const cycle = runCycleAction({
+    fixture: fixturePath,
+    now: nowIso,
+    baseDir,
+    queuePath,
+    queueActor: args.queueActor,
+    slaMinutes: args.slaMinutes,
+  });
+
+  const replay = runReplayAction({
+    queuePath,
+    baseDir,
+    ticketId: null,
+    limit: args.replayLimit,
+    now: nowIso,
+  });
+
+  const health = runHealthAction({
+    queuePath,
+    baseDir,
+    now: nowIso,
+    slaMinutes: args.slaMinutes,
+  });
+
+  const report = runOpsReportAction({
+    queuePath,
+    baseDir,
+    now: nowIso,
+    pendingLimit: args.pendingLimit,
+    slaMinutes: args.slaMinutes,
+  });
+
+  const loopArtifact = {
+    schema_version: "v1",
+    generated_at: nowIso,
+    source_label: "ops_loop",
+    fixture_path: fixturePath,
+    queue_path: queuePath,
+    outputs: {
+      cycle_artifact_path: cycle.cycle_artifact_path,
+      run_artifact_path: cycle.run_artifact_path,
+      timeline_artifact_path: replay.timeline_artifact_path,
+      health_artifact_path: health.health_artifact_path,
+      report_json_path: report.report_json_path,
+      report_markdown_path: report.report_markdown_path,
+    },
+    summary: {
+      recommendation: cycle.recommendation,
+      queue_health: health.queue_health,
+      pending_count: health.pending_count,
+      pending_over_sla_count: health.pending_over_sla_count,
+    },
+  };
+
+  const loopArtifactPath = writeLoopArtifact(baseDir, loopArtifact);
+  return {
+    loop_artifact_path: loopArtifactPath,
+    recommendation: cycle.recommendation,
+    queue_health: health.queue_health,
+    pending_count: health.pending_count,
+  };
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const result = runOpsLoopAction(args);
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  parseArgs,
+  runOpsLoopAction,
+  main,
+};

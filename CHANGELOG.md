@@ -12,6 +12,17 @@
 - Added deterministic run artifact export and snapshot regression checks (`runtime/output.js`, `runtime/run_pipeline.js`, `runtime/tests/output.test.js`).
 - Added approval queue state module with persistence/audit trail and tests (`runtime/approval_queue.js`, `runtime/tests/approval_queue.test.js`).
 - Added queue decision CLI with post-decision office-state artifacts (`runtime/queue_decision_cli.js`, `runtime/decision_state.js`, `runtime/tests/queue_decision_cli.test.js`).
+- Added queue listing/history CLI for terminal queue operations (`runtime/queue_list_cli.js`, `runtime/tests/queue_list_cli.test.js`).
+- Added queue replay CLI for timeline artifact generation (`runtime/queue_replay_cli.js`, `runtime/tests/queue_replay_cli.test.js`).
+- Added queue health CLI for KPI artifact generation (`runtime/queue_health_cli.js`, `runtime/tests/queue_health_cli.test.js`).
+- Added company cycle CLI for end-to-end cycle artifact generation (`runtime/company_cycle_cli.js`, `runtime/tests/company_cycle_cli.test.js`).
+- Added ops report CLI for consolidated JSON/Markdown reporting (`runtime/ops_report_cli.js`, `runtime/tests/ops_report_cli.test.js`).
+- Added ops loop CLI for orchestrated cycle/replay/health/report artifact generation (`runtime/ops_loop_cli.js`, `runtime/tests/ops_loop_cli.test.js`).
+- Added batch ops CLI for multi-fixture ops loop execution (`runtime/batch_ops_cli.js`, `runtime/tests/batch_ops_cli.test.js`).
+- Added artifact index CLI for output observability (`runtime/artifact_index_cli.js`, `runtime/tests/artifact_index_cli.test.js`).
+- Added artifact prune CLI for retention management (`runtime/artifact_prune_cli.js`, `runtime/tests/artifact_prune_cli.test.js`).
+- Added rejection-path runtime scenario fixture and decision coverage (`runtime/fixtures/rejection-scenario.json`, `runtime/tests/queue_decision_cli.test.js`).
+- Updated scenario docs to include explicit rejection drill acceptance checks (`context/examples.md`, `evals/test_cases.md`, `CURRENT_FOCUS.md`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.

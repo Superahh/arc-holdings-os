@@ -22,11 +22,30 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `approval_queue.js`: queue load/save/enqueue/decision helpers
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
-- `fixtures/golden-scenario.json`: baseline scenario input
+- `queue_list_cli.js`: CLI for queue inspection (`pending`, `all`, `history`, `ticket`)
+- `queue_replay_cli.js`: CLI to replay queue audit history into timeline artifacts
+- `queue_health_cli.js`: CLI to compute queue KPIs and emit health artifacts
+- `company_cycle_cli.js`: CLI to run end-to-end cycle and emit cycle artifact
+- `ops_report_cli.js`: CLI to emit consolidated ops report (JSON + Markdown)
+- `ops_loop_cli.js`: CLI to run full ops loop and emit loop artifact
+- `batch_ops_cli.js`: CLI to run ops loop across multiple fixtures and emit batch artifact
+- `artifact_index_cli.js`: CLI to index runtime output artifacts by type
+- `artifact_prune_cli.js`: CLI to prune old output artifacts (dry-run by default)
+- `fixtures/golden-scenario.json`: baseline `request_more_info` scenario input
+- `fixtures/rejection-scenario.json`: acquisition candidate fixture for rejection-path testing
 - `tests/pipeline.test.js`: unit tests using Node built-in test runner
 - `tests/output.test.js`: artifact persistence and regression snapshot tests
 - `tests/approval_queue.test.js`: approval queue state and audit tests
 - `tests/queue_decision_cli.test.js`: queue decision CLI and post-decision artifact tests
+- `tests/queue_list_cli.test.js`: queue listing/history CLI tests
+- `tests/queue_replay_cli.test.js`: queue replay timeline artifact tests
+- `tests/queue_health_cli.test.js`: queue health KPI CLI tests
+- `tests/company_cycle_cli.test.js`: end-to-end cycle CLI tests
+- `tests/ops_report_cli.test.js`: consolidated ops report CLI tests
+- `tests/ops_loop_cli.test.js`: full ops loop orchestration tests
+- `tests/batch_ops_cli.test.js`: multi-fixture batch ops CLI tests
+- `tests/artifact_index_cli.test.js`: artifact index CLI tests
+- `tests/artifact_prune_cli.test.js`: artifact prune CLI tests
 - `output/`: generated runs and maintained snapshots
 - `state/`: mutable local state files (runtime artifacts)
 
@@ -37,12 +56,27 @@ node runtime/tests/pipeline.test.js
 node runtime/tests/output.test.js
 node runtime/tests/approval_queue.test.js
 node runtime/tests/queue_decision_cli.test.js
+node runtime/tests/queue_list_cli.test.js
+node runtime/tests/queue_replay_cli.test.js
+node runtime/tests/queue_health_cli.test.js
+node runtime/tests/company_cycle_cli.test.js
+node runtime/tests/ops_report_cli.test.js
+node runtime/tests/ops_loop_cli.test.js
+node runtime/tests/batch_ops_cli.test.js
+node runtime/tests/artifact_index_cli.test.js
+node runtime/tests/artifact_prune_cli.test.js
 ```
 
 ## Execute pipeline and persist artifacts
 
 ```powershell
 node runtime/run_pipeline.js --fixture runtime/fixtures/golden-scenario.json --check-snapshot
+```
+
+Run rejection-path fixture:
+
+```powershell
+node runtime/run_pipeline.js --fixture runtime/fixtures/rejection-scenario.json
 ```
 
 Update snapshot baseline:
@@ -61,6 +95,67 @@ Apply decision and emit post-decision office-state artifact:
 
 ```powershell
 node runtime/queue_decision_cli.js --queue-path runtime/state/approval_queue.json --ticket-id apr-opp-2026-03-25-001 --decision approve --actor owner_operator --note "Remote checks complete"
+```
+
+Inspect queue from terminal:
+
+```powershell
+node runtime/queue_list_cli.js --queue-path runtime/state/approval_queue.json --mode pending
+node runtime/queue_list_cli.js --queue-path runtime/state/approval_queue.json --mode history --limit 10
+```
+
+Replay queue history into timeline artifact:
+
+```powershell
+node runtime/queue_replay_cli.js --queue-path runtime/state/approval_queue.json --limit 50
+```
+
+Generate queue health KPI artifact:
+
+```powershell
+node runtime/queue_health_cli.js --queue-path runtime/state/approval_queue.json --sla-minutes 120
+```
+
+Run one full company cycle (pipeline + optional enqueue + health summary):
+
+```powershell
+node runtime/company_cycle_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --sla-minutes 120
+```
+
+Generate consolidated ops report:
+
+```powershell
+node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --pending-limit 10 --sla-minutes 120
+```
+
+Run full ops loop in one command:
+
+```powershell
+node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --sla-minutes 120 --replay-limit 50 --pending-limit 10
+```
+
+Run batch ops across all JSON fixtures in a directory:
+
+```powershell
+node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --sla-minutes 120
+```
+
+Generate output artifact index:
+
+```powershell
+node runtime/artifact_index_cli.js --base-dir runtime/output --top-n 5
+```
+
+Preview prune plan (safe dry-run):
+
+```powershell
+node runtime/artifact_prune_cli.js --base-dir runtime/output --keep 20
+```
+
+Apply prune:
+
+```powershell
+node runtime/artifact_prune_cli.js --base-dir runtime/output --keep 20 --apply
 ```
 
 ## Scope note

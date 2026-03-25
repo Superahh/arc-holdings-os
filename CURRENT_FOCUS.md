@@ -17,8 +17,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 
 ## Current blockers
 
-- need one additional scenario to stress-test `request_more_info` and rejection paths
-- freeze v1 contract fields for implementation handoff
+- none for milestone completion
 
 ## Next actions
 
@@ -26,6 +25,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] execute and log one full scenario in [evals/test_cases.md](./evals/test_cases.md)
 - [x] collect one failure and one win from real prompt runs
 - [x] freeze v1 interface contracts for implementation handoff
+- [x] add additional runtime scenario coverage for `request_more_info` and rejection paths
 
 ## Out of scope
 

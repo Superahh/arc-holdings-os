@@ -219,3 +219,25 @@ Run type: manual contract dry run using the current prompt templates and the gol
 - tightened output rules in prompt templates to make contract JSON first
 - reduced narrative allowance to short notes only
 - aligned reusable golden scenario with these test cases
+
+## Runtime Scenario Drill - 2026-03-26
+
+### Approval rejection path
+
+#### Goal
+Verify that a valid acquisition candidate can be rejected while keeping queue state, alerts, and capital messaging consistent.
+
+#### Inputs
+- `runtime/fixtures/rejection-scenario.json`
+- `runtime/queue_decision_cli.js --decision reject`
+
+#### Expected contract(s)
+- `ApprovalTicket`
+- `AgentStatusCard`
+- `CompanyBoardSnapshot`
+
+#### Pass checks
+- queue item transitions to `reject`
+- office snapshot includes rejection alert
+- `capital_note` confirms no newly approved spend
+- operations card stays actionable (`working`) without false blocker

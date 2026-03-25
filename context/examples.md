@@ -50,6 +50,55 @@ Use this packet as the default shared scenario for prompt dry runs and regressio
 - mandatory if acquisition path is recommended: `ApprovalTicket`
 - mandatory for cross-agent movement: `HandoffPacket`
 
+## Rejection Drill Packet (approval-path stress test)
+
+Use this packet to validate rejection handling after a valid acquisition recommendation.
+
+### Metadata
+
+- scenario_id: `rejection-drill-2026-03-26-002`
+- created_at: `2026-03-26T10:15:00-04:00`
+- purpose: rejection-path decision and office-state checks
+
+### Input packet
+
+```json
+{
+  "opportunity_id": "opp-2026-03-26-002",
+  "source": "facebook_marketplace",
+  "captured_at": "2026-03-26T10:15:00-04:00",
+  "device": {
+    "name": "Samsung Galaxy S23 Ultra 256GB",
+    "condition": "minor frame wear, fully functional, battery health unknown",
+    "carrier_status": "verified",
+    "accessories": "case only"
+  },
+  "ask_price_usd": 520,
+  "seller_notes": "Shipping only, can provide IMEI and timestamped video before payment.",
+  "market_comps_usd": [760, 780, 810, 790, 770],
+  "estimated_costs": {
+    "repair_usd": 35,
+    "fees_usd": 88,
+    "shipping_usd": 22,
+    "labor_usd": 20
+  },
+  "policy_constraints": {
+    "approval_required_for_acquisition": true,
+    "max_single_acquisition_without_review_usd": 300
+  },
+  "known_risks": [
+    "market demand softening risk",
+    "cosmetic variance risk"
+  ]
+}
+```
+
+### Expected decision shape
+
+- likely recommendation: `acquire` with `ApprovalTicket`
+- rejection decision should preserve audit trail and emit rejection alert
+- no new capital authorization should appear after rejection
+
 ## Opportunity evaluation example (`OpportunityRecord`)
 
 ```json

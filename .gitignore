@@ -1,4 +1,12 @@
 .DS_Store
 runtime/output/runs/*.artifact.json
 runtime/output/decisions/*.decision.json
+runtime/output/timelines/*.timeline.json
+runtime/output/health/*.health.json
+runtime/output/cycles/*.cycle.json
+runtime/output/reports/*.report.json
+runtime/output/reports/*.report.md
+runtime/output/loops/*.loop.json
+runtime/output/batches/*.batch.json
+runtime/output/indexes/*.index.json
 runtime/state/*.json
