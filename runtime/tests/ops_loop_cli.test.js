@@ -36,6 +36,10 @@ test("parseArgs validates required values", () => {
       parseArgs(["--fixture", "f.json", "--queue-path", "q.json", "--workflow-stale-minutes", "0"]),
     /positive integer/
   );
+  assert.throws(
+    () => parseArgs(["--fixture", "f.json", "--queue-path", "q.json", "--task-limit", "0"]),
+    /positive integer/
+  );
 });
 
 test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
@@ -55,6 +59,7 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
+    taskLimit: 20,
   });
 
   assert.ok(fs.existsSync(result.loop_artifact_path), "Expected loop artifact file.");

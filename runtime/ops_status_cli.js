@@ -235,5 +235,8 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   runStatusAction,
+  buildPendingApprovalTasks,
+  buildWorkflowTasks,
+  sortAwaitingTasks,
   main,
 };

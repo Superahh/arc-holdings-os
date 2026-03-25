@@ -32,7 +32,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `queue_replay_cli.js`: CLI to replay queue audit history into timeline artifacts
 - `queue_health_cli.js`: CLI to compute queue KPIs and emit health artifacts
 - `company_cycle_cli.js`: CLI to run end-to-end cycle and emit cycle artifact
-- `ops_report_cli.js`: CLI to emit consolidated ops report (JSON + Markdown)
+- `ops_report_cli.js`: CLI to emit consolidated ops report (JSON + Markdown) with awaiting-task summary
 - `ops_status_cli.js`: CLI to emit fast terminal status snapshot with actionable awaiting-task queue
 - `ops_loop_cli.js`: CLI to run full ops loop and emit loop artifact
 - `batch_ops_cli.js`: CLI to run ops loop across multiple fixtures and emit batch artifact
@@ -218,7 +218,7 @@ node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --
 Generate consolidated ops report with workflow health:
 
 ```powershell
-node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --pending-limit 10 --sla-minutes 120 --workflow-stale-minutes 240
+node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --pending-limit 10 --task-limit 20 --sla-minutes 120 --workflow-stale-minutes 240
 ```
 
 Get fast status snapshot (no report artifact generation):
@@ -236,25 +236,25 @@ node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --
 Run full ops loop in one command:
 
 ```powershell
-node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --sla-minutes 120 --replay-limit 50 --pending-limit 10
+node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --sla-minutes 120 --replay-limit 50 --pending-limit 10 --task-limit 20
 ```
 
 Run ops loop with workflow lifecycle persistence:
 
 ```powershell
-node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --workflow-stale-minutes 240 --sla-minutes 120 --replay-limit 50 --pending-limit 10
+node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --workflow-stale-minutes 240 --sla-minutes 120 --replay-limit 50 --pending-limit 10 --task-limit 20
 ```
 
 Run batch ops across all JSON fixtures in a directory:
 
 ```powershell
-node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --sla-minutes 120
+node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --sla-minutes 120 --task-limit 20
 ```
 
 Run batch ops with shared workflow lifecycle state:
 
 ```powershell
-node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120
+node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --task-limit 20
 ```
 
 Generate output artifact index:

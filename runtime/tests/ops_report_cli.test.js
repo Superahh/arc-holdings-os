@@ -59,6 +59,10 @@ test("parseArgs validates required args and numeric bounds", () => {
     /positive integer/
   );
   assert.throws(
+    () => parseArgs(["--queue-path", "q.json", "--task-limit", "0"]),
+    /positive integer/
+  );
+  assert.throws(
     () => parseArgs(["--queue-path", "q.json", "--sla-minutes", "0"]),
     /positive integer/
   );
@@ -85,6 +89,7 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
     baseDir: tempDir,
     now: "2026-03-25T19:10:00.000Z",
     pendingLimit: 10,
+    taskLimit: 20,
     slaMinutes: 120,
     workflowStatePath,
     workflowStaleMinutes: 240,
@@ -100,6 +105,9 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   const markdownReport = fs.readFileSync(result.report_markdown_path, "utf8");
 
   assert.equal(jsonReport.pending_tickets.length, 1);
+  assert.equal(jsonReport.awaiting_tasks.total_count, 2);
+  assert.equal(jsonReport.awaiting_tasks.returned_count, 2);
+  assert.equal(jsonReport.awaiting_tasks.overdue_count, 0);
   assert.ok(jsonReport.workflow_health, "Expected workflow health block in report.");
   assert.ok(jsonReport.latest_artifacts.run, "Expected latest run artifact reference.");
   assert.ok(jsonReport.latest_artifacts.queue_health, "Expected latest queue health artifact reference.");
@@ -107,4 +115,5 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   assert.ok(markdownReport.includes("# ARC Runtime Ops Report"));
   assert.ok(markdownReport.includes("Queue health: watch"));
   assert.ok(markdownReport.includes("Workflow health: watch"));
+  assert.ok(markdownReport.includes("## Awaiting tasks"));
 });

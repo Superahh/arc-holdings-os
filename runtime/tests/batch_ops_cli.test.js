@@ -26,6 +26,10 @@ test("parseArgs validates required args and numeric bounds", () => {
     () => parseArgs(["--fixtures-dir", "f", "--queue-path", "q", "--file-limit", "0"]),
     /positive integer/
   );
+  assert.throws(
+    () => parseArgs(["--fixtures-dir", "f", "--queue-path", "q", "--task-limit", "0"]),
+    /positive integer/
+  );
 });
 
 test("listFixtureFiles returns sorted json files with limit", () => {
@@ -62,6 +66,7 @@ test("runBatchOpsAction executes loop across fixtures and writes batch artifact"
     slaMinutes: 120,
     replayLimit: 10,
     pendingLimit: 5,
+    taskLimit: 20,
     fileLimit: null,
   });
 

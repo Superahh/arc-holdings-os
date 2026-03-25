@@ -22,6 +22,7 @@ function parseArgs(argv) {
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
+    taskLimit: 20,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -59,6 +60,9 @@ function parseArgs(argv) {
     } else if (token === "--pending-limit") {
       args.pendingLimit = Number(argv[i + 1]);
       i += 1;
+    } else if (token === "--task-limit") {
+      args.taskLimit = Number(argv[i + 1]);
+      i += 1;
     }
   }
 
@@ -76,6 +80,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.pendingLimit) || args.pendingLimit <= 0) {
     throw new Error("--pending-limit must be a positive integer.");
+  }
+  if (!Number.isInteger(args.taskLimit) || args.taskLimit <= 0) {
+    throw new Error("--task-limit must be a positive integer.");
   }
   if (!Number.isInteger(args.workflowStaleMinutes) || args.workflowStaleMinutes <= 0) {
     throw new Error("--workflow-stale-minutes must be a positive integer.");
@@ -129,6 +136,7 @@ function runOpsLoopAction(args) {
     baseDir,
     now: nowIso,
     pendingLimit: args.pendingLimit,
+    taskLimit: args.taskLimit,
     slaMinutes: args.slaMinutes,
     workflowStatePath: args.workflowStatePath,
     workflowStaleMinutes: args.workflowStaleMinutes,

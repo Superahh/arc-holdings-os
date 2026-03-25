@@ -7,6 +7,7 @@ const { loadQueue, getPendingTickets } = require("./approval_queue");
 const { computeHealth } = require("./queue_health_cli");
 const { loadWorkflowState } = require("./workflow_state");
 const { computeWorkflowHealth } = require("./workflow_health_cli");
+const { buildPendingApprovalTasks, buildWorkflowTasks, sortAwaitingTasks } = require("./ops_status_cli");
 const { writeReportArtifacts } = require("./output");
 
 function parseArgs(argv) {
@@ -15,6 +16,7 @@ function parseArgs(argv) {
     baseDir: path.join(__dirname, "output"),
     now: new Date().toISOString(),
     pendingLimit: 10,
+    taskLimit: 20,
     slaMinutes: 120,
     workflowStatePath: null,
     workflowStaleMinutes: 240,
@@ -34,6 +36,9 @@ function parseArgs(argv) {
     } else if (token === "--pending-limit") {
       args.pendingLimit = Number(argv[i + 1]);
       i += 1;
+    } else if (token === "--task-limit") {
+      args.taskLimit = Number(argv[i + 1]);
+      i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
       i += 1;
@@ -51,6 +56,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.pendingLimit) || args.pendingLimit <= 0) {
     throw new Error("--pending-limit must be a positive integer.");
+  }
+  if (!Number.isInteger(args.taskLimit) || args.taskLimit <= 0) {
+    throw new Error("--task-limit must be a positive integer.");
   }
   if (!Number.isInteger(args.slaMinutes) || args.slaMinutes <= 0) {
     throw new Error("--sla-minutes must be a positive integer.");
@@ -126,6 +134,16 @@ function buildMarkdownReport(report) {
           `- Stale non-terminal opportunities: ${report.workflow_health.kpis.stale_non_terminal_count}`,
         ];
 
+  const awaitingRows =
+    report.awaiting_tasks.tasks.length === 0
+      ? "- none"
+      : report.awaiting_tasks.tasks
+          .map(
+            (task) =>
+              `- ${task.source} | ${task.opportunity_id} | ${task.status} | owner ${task.owner} | due ${task.due_by} | overdue ${task.overdue}`
+          )
+          .join("\n");
+
   return [
     "# ARC Runtime Ops Report",
     "",
@@ -145,6 +163,12 @@ function buildMarkdownReport(report) {
     "## Pending tickets",
     pendingRows,
     "",
+    "## Awaiting tasks",
+    `- Total: ${report.awaiting_tasks.total_count}`,
+    `- Returned: ${report.awaiting_tasks.returned_count}`,
+    `- Overdue: ${report.awaiting_tasks.overdue_count}`,
+    awaitingRows,
+    "",
     "## Latest artifacts",
     `- Run: ${report.latest_artifacts.run || "none"}`,
     `- Decision: ${report.latest_artifacts.decision || "none"}`,
@@ -162,14 +186,19 @@ function runOpsReportAction(args) {
   const queue = loadQueue(queuePath);
   const health = computeHealth(queue, nowIso, args.slaMinutes);
   const pending = getPendingTickets(queue).slice(0, args.pendingLimit);
+  const pendingTasks = buildPendingApprovalTasks(getPendingTickets(queue), nowIso);
   const latestArtifacts = collectLatestArtifacts(baseDir);
   let workflowHealth = null;
   let workflowStatePath = null;
+  let workflowTasks = [];
   if (args.workflowStatePath) {
     workflowStatePath = path.resolve(args.workflowStatePath);
     const workflowState = loadWorkflowState(workflowStatePath);
     workflowHealth = computeWorkflowHealth(workflowState, nowIso, args.workflowStaleMinutes);
+    workflowTasks = buildWorkflowTasks(workflowState, nowIso);
   }
+  const awaitingTasks = sortAwaitingTasks([...pendingTasks, ...workflowTasks]).slice(0, args.taskLimit);
+  const overdueCount = awaitingTasks.filter((task) => task.overdue).length;
 
   const reportArtifact = {
     schema_version: "v1",
@@ -178,6 +207,12 @@ function runOpsReportAction(args) {
     queue_path: queuePath,
     workflow_state_path: workflowStatePath,
     pending_tickets: pending,
+    awaiting_tasks: {
+      total_count: pendingTasks.length + workflowTasks.length,
+      returned_count: awaitingTasks.length,
+      overdue_count: overdueCount,
+      tasks: awaitingTasks,
+    },
     health,
     workflow_health: workflowHealth,
     latest_artifacts: latestArtifacts,

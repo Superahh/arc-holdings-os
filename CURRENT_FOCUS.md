@@ -39,6 +39,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add workflow replay timeline CLI for lifecycle audits
 - [x] add transition-checked manual workflow update CLI
 - [x] add actionable awaiting-task queue to ops status output
+- [x] include awaiting-task summary in consolidated ops report and loop/batch controls
 
 ## Out of scope
 

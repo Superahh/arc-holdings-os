@@ -18,6 +18,7 @@ function parseArgs(argv) {
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
+    taskLimit: 20,
     fileLimit: null,
   };
 
@@ -53,6 +54,9 @@ function parseArgs(argv) {
     } else if (token === "--pending-limit") {
       args.pendingLimit = Number(argv[i + 1]);
       i += 1;
+    } else if (token === "--task-limit") {
+      args.taskLimit = Number(argv[i + 1]);
+      i += 1;
     } else if (token === "--file-limit") {
       args.fileLimit = Number(argv[i + 1]);
       i += 1;
@@ -69,6 +73,7 @@ function parseArgs(argv) {
     ["--sla-minutes", args.slaMinutes],
     ["--replay-limit", args.replayLimit],
     ["--pending-limit", args.pendingLimit],
+    ["--task-limit", args.taskLimit],
   ]) {
     if (!Number.isInteger(value) || value <= 0) {
       throw new Error(`${name} must be a positive integer.`);
@@ -124,6 +129,7 @@ function runBatchOpsAction(args) {
       slaMinutes: args.slaMinutes,
       replayLimit: args.replayLimit,
       pendingLimit: args.pendingLimit,
+      taskLimit: args.taskLimit,
     });
     runs.push({
       fixture_path: fixturePath,
