@@ -2,43 +2,51 @@
 
 ## Active goal
 
-Get better outputs from AI by building reusable prompts, specs, and evaluation loops.
+Turn the generic Prompt Lab workspace into the planning and specification system for ARC Holdings OS.
 
 ## Current milestone
 
-Turn this repo from a folder structure into a working prompt lab with real templates and repeatable workflows.
+Define the version 1 company model, workflow, UX direction, and automation boundaries clearly enough to guide implementation.
 
 ## This week's target
 
-Create and test:
+Write or revise:
 
-- one universal prompt template
-- three reusable task prompts
-- one failure logging habit
+- core product and technical specs
+- the multi-agent company hierarchy
+- the operational workflow
+- the office simulation rules
+- the first ARC-specific planning prompts
 
 ## Current blockers
 
-- prompt structure is still inconsistent across tasks
-- project context can easily get scattered
-- evaluation only helps if it is used every time
+- the product can easily sprawl into a fake empire
+- the visual dream can overwhelm the operational core
+- agent roles need to feel realistic, not theatrical
+- automation boundaries must be explicit before implementation starts
 
 ## Next actions
 
-- [ ] choose one real project to test against
-- [ ] run `feature_planning`, `bug_hunting`, and `code_review` on that project
-- [ ] log weak outputs in [`evals/failure_log.md`](./evals/failure_log.md)
-- [ ] revise at least one prompt based on actual failure patterns
+- [ ] finalize the version 1 company workflow
+- [ ] define each core agent with KPIs and handoffs
+- [ ] lock the office simulation to real business state
+- [ ] define approval gates and automation policy
+- [ ] use the new prompts to test one realistic opportunity flow
 
 ## Intentionally out of scope
 
-- building a full prompt management app
-- automating everything before the structure is proven
-- creating dozens of prompt variants before the core few work well
+- autonomous purchasing or listing
+- deep integrations across many marketplaces
+- advanced animation systems
+- warehouse, accounting, or repair ERP depth
+- game mechanics that do not improve operational clarity
 
 ## Exit criteria
 
 This focus area is done when:
 
-- the core prompts are tested on real tasks
-- at least one revision cycle has happened
-- there is enough evidence to know what should be improved next
+- the version 1 product boundary is stable
+- agent responsibilities and handoffs are defined
+- the workflow is realistic and approval-aware
+- the office simulation has clear rules
+- implementation can begin without major conceptual gaps

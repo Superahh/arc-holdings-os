@@ -24,28 +24,13 @@ If yes, state the trigger for revisiting it.
 ## 2026-03-25
 
 ### Decision
-Keep the project markdown-first for version 1.
+Use the existing Prompt Lab workspace as the ARC Holdings OS planning system.
 
 ### Why
-Markdown is fast to edit, easy to version, easy to review, and low-friction for both humans and AI workflows.
+The workspace already has the right operating model: specs, prompts, constraints, evals, and revision loops.
 
 ### Tradeoff
-You gain simplicity and speed, but you do not get automation, dashboards, or built-in analytics yet.
-
-### Revisit later
-Yes.
-Revisit if manual maintenance becomes the bottleneck.
-
-## 2026-03-25
-
-### Decision
-Treat prompts as reusable assets instead of isolated chat messages.
-
-### Why
-This makes prompt quality cumulative. Each run can improve the system instead of disappearing into chat history.
-
-### Tradeoff
-It takes slightly more discipline up front because prompts need structure, names, and evaluation.
+Some generic language must be rewritten, but this is much lower risk than creating a second parallel planning repo.
 
 ### Revisit later
 No.
@@ -53,14 +38,58 @@ No.
 ## 2026-03-25
 
 ### Decision
-Start small with a handful of strong templates instead of building a huge prompt catalog.
+Version 1 will require human approval on key actions.
 
 ### Why
-A small set of tested prompts is more valuable than a large set of unproven ones.
+Purchasing, marketplace activity, pricing, and fulfillment decisions have real financial and operational consequences.
 
 ### Tradeoff
-Coverage is narrower at first, but quality and maintainability are much better.
+The system will feel less autonomous at first, but it will be safer, more realistic, and easier to trust.
 
 ### Revisit later
 Yes.
-Expand only after the current prompts are tested and revised.
+Revisit after the company workflow and audit trail are stable.
+
+## 2026-03-25
+
+### Decision
+The office simulation is a presentation layer over real company state.
+
+### Why
+This keeps the interface motivating and memorable without letting the product drift into a fake game.
+
+### Tradeoff
+Some visually fun ideas will be cut if they do not improve clarity or decision-making.
+
+### Revisit later
+No.
+
+## 2026-03-25
+
+### Decision
+Define the company hierarchy in one file first.
+
+### Why
+Keeping all core agents in [`specs/agent_roles.md`](./specs/agent_roles.md) makes version 1 easier to reason about and prevents prompt sprawl.
+
+### Tradeoff
+That file may get long, but it keeps the operating model centralized while the system is still forming.
+
+### Revisit later
+Yes.
+Split only if the file becomes difficult to maintain.
+
+## 2026-03-25
+
+### Decision
+Keep version 1 focused on one realistic opportunity pipeline.
+
+### Why
+This proves the company model without pretending to run an entire electronics empire on day one.
+
+### Tradeoff
+Coverage is narrower, but execution quality and implementation speed are much better.
+
+### Revisit later
+Yes.
+Expand once the first pipeline is validated.

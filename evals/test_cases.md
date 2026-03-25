@@ -28,14 +28,14 @@ Use this file to define repeatable prompt tests.
 
 ## Suggested starter cases
 
-### Feature planning
+### Opportunity evaluation
 
-- Can the prompt reduce a vague idea into a clear MVP scope?
+- Can the system correctly recommend acquire, skip, or request more info?
 
-### Bug hunting
+### Workflow design
 
-- Can the prompt rank likely root causes instead of guessing wildly?
+- Can the workflow define handoffs and approval gates without fake automation?
 
-### Code review
+### Office simulation
 
-- Can the prompt identify real risks instead of giving generic approval?
+- Can the UI summary reflect company state without clutter or decorative nonsense?

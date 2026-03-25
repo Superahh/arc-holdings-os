@@ -1,49 +1,43 @@
 # Examples
 
-## Weak prompt
+## Opportunity evaluation example
 
 ```md
-Build me a cool app for device sourcing.
+### Opportunity
+- Device: 2021 MacBook Pro, powers on, cracked display
+- Ask: $350
+- Notes: seller says battery is weak, no charger included
+
+### Good output shape
+- estimated resale-as-is range
+- estimated repair-and-resale range
+- estimated part-out value
+- key risks
+- recommendation: acquire / skip / request more info
+- approval note
 ```
 
-## Stronger prompt
+## Office status example
 
 ```md
-# Task Brief
-
-## Role
-You are a senior product engineer helping design an MVP for a device sourcing app.
-
-## Objective
-Design a version 1 desktop app that helps identify broken devices worth buying for repair or part-out resale.
-
-## Context
-The user is an electronics repair technician and reseller. They want low-friction workflows, simple UI, minimal cognitive load, and scalable architecture for future expansion.
-
-## Constraints
-- keep version 1 focused
-- support eBay API integration later
-- avoid unnecessary scraping in version 1
-- keep the interface ADHD-friendly
-- store prior searches to reduce duplicate API calls
-
-## Output Format
-Return:
-1. feature list
-2. recommended architecture
-3. folder structure
-4. MVP roadmap
-5. biggest risks
-
-## Evaluation Standard
-The answer should be practical, implementation-ready, low-complexity, and aligned with an MVP rather than a full platform.
+CEO: "Two high-margin leads need approval."
+Valuation: "ThinkPad lot has upside if battery condition holds."
+Risk: "Facebook Marketplace seller is high risk. Verify in person."
+Operations board:
+- Approvals waiting: 2
+- Blocked items: 1
+- Priority today: clear aging inventory
 ```
 
-## Why the stronger version is better
+## Good visual mapping
 
-- It defines the role.
-- It sets the objective clearly.
-- It packages context.
-- It limits scope.
-- It requires a concrete output.
-- It tells you how success will be judged.
+- red status light means blocked or elevated risk
+- yellow status light means waiting on approval or missing info
+- green status light means actively moving
+- bubble text shows the current meaningful task, not personality filler
+
+## Why these examples matter
+
+- they keep the company simulation tied to real operations
+- they show what useful agent output actually looks like
+- they reduce the chance of drifting into decorative nonsense

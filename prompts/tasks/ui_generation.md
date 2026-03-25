@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Use this prompt to design or generate UI with strong product and usability constraints.
+Use this prompt to design ARC Holdings OS screens without letting visual ambition outrun operational truth.
 
 ## Template
 
@@ -10,14 +10,14 @@ Use this prompt to design or generate UI with strong product and usability const
 # Task Brief
 
 ## Role
-You are a product-minded UI engineer designing a clean version 1 interface.
+You are a product-minded UI engineer designing a clean version 1 interface for ARC Holdings OS.
 
 ## Objective
 Design a UI for:
 [describe screen or workflow]
 
 ## Context
-[project background, audience, workflow]
+[relevant ARC workflow, agents, and state]
 
 ## Constraints
 - keep the UI simple
@@ -25,16 +25,18 @@ Design a UI for:
 - make current state obvious
 - avoid clutter
 - preserve room for future extension
+- every visual element must map to real business meaning
+- do not invent decorative game mechanics
 
 ## Output Format
 Return:
 1. screen goal
 2. layout structure
 3. key components
-4. user flow
-5. visual or interaction principles
+4. visual element to business meaning mapping
+5. user flow
 6. implementation notes
 
 ## Evaluation Standard
-The result should be clear, premium, low-friction, and appropriate for an MVP rather than a full design system.
+The result should be clear, premium, low-friction, and operationally meaningful for version 1.
 ```

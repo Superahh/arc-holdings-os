@@ -1,56 +1,102 @@
 # Technical Spec
 
-## Stack
+## System overview
 
-- markdown files as the primary source of truth
-- optional git versioning for prompt history
-- local editor plus AI assistant workflow
-- no required external services in version 1
+ARC Holdings OS should be designed as a multi-layer system:
+
+- business state
+- agent orchestration
+- approval and policy control
+- office simulation UI
+- evaluation and feedback loop
+
+## Core modules
+
+- company state store
+- opportunity intake and evaluation pipeline
+- agent role engine
+- CEO orchestration layer
+- approval queue
+- office simulation presentation layer
+- evaluation and logging layer
 
 ## Data flow
 
-1. Project context is captured in `PROJECT_OVERVIEW.md`, `CURRENT_FOCUS.md`, and `specs/`.
-2. Reusable prompt structure is defined in `prompts/templates/`.
-3. System role prompts and task prompts are assembled for a real task.
-4. Outputs are reviewed against `specs/constraints.md` and `specs/success_criteria.md`.
-5. Results are logged in `evals/` and refined through `experiments/`.
+1. A new opportunity enters the system.
+2. The sourcing and valuation functions assess likely economics.
+3. Risk and compliance checks flag concerns.
+4. Repair and listing strategy functions propose monetization paths.
+5. The CEO layer prioritizes, routes, and requests approval where needed.
+6. Approved work updates company state.
+7. The office simulation reflects the current tasks, alerts, and priorities.
+8. Outcomes are logged for later evaluation and prompt revision.
 
-## Key modules
+## Key entities
 
-- `specs/`: stable project-level truth
-- `prompts/system/`: baseline assistant behaviors
-- `prompts/tasks/`: task-specific execution prompts
-- `prompts/templates/`: copyable prompt scaffolds
-- `context/`: background and examples
-- `evals/`: feedback loop and evidence
-- `experiments/`: controlled prompt iteration
+- opportunity
+- device
+- acquisition recommendation
+- monetization path
+- approval request
+- task
+- agent
+- department
+- KPI snapshot
+- alert
 
-## APIs / integrations
+## State model
 
-Version 1 does not require integrations.
+Each opportunity should move through explicit states such as:
 
-Possible later additions:
+- discovered
+- researching
+- awaiting approval
+- approved
+- acquired
+- routed
+- monetizing
+- closed
+- rejected
 
-- git-based version comparison
-- external model benchmarking
-- issue tracker links
-- Notion or docs sync
+Each agent should also expose a simple operating state such as:
 
-## Storage
+- idle
+- working
+- blocked
+- awaiting approval
+- alert
 
-- markdown files in a local repo
-- git commits for prompt version history
-- optional date-based entries in changelog, decisions, evals, and experiments
+## Approval model
+
+Human approval is required in version 1 for:
+
+- acquisition decisions
+- pricing or listing actions
+- outbound marketplace or buyer actions
+- policy overrides
+- any action with real monetary or compliance consequences
+
+## Integration strategy
+
+Version 1 should not depend on the user supplying API keys during normal use.
+
+That means:
+
+- start with mocked or internal data paths where needed
+- keep external integrations optional
+- treat real integrations as later modules behind clear interfaces
 
 ## Risks
 
-- too much structure before enough real usage
-- stale docs that stop matching how prompts are actually used
-- duplicate information spread across too many files
-- evaluation becoming optional instead of routine
+- building a beautiful simulation before the workflow is credible
+- giving agents vague responsibilities with overlapping authority
+- assuming data quality or marketplace access that does not exist
+- overdesigning automation before approval rules are stable
+- creating too many one-off prompts instead of reusable patterns
 
 ## Open questions
 
-- Should the project stay as `Prompt Lab`, or be renamed later to `Spec Forge`?
-- Which three real project types should become the first benchmark set?
-- When should lightweight automation be added, if at all?
+- What is the first concrete opportunity source for version 1?
+- How much historical data is required to make valuation useful?
+- What minimal persistence layer is needed for the first build?
+- Which visual states matter most in the office simulation at launch?

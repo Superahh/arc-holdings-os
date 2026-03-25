@@ -2,49 +2,87 @@
 
 ## UX goal
 
-Make the prompt system feel clear, calm, and fast to navigate.
+Make ARC Holdings OS feel like a living company while staying clear, low-clutter, and operationally useful.
 
 ## Design principles
 
-- short sections over long essays
-- strong headings over vague paragraphs
-- visible current state over hidden status
-- one source of truth per topic
-- checklists when action matters
-- examples that are practical, not academic
+- show the company state at a glance
+- keep the visual language playful but disciplined
+- preserve strong operational clarity
+- reduce cognitive overhead
+- make priorities and blockers obvious
+- ensure every visual cue maps to real state
 
-## Readability rules
+## Interface concept
 
-- prefer short paragraphs
-- use bullets for scannable lists
-- keep templates easy to copy and edit
-- avoid giant master docs that become graveyards
-- make constraints and non-goals obvious
+The primary interface is a top-down office simulation with visible departments and agents.
 
-## Information hierarchy
+The user should be able to understand:
 
-Use this order when writing docs:
+- what the company is doing
+- which agent is handling what
+- what is blocked or urgent
+- where approval is needed
+- which opportunities are worth attention
 
-1. goal
-2. context
-3. constraints
-4. expected output
-5. evaluation
-6. next actions
+## Core screen regions
 
-## Interaction style for prompt outputs
+- office canvas
+- department or agent detail panel
+- shared company board
+- approval queue or alert area
+- high-level KPI summary
 
-Good prompt outputs should feel:
+## Agent representation
 
-- practical
-- implementation-ready
-- low on fluff
-- easy to revise
-- aligned with MVP thinking
+Each agent should visually expose:
+
+- role
+- current status
+- active task summary
+- short thought or speech bubble
+- urgency or health signal
+
+## Shared board behavior
+
+The shared board should surface:
+
+- company priorities
+- active initiatives
+- blocked tasks
+- alerts
+- capital or operational notes
+
+## ADHD-friendly rules
+
+- keep the main screen scannable in seconds
+- minimize hidden state
+- avoid dense control clusters
+- use consistent status language
+- make next actions explicit
+- prefer one strong screen over many fragmented views
+
+## Visual guardrails
+
+- no decorative elements without operational meaning
+- no animation-first design
+- no cluttered command centers
+- no dark-pattern dashboards stuffed with tiny numbers
+
+## Interaction states
+
+Version 1 should support:
+
+- agent selected
+- opportunity selected
+- awaiting approval
+- blocked
+- alert active
+- board updated
 
 ## Anti-patterns
 
-- vague prompts with no output format
-- overstuffed context dumps
-- huge docs with no current-state section
-- pretty language that hides weak reasoning
+- game aesthetics disconnected from business logic
+- visual complexity that hides actual risk or priority
+- too many panels competing for attention
+- fake “AI is thinking” signals without useful content

@@ -1,70 +1,73 @@
-# Prompt Lab
+# ARC Holdings OS
 
-Prompt Lab is a markdown-first workspace for treating prompts like product assets instead of disposable chat messages.
+ARC Holdings OS is a markdown-first planning and specification workspace for a digital, agent-run electronics opportunity company.
 
-## Core idea
+The workspace preserves the Prompt Lab operating model:
 
-- Prompts get versions.
-- Prompts get tests.
-- Prompts get supporting docs.
-- Prompts get refined from failures, not vibes.
+- prompts are reusable assets
+- specs are explicit
+- failures are logged
+- revisions are deliberate
+
+## Core project idea
+
+ARC Holdings OS is not just a sourcing tool.
+
+It is a top-down company operating system where specialized agents act like departments inside a business. The user should be able to see the company working through a polished office simulation while the underlying system handles real business reasoning around used electronics opportunities.
 
 ## What this repo is for
 
 Use this repo to:
 
-- define the product and technical context behind a prompt
-- write reusable system and task prompts
-- evaluate outputs against explicit criteria
-- log failures and improvements over time
-- build a repeatable prompt engineering loop
+- define the business and product boundaries of ARC Holdings OS
+- specify the agent hierarchy and workflow handoffs
+- design the office simulation as a visual layer over real company state
+- write reusable prompts for planning, orchestration, evaluation, and UI work
+- log failures and decisions as the system evolves
 
 ## Operating loop
 
-1. Define the goal in [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md).
-2. Narrow the work in [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md).
-3. Capture product and technical context in [`specs/`](./specs).
-4. Write or revise prompts in [`prompts/`](./prompts).
-5. Run the prompt on a real task.
-6. Log what failed in [`evals/failure_log.md`](./evals/failure_log.md).
-7. Record improvements in [`CHANGELOG.md`](./CHANGELOG.md) and [`DECISIONS.md`](./DECISIONS.md).
+1. Update [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md).
+2. Set the active milestone in [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md).
+3. Define or revise the relevant specs in [`specs/`](./specs).
+4. Use or revise prompts in [`prompts/`](./prompts).
+5. Evaluate outputs against [`specs/constraints.md`](./specs/constraints.md) and [`specs/success_criteria.md`](./specs/success_criteria.md).
+6. Log results in [`evals/`](./evals).
+7. Capture decisions and scope cuts in [`DECISIONS.md`](./DECISIONS.md).
 
 ## Fast start
 
-If you just want the shortest operating flow, use [`RUNBOOK.md`](./RUNBOOK.md).
+If you want the shortest path, open [`RUNBOOK.md`](./RUNBOOK.md).
 
 ## Repo map
 
-- [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md): what this project is and what "done" means
-- [`RUNBOOK.md`](./RUNBOOK.md): simplest operating flow for new ideas, debugging, and feature planning
-- [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md): active milestone, blockers, next actions
-- [`DECISIONS.md`](./DECISIONS.md): important choices and tradeoffs
-- [`specs/`](./specs): product, technical, UX, role, constraint, and success specs
-- [`prompts/`](./prompts): reusable system prompts, task prompts, and templates
-- [`context/`](./context): background notes, assumptions, glossary, and examples
-- [`evals/`](./evals): tests, failures, wins, and benchmark comparisons
-- [`experiments/`](./experiments): controlled prompt trials and iteration notes
+- [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md): project goal, business model, and definition of done
+- [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md): active milestone, blockers, and next actions
+- [`RUNBOOK.md`](./RUNBOOK.md): how to use the system without overthinking it
+- [`DECISIONS.md`](./DECISIONS.md): major product, technical, and scope decisions
+- [`specs/product_spec.md`](./specs/product_spec.md): product truth
+- [`specs/technical_spec.md`](./specs/technical_spec.md): architecture and system design
+- [`specs/ux_spec.md`](./specs/ux_spec.md): interface and interaction rules
+- [`specs/agent_roles.md`](./specs/agent_roles.md): company hierarchy and department roles
+- [`specs/workflow_spec.md`](./specs/workflow_spec.md): operational pipeline
+- [`specs/office_simulation.md`](./specs/office_simulation.md): top-down office visual system
+- [`specs/automation_policy.md`](./specs/automation_policy.md): approval and automation guardrails
 
-## Best files to start with
+## First files to use
 
-- [`README.md`](./README.md)
-- [`RUNBOOK.md`](./RUNBOOK.md)
 - [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md)
 - [`CURRENT_FOCUS.md`](./CURRENT_FOCUS.md)
 - [`specs/product_spec.md`](./specs/product_spec.md)
 - [`specs/constraints.md`](./specs/constraints.md)
-- [`prompts/templates/prompt_template.md`](./prompts/templates/prompt_template.md)
-- [`evals/failure_log.md`](./evals/failure_log.md)
+- [`specs/agent_roles.md`](./specs/agent_roles.md)
+- [`specs/workflow_spec.md`](./specs/workflow_spec.md)
+- [`specs/office_simulation.md`](./specs/office_simulation.md)
+- [`prompts/tasks/feature_planning.md`](./prompts/tasks/feature_planning.md)
 
-## Style rules
+## Working principles
 
-- Keep sections short.
-- Use strong headings.
-- Prefer checklists when action matters.
-- Make current state obvious.
-- Keep one source of truth per topic.
-- Avoid giant graveyard docs that never get updated.
-
-## Naming note
-
-The current working name is `Prompt Lab`. If the project later gets renamed to `Spec Forge`, the structure can stay the same.
+- keep the company model realistic
+- keep version 1 narrow
+- treat visuals as a view of real state, not fantasy decoration
+- preserve ADHD-friendly clarity
+- prefer one clean operating system over too many disconnected docs

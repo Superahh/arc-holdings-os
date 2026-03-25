@@ -2,50 +2,61 @@
 
 ## Problem
 
-Most prompt usage is disposable, inconsistent, and hard to improve over time. Good results are hard to reproduce because context, constraints, and evaluation standards are rarely packaged in a repeatable way.
+Small opportunity businesses waste profit because sourcing, valuation, routing, and resale decisions are fragmented, inconsistent, and hard to oversee from one place.
 
 ## User
 
-This project is for builders who use AI seriously and want:
+This project is for an owner-operator who wants:
 
-- better outputs
-- lower ambiguity
-- faster reuse
-- less repeated context dumping
-- a reliable way to iterate from failure
+- visibility across the whole business
+- sharper decisions on used electronics opportunities
+- lower cognitive load
+- tighter control over capital deployment
+- a motivating operational interface rather than a dead spreadsheet wall
 
 ## Core outcome
 
-The user should be able to define a task, attach the right context, run a prompt, evaluate the result, and improve the prompt using a lightweight repeatable workflow.
+The user should be able to see a digital company evaluating and coordinating real opportunities, approve key decisions, and understand what each department is doing at a glance.
+
+## Business goal
+
+Increase ROI from a fixed capital allowance by:
+
+- finding undervalued electronics opportunities
+- choosing the highest-ROI monetization path
+- coordinating the work needed to realize that outcome
+- minimizing waste, idle capital, and bad acquisitions
+- improving decision quality through feedback loops
 
 ## Main features
 
-- reusable prompt templates
-- system and task role definitions
-- product and technical context files
-- explicit constraints and success criteria
-- failure logging and experiment tracking
-- version-friendly markdown structure
+- a CEO-led multi-agent company model
+- clear department roles with inputs, outputs, and KPIs
+- a realistic opportunity workflow from intake to monetization
+- a top-down office interface with visible agent activity
+- a shared board for company priorities and alerts
+- approval-aware business actions
 
 ## Non-goals
 
 What we are not building yet:
 
-- a SaaS product
-- a full prompt registry with search and tagging
-- automated eval infrastructure
-- model orchestration pipelines
-- a bloated framework with unclear ROI
+- a fully autonomous company
+- broad marketplace integrations in version 1
+- full accounting, warehouse, or repair ERP coverage
+- decorative game systems that do not support operations
+- animated spectacle with weak underlying business logic
 
 ## Version 1 scope
 
 Version 1 should be enough to:
 
-- capture project context cleanly
-- write better prompts faster
-- compare prompt versions manually
-- learn from failures in a durable way
+- support one realistic opportunity pipeline
+- show the company state through a clean office simulation
+- let the CEO layer coordinate department agents
+- require human approval on risky actions
+- establish the specs and prompts needed for iterative development
 
 ## Success condition
 
-This product is working if a new project can start from this repo and produce better AI outputs in less time than an unstructured chat-based workflow.
+This product is working if the user can understand the state of the digital company, review meaningful recommendations, approve key actions safely, and see a credible path to improved ROI.

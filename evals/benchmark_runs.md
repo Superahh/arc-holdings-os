@@ -31,3 +31,9 @@ Use this file to compare models, prompt versions, or output styles on the same t
 ## Notes
 [observations]
 ```
+
+## Suggested ARC benchmarks
+
+- opportunity evaluation prompt v1 vs v2
+- office status summary prompt with and without strict visual mapping rules
+- workflow design prompt with and without explicit approval constraints

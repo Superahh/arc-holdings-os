@@ -1,35 +1,37 @@
 # Domain Notes
 
-## Core insight
+## Used electronics reality
 
-Good prompting is mostly not about magic wording.
+- device condition is often uncertain
+- seller descriptions may be incomplete or inaccurate
+- fees, shipping, returns, and labor materially affect margin
+- not every item should be repaired
+- part-out can beat resale, but only when execution overhead is justified
 
-It is mostly about:
+## Marketplace friction
 
-- clarity of task
-- clean context packaging
-- explicit constraints
-- output formatting
-- iteration from failures
+- listings can disappear
+- price comps can be noisy
+- buyer trust matters
+- fraud and policy risk are real
+- operational delays reduce realized ROI
 
-## Working belief
+## Company operating belief
 
-Prompt engineering is really a form of spec writing.
+The company should behave like a disciplined small business, not a fantasy arbitrage machine.
 
-## Practical rule
+## Practical rules
 
-If a prompt keeps failing, the likely issue is one of these:
+- assume uncertainty unless evidence is strong
+- force monetization path comparisons
+- prefer skip over bad capital deployment
+- treat approvals as a feature, not friction
+- map visuals to true underlying state
 
-- the task is underspecified
-- the context is incomplete
-- the constraints are vague
-- the output format is weak
-- the evaluation standard is missing
+## Optimization targets
 
-## What to optimize for
-
-- repeatability
-- revision speed
-- output quality
-- lower ambiguity
-- less context re-explaining
+- decision quality
+- capital efficiency
+- operational visibility
+- low cognitive load
+- feedback-driven improvement

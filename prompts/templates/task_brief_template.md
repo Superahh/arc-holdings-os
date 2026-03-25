@@ -44,32 +44,32 @@ The answer should be:
 # Task Brief
 
 ## Task name
-Device sourcing MVP plan
+ARC opportunity workflow plan
 
 ## Role
-You are a senior product engineer helping design an MVP for a device sourcing app.
+You are a senior product engineer designing the version 1 workflow for ARC Holdings OS.
 
 ## Objective
-Design a version 1 desktop app that helps identify broken devices worth buying for repair or part-out resale.
+Define the smallest practical workflow for evaluating and approving used electronics opportunities inside a multi-agent company interface.
 
 ## Context
-The user is an electronics repair technician and reseller. They want low-friction workflows, simple UI, minimal cognitive load, and scalable architecture for future expansion.
+ARC Holdings OS is a digital company simulation for finding, evaluating, routing, and monetizing used electronics opportunities. The user wants a polished top-down office interface, clear approval control, and realistic business logic.
 
 ## Constraints
 - keep version 1 focused
-- support eBay API integration later
-- avoid unnecessary scraping in version 1
+- require human approval on risky actions
 - keep the interface ADHD-friendly
-- store prior searches to reduce duplicate API calls
+- map visuals to real business state
+- avoid broad integrations in version 1
 
 ## Output Format
 Return:
-1. feature list
-2. recommended architecture
-3. folder structure
-4. MVP roadmap
+1. workflow stages
+2. responsible agents
+3. approval points
+4. UI implications
 5. biggest risks
 
 ## Evaluation Standard
-The answer should be practical, implementation-ready, low-complexity, and aligned with an MVP rather than a full platform.
+The answer should be practical, implementation-ready, low-complexity, and aligned with a real version 1 product.
 ```
