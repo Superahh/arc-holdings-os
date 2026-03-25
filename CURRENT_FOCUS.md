@@ -28,6 +28,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add additional runtime scenario coverage for `request_more_info` and rejection paths
 - [x] add acceptance gate CLI for repeatable scenario validation
 - [x] implement minimum lifecycle persistence model for v1 runtime
+- [x] add workflow state inspection CLI for operator visibility
 
 ## Out of scope
 
