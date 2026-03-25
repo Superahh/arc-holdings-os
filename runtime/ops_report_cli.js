@@ -147,7 +147,7 @@ function buildMarkdownReport(report) {
       : report.awaiting_tasks.tasks
           .map(
             (task) =>
-              `- ${task.source} | ${task.opportunity_id} | ${task.status} | owner ${task.owner} | due ${task.due_by} | due_soon ${task.due_soon} | overdue ${task.overdue}`
+              `- ${task.source} | ${task.opportunity_id} | ${task.status} | owner ${task.owner} | urgency ${task.urgency} | due ${task.due_by} | minutes_to_due ${task.minutes_to_due} | due_soon ${task.due_soon} | overdue ${task.overdue}`
           )
           .join("\n");
 
@@ -175,6 +175,7 @@ function buildMarkdownReport(report) {
     `- Returned: ${report.awaiting_tasks.returned_count}`,
     `- Due soon: ${report.awaiting_tasks.due_soon_count}`,
     `- Overdue: ${report.awaiting_tasks.overdue_count}`,
+    `- Urgency counts: overdue=${report.awaiting_tasks.urgency_counts.overdue}, due_soon=${report.awaiting_tasks.urgency_counts.due_soon}, normal=${report.awaiting_tasks.urgency_counts.normal}`,
     awaitingRows,
     "",
     "## Latest artifacts",
@@ -208,6 +209,11 @@ function runOpsReportAction(args) {
   const awaitingTasks = sortAwaitingTasks([...pendingTasks, ...workflowTasks]).slice(0, args.taskLimit);
   const overdueCount = awaitingTasks.filter((task) => task.overdue).length;
   const dueSoonCount = awaitingTasks.filter((task) => task.due_soon).length;
+  const urgencyCounts = {
+    overdue: awaitingTasks.filter((task) => task.urgency === "overdue").length,
+    due_soon: awaitingTasks.filter((task) => task.urgency === "due_soon").length,
+    normal: awaitingTasks.filter((task) => task.urgency === "normal").length,
+  };
 
   const reportArtifact = {
     schema_version: "v1",
@@ -221,6 +227,7 @@ function runOpsReportAction(args) {
       returned_count: awaitingTasks.length,
       overdue_count: overdueCount,
       due_soon_count: dueSoonCount,
+      urgency_counts: urgencyCounts,
       tasks: awaitingTasks,
     },
     health,

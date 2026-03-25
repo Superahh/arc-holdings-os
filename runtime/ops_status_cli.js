@@ -68,6 +68,15 @@ function buildDueBy(baseIso, dueMinutes) {
   return base.toISOString();
 }
 
+function minutesToDue(nowIso, dueByIso) {
+  const now = Date.parse(nowIso);
+  const dueBy = Date.parse(dueByIso);
+  if (Number.isNaN(now) || Number.isNaN(dueBy)) {
+    return null;
+  }
+  return Math.round((dueBy - now) / 60000);
+}
+
 function isDueSoon(nowIso, dueByIso, dueSoonMinutes) {
   const now = Date.parse(nowIso);
   const dueBy = Date.parse(dueByIso);
@@ -76,6 +85,16 @@ function isDueSoon(nowIso, dueByIso, dueSoonMinutes) {
   }
   const deltaMinutes = Math.round((dueBy - now) / 60000);
   return deltaMinutes >= 0 && deltaMinutes <= dueSoonMinutes;
+}
+
+function deriveUrgency(overdue, dueSoon) {
+  if (overdue) {
+    return "overdue";
+  }
+  if (dueSoon) {
+    return "due_soon";
+  }
+  return "normal";
 }
 
 function getLatestRunArtifactForOpportunity(baseDir, opportunityId) {
@@ -110,6 +129,7 @@ function buildPendingApprovalTasks(pendingTickets, nowIso, dueSoonMinutes = 30) 
     const dueBy = toIso(ticket.ticket.required_by || ticket.created_at);
     const overdue = Date.parse(nowIso) > Date.parse(dueBy);
     const dueSoon = !overdue && isDueSoon(nowIso, dueBy, dueSoonMinutes);
+    const minutesToDueValue = minutesToDue(nowIso, dueBy);
     const ageMinutes = minutesBetween(ticket.created_at, nowIso);
     return {
       source: "approval_queue",
@@ -121,6 +141,8 @@ function buildPendingApprovalTasks(pendingTickets, nowIso, dueSoonMinutes = 30) 
       due_by: dueBy,
       overdue,
       due_soon: dueSoon,
+      urgency: deriveUrgency(overdue, dueSoon),
+      minutes_to_due: minutesToDueValue,
       age_minutes: ageMinutes,
       updated_at: ticket.created_at,
     };
@@ -150,6 +172,7 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null, dueSoonMinute
     }
     const overdue = Date.parse(nowIso) > Date.parse(dueBy);
     const dueSoon = !overdue && isDueSoon(nowIso, dueBy, dueSoonMinutes);
+    const minutesToDueValue = minutesToDue(nowIso, dueBy);
     tasks.push({
       source: "workflow_state",
       owner: rule.owner,
@@ -160,6 +183,8 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null, dueSoonMinute
       due_by: dueBy,
       overdue,
       due_soon: dueSoon,
+      urgency: deriveUrgency(overdue, dueSoon),
+      minutes_to_due: minutesToDueValue,
       age_minutes: minutesBetween(record.last_updated_at, nowIso),
       updated_at: record.last_updated_at,
     });
@@ -169,11 +194,18 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null, dueSoonMinute
 
 function sortAwaitingTasks(tasks) {
   return [...tasks].sort((a, b) => {
-    if (a.overdue !== b.overdue) {
-      return a.overdue ? -1 : 1;
+    const rank = {
+      overdue: 0,
+      due_soon: 1,
+      normal: 2,
+    };
+    const aRank = rank[a.urgency] ?? 3;
+    const bRank = rank[b.urgency] ?? 3;
+    if (aRank !== bRank) {
+      return aRank - bRank;
     }
-    if (a.due_soon !== b.due_soon) {
-      return a.due_soon ? -1 : 1;
+    if (a.minutes_to_due != null && b.minutes_to_due != null && a.minutes_to_due !== b.minutes_to_due) {
+      return a.minutes_to_due - b.minutes_to_due;
     }
     return Date.parse(a.due_by) - Date.parse(b.due_by);
   });
@@ -272,6 +304,11 @@ function runStatusAction(args) {
   const awaitingTasks = sortAwaitingTasks([...pendingTasks, ...workflowTasks]).slice(0, args.taskLimit);
   const overdueCount = awaitingTasks.filter((task) => task.overdue).length;
   const dueSoonCount = awaitingTasks.filter((task) => task.due_soon).length;
+  const urgencyCounts = {
+    overdue: awaitingTasks.filter((task) => task.urgency === "overdue").length,
+    due_soon: awaitingTasks.filter((task) => task.urgency === "due_soon").length,
+    normal: awaitingTasks.filter((task) => task.urgency === "normal").length,
+  };
 
   return {
     schema_version: "v1",
@@ -287,6 +324,7 @@ function runStatusAction(args) {
       returned_count: awaitingTasks.length,
       overdue_count: overdueCount,
       due_soon_count: dueSoonCount,
+      urgency_counts: urgencyCounts,
       tasks: awaitingTasks,
     },
   };

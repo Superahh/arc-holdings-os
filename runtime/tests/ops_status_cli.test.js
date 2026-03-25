@@ -104,7 +104,12 @@ test("runStatusAction returns queue-only summary when workflow path is absent", 
   assert.equal(result.awaiting_tasks.total_count, 1);
   assert.equal(result.awaiting_tasks.returned_count, 1);
   assert.equal(result.awaiting_tasks.due_soon_count, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.overdue, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.due_soon, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.normal, 1);
   assert.equal(result.awaiting_tasks.tasks[0].source, "approval_queue");
+  assert.equal(result.awaiting_tasks.tasks[0].urgency, "normal");
+  assert.equal(typeof result.awaiting_tasks.tasks[0].minutes_to_due, "number");
 });
 
 test("runStatusAction returns queue and workflow summary when workflow path is provided", () => {
@@ -132,6 +137,9 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
   assert.equal(result.awaiting_tasks.total_count, 2);
   assert.equal(result.awaiting_tasks.returned_count, 2);
   assert.equal(result.awaiting_tasks.due_soon_count, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.overdue, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.due_soon, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.normal, 2);
   assert.equal(
     result.awaiting_tasks.tasks.some((task) => task.source === "workflow_state" && task.status === "researching"),
     true
@@ -168,5 +176,10 @@ test("runStatusAction uses latest handoff next_action and due_by when available"
   assert.equal(workflowTask.next_action, "Request remote IMEI proof and verify carrier status.");
   assert.equal(workflowTask.due_by, "2026-03-25T20:00:00.000Z");
   assert.equal(workflowTask.due_soon, true);
+  assert.equal(workflowTask.urgency, "due_soon");
+  assert.equal(workflowTask.minutes_to_due, 30);
   assert.equal(result.awaiting_tasks.due_soon_count, 1);
+  assert.equal(result.awaiting_tasks.urgency_counts.overdue, 0);
+  assert.equal(result.awaiting_tasks.urgency_counts.due_soon, 1);
+  assert.equal(result.awaiting_tasks.urgency_counts.normal, 1);
 });

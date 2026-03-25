@@ -48,6 +48,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add one-command markdown link integrity check utility
 - [x] add one-command repo quality gate wrapper
 - [x] add due-soon awaiting-task signal for status/report and loop/batch operator visibility
+- [x] add per-task urgency and minutes-to-due fields for awaiting-task triage
 
 ## Out of scope
 
