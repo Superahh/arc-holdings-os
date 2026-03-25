@@ -28,7 +28,7 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] add UI shell tests for snapshot composition and HTTP serving
 - [ ] define capital deposit, reserve, approval-to-use, and withdrawal controls with explicit user control and auditability
 - [ ] decide the first safe writable UI action surface
-- [ ] add browser-level smoke coverage before expanding interaction scope
+- [x] add browser-level smoke coverage before expanding interaction scope
 
 ## Out of scope
 

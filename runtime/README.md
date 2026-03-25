@@ -67,6 +67,9 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/artifact_index_cli.test.js`: artifact index CLI tests
 - `tests/artifact_prune_cli.test.js`: artifact prune CLI tests
 - `tests/acceptance_cli.test.js`: acceptance CLI scenario gate tests
+- `tests/ui_snapshot.test.js`: UI snapshot composition tests
+- `tests/ui_server.test.js`: UI shell server and snapshot endpoint tests
+- `tests/ui_browser_smoke.test.js`: headless browser smoke check for live shell rendering (skips when browser binary is unavailable)
 - `tests/run_all_tests.js`: helper script to execute all runtime tests in deterministic order
 - `tests/run_all_tests.test.js`: test coverage for the runtime test runner helper
 - `output/`: generated runs and maintained snapshots
@@ -106,6 +109,9 @@ node runtime/tests/batch_ops_cli.test.js
 node runtime/tests/artifact_index_cli.test.js
 node runtime/tests/artifact_prune_cli.test.js
 node runtime/tests/acceptance_cli.test.js
+node runtime/tests/ui_snapshot.test.js
+node runtime/tests/ui_server.test.js
+node runtime/tests/ui_browser_smoke.test.js
 ```
 
 ## Execute pipeline and persist artifacts
