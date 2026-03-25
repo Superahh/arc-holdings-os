@@ -67,6 +67,10 @@ test("parseArgs validates required args and numeric bounds", () => {
     /positive integer/
   );
   assert.throws(
+    () => parseArgs(["--queue-path", "q.json", "--due-soon-minutes", "0"]),
+    /positive integer/
+  );
+  assert.throws(
     () => parseArgs(["--queue-path", "q.json", "--workflow-stale-minutes", "0"]),
     /positive integer/
   );
@@ -108,6 +112,7 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
     pendingLimit: 10,
     taskLimit: 20,
     slaMinutes: 120,
+    dueSoonMinutes: 60,
     workflowStatePath,
     workflowStaleMinutes: 240,
   });
@@ -124,11 +129,13 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   assert.equal(jsonReport.pending_tickets.length, 1);
   assert.equal(jsonReport.awaiting_tasks.total_count, 2);
   assert.equal(jsonReport.awaiting_tasks.returned_count, 2);
+  assert.equal(jsonReport.awaiting_tasks.due_soon_count, 1);
   assert.equal(jsonReport.awaiting_tasks.overdue_count, 0);
   const workflowTask = jsonReport.awaiting_tasks.tasks.find((task) => task.source === "workflow_state");
   assert.ok(workflowTask, "Expected workflow awaiting task.");
   assert.equal(workflowTask.next_action, "Request remote IMEI proof and verify carrier status.");
   assert.equal(workflowTask.due_by, "2026-03-25T20:00:00.000Z");
+  assert.equal(workflowTask.due_soon, true);
   assert.ok(jsonReport.workflow_health, "Expected workflow health block in report.");
   assert.ok(jsonReport.latest_artifacts.run, "Expected latest run artifact reference.");
   assert.ok(jsonReport.latest_artifacts.queue_health, "Expected latest queue health artifact reference.");
@@ -137,4 +144,5 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   assert.ok(markdownReport.includes("Queue health: watch"));
   assert.ok(markdownReport.includes("Workflow health: watch"));
   assert.ok(markdownReport.includes("## Awaiting tasks"));
+  assert.ok(markdownReport.includes("Due soon: 1"));
 });

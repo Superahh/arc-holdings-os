@@ -72,6 +72,10 @@ test("parseArgs validates required and numeric arguments", () => {
     /positive integer/
   );
   assert.throws(
+    () => parseArgs(["--queue-path", "q.json", "--due-soon-minutes", "0"]),
+    /positive integer/
+  );
+  assert.throws(
     () => parseArgs(["--queue-path", "q.json", "--task-limit", "0"]),
     /positive integer/
   );
@@ -88,6 +92,7 @@ test("runStatusAction returns queue-only summary when workflow path is absent", 
     now: "2026-03-25T19:30:00.000Z",
     slaMinutes: 120,
     workflowStaleMinutes: 240,
+    dueSoonMinutes: 30,
     pendingLimit: 5,
     staleLimit: 5,
     taskLimit: 20,
@@ -98,6 +103,7 @@ test("runStatusAction returns queue-only summary when workflow path is absent", 
   assert.equal(result.workflow, null);
   assert.equal(result.awaiting_tasks.total_count, 1);
   assert.equal(result.awaiting_tasks.returned_count, 1);
+  assert.equal(result.awaiting_tasks.due_soon_count, 0);
   assert.equal(result.awaiting_tasks.tasks[0].source, "approval_queue");
 });
 
@@ -113,6 +119,7 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
     now: "2026-03-25T19:30:00.000Z",
     slaMinutes: 120,
     workflowStaleMinutes: 240,
+    dueSoonMinutes: 30,
     pendingLimit: 5,
     staleLimit: 5,
     taskLimit: 20,
@@ -124,6 +131,7 @@ test("runStatusAction returns queue and workflow summary when workflow path is p
   assert.equal(Array.isArray(result.workflow.stale_opportunities), true);
   assert.equal(result.awaiting_tasks.total_count, 2);
   assert.equal(result.awaiting_tasks.returned_count, 2);
+  assert.equal(result.awaiting_tasks.due_soon_count, 0);
   assert.equal(
     result.awaiting_tasks.tasks.some((task) => task.source === "workflow_state" && task.status === "researching"),
     true
@@ -149,6 +157,7 @@ test("runStatusAction uses latest handoff next_action and due_by when available"
     now: "2026-03-25T19:30:00.000Z",
     slaMinutes: 120,
     workflowStaleMinutes: 240,
+    dueSoonMinutes: 30,
     pendingLimit: 5,
     staleLimit: 5,
     taskLimit: 20,
@@ -158,4 +167,6 @@ test("runStatusAction uses latest handoff next_action and due_by when available"
   assert.ok(workflowTask, "Expected workflow task.");
   assert.equal(workflowTask.next_action, "Request remote IMEI proof and verify carrier status.");
   assert.equal(workflowTask.due_by, "2026-03-25T20:00:00.000Z");
+  assert.equal(workflowTask.due_soon, true);
+  assert.equal(result.awaiting_tasks.due_soon_count, 1);
 });

@@ -18,6 +18,7 @@ function parseArgs(argv) {
     pendingLimit: 10,
     taskLimit: 20,
     slaMinutes: 120,
+    dueSoonMinutes: 30,
     workflowStatePath: null,
     workflowStaleMinutes: 240,
   };
@@ -42,6 +43,9 @@ function parseArgs(argv) {
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
       i += 1;
+    } else if (token === "--due-soon-minutes") {
+      args.dueSoonMinutes = Number(argv[i + 1]);
+      i += 1;
     } else if (token === "--workflow-state-path") {
       args.workflowStatePath = argv[i + 1];
       i += 1;
@@ -62,6 +66,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.slaMinutes) || args.slaMinutes <= 0) {
     throw new Error("--sla-minutes must be a positive integer.");
+  }
+  if (!Number.isInteger(args.dueSoonMinutes) || args.dueSoonMinutes <= 0) {
+    throw new Error("--due-soon-minutes must be a positive integer.");
   }
   if (!Number.isInteger(args.workflowStaleMinutes) || args.workflowStaleMinutes <= 0) {
     throw new Error("--workflow-stale-minutes must be a positive integer.");
@@ -140,7 +147,7 @@ function buildMarkdownReport(report) {
       : report.awaiting_tasks.tasks
           .map(
             (task) =>
-              `- ${task.source} | ${task.opportunity_id} | ${task.status} | owner ${task.owner} | due ${task.due_by} | overdue ${task.overdue}`
+              `- ${task.source} | ${task.opportunity_id} | ${task.status} | owner ${task.owner} | due ${task.due_by} | due_soon ${task.due_soon} | overdue ${task.overdue}`
           )
           .join("\n");
 
@@ -166,6 +173,7 @@ function buildMarkdownReport(report) {
     "## Awaiting tasks",
     `- Total: ${report.awaiting_tasks.total_count}`,
     `- Returned: ${report.awaiting_tasks.returned_count}`,
+    `- Due soon: ${report.awaiting_tasks.due_soon_count}`,
     `- Overdue: ${report.awaiting_tasks.overdue_count}`,
     awaitingRows,
     "",
@@ -186,7 +194,7 @@ function runOpsReportAction(args) {
   const queue = loadQueue(queuePath);
   const health = computeHealth(queue, nowIso, args.slaMinutes);
   const pending = getPendingTickets(queue).slice(0, args.pendingLimit);
-  const pendingTasks = buildPendingApprovalTasks(getPendingTickets(queue), nowIso);
+  const pendingTasks = buildPendingApprovalTasks(getPendingTickets(queue), nowIso, args.dueSoonMinutes);
   const latestArtifacts = collectLatestArtifacts(baseDir);
   let workflowHealth = null;
   let workflowStatePath = null;
@@ -195,10 +203,11 @@ function runOpsReportAction(args) {
     workflowStatePath = path.resolve(args.workflowStatePath);
     const workflowState = loadWorkflowState(workflowStatePath);
     workflowHealth = computeWorkflowHealth(workflowState, nowIso, args.workflowStaleMinutes);
-    workflowTasks = buildWorkflowTasks(workflowState, nowIso, baseDir);
+    workflowTasks = buildWorkflowTasks(workflowState, nowIso, baseDir, args.dueSoonMinutes);
   }
   const awaitingTasks = sortAwaitingTasks([...pendingTasks, ...workflowTasks]).slice(0, args.taskLimit);
   const overdueCount = awaitingTasks.filter((task) => task.overdue).length;
+  const dueSoonCount = awaitingTasks.filter((task) => task.due_soon).length;
 
   const reportArtifact = {
     schema_version: "v1",
@@ -211,6 +220,7 @@ function runOpsReportAction(args) {
       total_count: pendingTasks.length + workflowTasks.length,
       returned_count: awaitingTasks.length,
       overdue_count: overdueCount,
+      due_soon_count: dueSoonCount,
       tasks: awaitingTasks,
     },
     health,

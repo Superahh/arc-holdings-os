@@ -32,8 +32,8 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `queue_replay_cli.js`: CLI to replay queue audit history into timeline artifacts
 - `queue_health_cli.js`: CLI to compute queue KPIs and emit health artifacts
 - `company_cycle_cli.js`: CLI to run end-to-end cycle and emit cycle artifact
-- `ops_report_cli.js`: CLI to emit consolidated ops report (JSON + Markdown) with awaiting-task summary
-- `ops_status_cli.js`: CLI to emit fast terminal status snapshot with actionable awaiting-task queue
+- `ops_report_cli.js`: CLI to emit consolidated ops report (JSON + Markdown) with awaiting-task summary, including due-soon and overdue signals
+- `ops_status_cli.js`: CLI to emit fast terminal status snapshot with actionable awaiting-task queue, including due-soon and overdue signals
 - `ops_loop_cli.js`: CLI to run full ops loop and emit loop artifact
 - `batch_ops_cli.js`: CLI to run ops loop across multiple fixtures and emit batch artifact
 - `artifact_index_cli.js`: CLI to index runtime output artifacts by type
@@ -228,13 +228,13 @@ node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --
 Generate consolidated ops report with workflow health:
 
 ```powershell
-node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --pending-limit 10 --task-limit 20 --sla-minutes 120 --workflow-stale-minutes 240
+node runtime/ops_report_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --pending-limit 10 --task-limit 20 --sla-minutes 120 --workflow-stale-minutes 240 --due-soon-minutes 30
 ```
 
 Get fast status snapshot (no report artifact generation):
 
 ```powershell
-node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --workflow-stale-minutes 240
+node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --workflow-stale-minutes 240 --due-soon-minutes 30
 ```
 
 Limit returned awaiting tasks:

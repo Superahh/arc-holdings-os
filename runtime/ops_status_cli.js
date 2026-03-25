@@ -68,6 +68,16 @@ function buildDueBy(baseIso, dueMinutes) {
   return base.toISOString();
 }
 
+function isDueSoon(nowIso, dueByIso, dueSoonMinutes) {
+  const now = Date.parse(nowIso);
+  const dueBy = Date.parse(dueByIso);
+  if (Number.isNaN(now) || Number.isNaN(dueBy)) {
+    return false;
+  }
+  const deltaMinutes = Math.round((dueBy - now) / 60000);
+  return deltaMinutes >= 0 && deltaMinutes <= dueSoonMinutes;
+}
+
 function getLatestRunArtifactForOpportunity(baseDir, opportunityId) {
   const runsDir = path.join(baseDir, "runs");
   if (!fs.existsSync(runsDir)) {
@@ -95,10 +105,11 @@ function getLatestRunArtifactForOpportunity(baseDir, opportunityId) {
   return null;
 }
 
-function buildPendingApprovalTasks(pendingTickets, nowIso) {
+function buildPendingApprovalTasks(pendingTickets, nowIso, dueSoonMinutes = 30) {
   return pendingTickets.map((ticket) => {
     const dueBy = toIso(ticket.ticket.required_by || ticket.created_at);
     const overdue = Date.parse(nowIso) > Date.parse(dueBy);
+    const dueSoon = !overdue && isDueSoon(nowIso, dueBy, dueSoonMinutes);
     const ageMinutes = minutesBetween(ticket.created_at, nowIso);
     return {
       source: "approval_queue",
@@ -109,13 +120,14 @@ function buildPendingApprovalTasks(pendingTickets, nowIso) {
       next_action: "Review and decide approval ticket.",
       due_by: dueBy,
       overdue,
+      due_soon: dueSoon,
       age_minutes: ageMinutes,
       updated_at: ticket.created_at,
     };
   });
 }
 
-function buildWorkflowTasks(workflowState, nowIso, baseDir = null) {
+function buildWorkflowTasks(workflowState, nowIso, baseDir = null, dueSoonMinutes = 30) {
   const tasks = [];
   for (const record of Object.values(workflowState.opportunities)) {
     const rule = WORKFLOW_TASK_RULES[record.current_status];
@@ -137,6 +149,7 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null) {
       }
     }
     const overdue = Date.parse(nowIso) > Date.parse(dueBy);
+    const dueSoon = !overdue && isDueSoon(nowIso, dueBy, dueSoonMinutes);
     tasks.push({
       source: "workflow_state",
       owner: rule.owner,
@@ -146,6 +159,7 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null) {
       next_action: nextAction,
       due_by: dueBy,
       overdue,
+      due_soon: dueSoon,
       age_minutes: minutesBetween(record.last_updated_at, nowIso),
       updated_at: record.last_updated_at,
     });
@@ -157,6 +171,9 @@ function sortAwaitingTasks(tasks) {
   return [...tasks].sort((a, b) => {
     if (a.overdue !== b.overdue) {
       return a.overdue ? -1 : 1;
+    }
+    if (a.due_soon !== b.due_soon) {
+      return a.due_soon ? -1 : 1;
     }
     return Date.parse(a.due_by) - Date.parse(b.due_by);
   });
@@ -170,6 +187,7 @@ function parseArgs(argv) {
     now: new Date().toISOString(),
     slaMinutes: 120,
     workflowStaleMinutes: 240,
+    dueSoonMinutes: 30,
     pendingLimit: 5,
     staleLimit: 5,
     taskLimit: 20,
@@ -195,6 +213,9 @@ function parseArgs(argv) {
     } else if (token === "--workflow-stale-minutes") {
       args.workflowStaleMinutes = Number(argv[i + 1]);
       i += 1;
+    } else if (token === "--due-soon-minutes") {
+      args.dueSoonMinutes = Number(argv[i + 1]);
+      i += 1;
     } else if (token === "--pending-limit") {
       args.pendingLimit = Number(argv[i + 1]);
       i += 1;
@@ -213,6 +234,7 @@ function parseArgs(argv) {
   for (const [name, value] of [
     ["--sla-minutes", args.slaMinutes],
     ["--workflow-stale-minutes", args.workflowStaleMinutes],
+    ["--due-soon-minutes", args.dueSoonMinutes],
     ["--pending-limit", args.pendingLimit],
     ["--stale-limit", args.staleLimit],
     ["--task-limit", args.taskLimit],
@@ -231,7 +253,7 @@ function runStatusAction(args) {
   const queue = loadQueue(queuePath);
   const queueHealth = computeHealth(queue, nowIso, args.slaMinutes);
   const pending = getPendingTickets(queue).slice(0, args.pendingLimit);
-  const pendingTasks = buildPendingApprovalTasks(getPendingTickets(queue), nowIso);
+  const pendingTasks = buildPendingApprovalTasks(getPendingTickets(queue), nowIso, args.dueSoonMinutes);
 
   let workflow = null;
   let workflowTasks = [];
@@ -239,7 +261,7 @@ function runStatusAction(args) {
     const workflowPath = path.resolve(args.workflowStatePath);
     const workflowState = loadWorkflowState(workflowPath);
     const workflowHealth = computeWorkflowHealth(workflowState, nowIso, args.workflowStaleMinutes);
-    workflowTasks = buildWorkflowTasks(workflowState, nowIso, baseDir);
+    workflowTasks = buildWorkflowTasks(workflowState, nowIso, baseDir, args.dueSoonMinutes);
     workflow = {
       state_path: workflowPath,
       health: workflowHealth,
@@ -249,6 +271,7 @@ function runStatusAction(args) {
 
   const awaitingTasks = sortAwaitingTasks([...pendingTasks, ...workflowTasks]).slice(0, args.taskLimit);
   const overdueCount = awaitingTasks.filter((task) => task.overdue).length;
+  const dueSoonCount = awaitingTasks.filter((task) => task.due_soon).length;
 
   return {
     schema_version: "v1",
@@ -263,6 +286,7 @@ function runStatusAction(args) {
       total_count: pendingTasks.length + workflowTasks.length,
       returned_count: awaitingTasks.length,
       overdue_count: overdueCount,
+      due_soon_count: dueSoonCount,
       tasks: awaitingTasks,
     },
   };
