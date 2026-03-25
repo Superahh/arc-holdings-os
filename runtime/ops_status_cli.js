@@ -170,12 +170,20 @@ function buildWorkflowTasks(workflowState, nowIso, baseDir = null, dueSoonMinute
     if (baseDir) {
       const latestArtifact = getLatestRunArtifactForOpportunity(baseDir, record.opportunity_id);
       if (latestArtifact && latestArtifact.output && latestArtifact.output.handoff_packet) {
-        const handoff = latestArtifact.output.handoff_packet;
-        if (typeof handoff.next_action === "string" && handoff.next_action) {
-          nextAction = handoff.next_action;
-        }
-        if (typeof handoff.due_by === "string" && !Number.isNaN(Date.parse(handoff.due_by))) {
-          dueBy = new Date(handoff.due_by).toISOString();
+        const artifactGeneratedAt = Date.parse(latestArtifact.generated_at);
+        const recordUpdatedAt = Date.parse(record.last_updated_at);
+        const handoffIsFresh =
+          !Number.isNaN(artifactGeneratedAt) &&
+          !Number.isNaN(recordUpdatedAt) &&
+          artifactGeneratedAt >= recordUpdatedAt;
+        if (handoffIsFresh) {
+          const handoff = latestArtifact.output.handoff_packet;
+          if (typeof handoff.next_action === "string" && handoff.next_action) {
+            nextAction = handoff.next_action;
+          }
+          if (typeof handoff.due_by === "string" && !Number.isNaN(Date.parse(handoff.due_by))) {
+            dueBy = new Date(handoff.due_by).toISOString();
+          }
         }
       }
     }

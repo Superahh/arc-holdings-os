@@ -87,6 +87,7 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
     "opp-2026-03-25-001--20260325T190000Z.artifact.json",
     `${JSON.stringify(
       {
+        generated_at: "2026-03-25T19:00:00.000Z",
         opportunity_id: "opp-2026-03-25-001",
         output: {
           handoff_packet: {
