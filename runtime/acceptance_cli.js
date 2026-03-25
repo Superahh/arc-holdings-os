@@ -13,6 +13,7 @@ const {
 } = require("./contracts");
 const { createEmptyQueue, enqueueApprovalTicket, decideApproval } = require("./approval_queue");
 const { buildDecisionOfficeState } = require("./decision_state");
+const { createEmptyWorkflowState, upsertFromPipeline, applyDecisionToOpportunity } = require("./workflow_state");
 
 function parseArgs(argv) {
   const args = {
@@ -107,9 +108,11 @@ function pushContractChecks(checks, prefix, output) {
 
 function runAcceptanceAction(args) {
   const checks = [];
+  const workflowState = createEmptyWorkflowState(args.nowGolden);
 
   const golden = readFixture(args.goldenFixture);
   const goldenOutput = runOpportunityPipeline(golden.input, new Date(args.nowGolden).toISOString());
+  const goldenWorkflow = upsertFromPipeline(workflowState, goldenOutput, "acceptance_cli", args.nowGolden);
   pushContractChecks(checks, "golden", goldenOutput);
   pushCheck(
     checks,
@@ -123,9 +126,21 @@ function runAcceptanceAction(args) {
     goldenOutput.approval_ticket === null,
     "Golden scenario should not create ApprovalTicket before verification."
   );
+  pushCheck(
+    checks,
+    "golden.workflow_researching",
+    goldenWorkflow.current_status === "researching",
+    "Golden scenario should map to researching lifecycle status."
+  );
 
   const rejection = readFixture(args.rejectionFixture);
   const rejectionOutput = runOpportunityPipeline(rejection.input, new Date(args.nowRejection).toISOString());
+  const rejectionWorkflow = upsertFromPipeline(
+    workflowState,
+    rejectionOutput,
+    "acceptance_cli",
+    args.nowRejection
+  );
   pushContractChecks(checks, "rejection", rejectionOutput);
   pushCheck(
     checks,
@@ -138,6 +153,12 @@ function runAcceptanceAction(args) {
     "rejection.has_approval_ticket",
     Boolean(rejectionOutput.approval_ticket),
     "Rejection drill must produce ApprovalTicket before decision."
+  );
+  pushCheck(
+    checks,
+    "rejection.workflow_awaiting_approval",
+    rejectionWorkflow.current_status === "awaiting_approval",
+    "Rejection drill should map to awaiting_approval before decision."
   );
 
   if (rejectionOutput.approval_ticket) {
@@ -171,6 +192,21 @@ function runAcceptanceAction(args) {
       "rejection.capital_note",
       office.company_board_snapshot.capital_note === "No newly approved spend from this decision.",
       "Capital note should indicate no newly approved spend."
+    );
+
+    const rejectedWorkflow = applyDecisionToOpportunity(
+      workflowState,
+      rejectionOutput.approval_ticket.ticket_id,
+      "reject",
+      "owner_operator",
+      args.nowRejection,
+      rejectionOutput.opportunity_record.opportunity_id
+    );
+    pushCheck(
+      checks,
+      "rejection.workflow_rejected",
+      rejectedWorkflow.current_status === "rejected",
+      "Rejection decision should set workflow lifecycle status to rejected."
     );
   }
 

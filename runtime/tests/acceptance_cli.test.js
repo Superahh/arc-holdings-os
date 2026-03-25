@@ -18,6 +18,20 @@ test("runAcceptanceAction passes for default fixtures", () => {
   assert.equal(report.summary.result, "pass");
   assert.equal(report.summary.fail_count, 0);
   assert.ok(report.checks.length > 0, "Expected non-empty check list.");
+  assert.equal(
+    report.checks.some((check) => check.id === "golden.workflow_researching" && check.pass === true),
+    true
+  );
+  assert.equal(
+    report.checks.some(
+      (check) => check.id === "rejection.workflow_awaiting_approval" && check.pass === true
+    ),
+    true
+  );
+  assert.equal(
+    report.checks.some((check) => check.id === "rejection.workflow_rejected" && check.pass === true),
+    true
+  );
 });
 
 test("runAcceptanceAction writes report file when output path is provided", () => {
@@ -50,6 +64,10 @@ test("runAcceptanceAction fails when golden fixture does not hit request_more_in
   assert.ok(report.summary.fail_count > 0);
   assert.equal(
     report.checks.some((check) => check.id === "golden.request_more_info" && check.pass === false),
+    true
+  );
+  assert.equal(
+    report.checks.some((check) => check.id === "golden.workflow_researching" && check.pass === false),
     true
   );
 });

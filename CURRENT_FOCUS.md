@@ -32,6 +32,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add workflow lifecycle health KPI checks
 - [x] integrate workflow health into consolidated ops reporting
 - [x] propagate workflow health into batch run summaries
+- [x] harden acceptance gate with workflow transition checks
 
 ## Out of scope
 

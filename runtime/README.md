@@ -34,7 +34,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `batch_ops_cli.js`: CLI to run ops loop across multiple fixtures and emit batch artifact
 - `artifact_index_cli.js`: CLI to index runtime output artifacts by type
 - `artifact_prune_cli.js`: CLI to prune old output artifacts (dry-run by default)
-- `acceptance_cli.js`: CLI to run acceptance checks for golden + rejection drill scenarios
+- `acceptance_cli.js`: CLI to run acceptance checks for golden + rejection drill scenarios, including lifecycle-state transitions
 - `fixtures/golden-scenario.json`: baseline `request_more_info` scenario input
 - `fixtures/rejection-scenario.json`: acquisition candidate fixture for rejection-path testing
 - `tests/pipeline.test.js`: unit tests using Node built-in test runner
