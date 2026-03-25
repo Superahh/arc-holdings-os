@@ -138,6 +138,7 @@ function runBatchOpsAction(args) {
     request_more_info_count: runs.filter((run) => run.recommendation === "request_more_info").length,
     skip_count: runs.filter((run) => run.recommendation === "skip").length,
     final_queue_health: runs[runs.length - 1].queue_health,
+    final_workflow_health: runs[runs.length - 1].workflow_health || null,
     final_pending_count: runs[runs.length - 1].pending_count,
     workflow_state_path: runs[runs.length - 1].workflow_state_path || null,
   };

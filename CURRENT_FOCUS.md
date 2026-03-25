@@ -31,6 +31,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add workflow state inspection CLI for operator visibility
 - [x] add workflow lifecycle health KPI checks
 - [x] integrate workflow health into consolidated ops reporting
+- [x] propagate workflow health into batch run summaries
 
 ## Out of scope
 
