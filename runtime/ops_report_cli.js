@@ -195,7 +195,7 @@ function runOpsReportAction(args) {
     workflowStatePath = path.resolve(args.workflowStatePath);
     const workflowState = loadWorkflowState(workflowStatePath);
     workflowHealth = computeWorkflowHealth(workflowState, nowIso, args.workflowStaleMinutes);
-    workflowTasks = buildWorkflowTasks(workflowState, nowIso);
+    workflowTasks = buildWorkflowTasks(workflowState, nowIso, baseDir);
   }
   const awaitingTasks = sortAwaitingTasks([...pendingTasks, ...workflowTasks]).slice(0, args.taskLimit);
   const overdueCount = awaitingTasks.filter((task) => task.overdue).length;
