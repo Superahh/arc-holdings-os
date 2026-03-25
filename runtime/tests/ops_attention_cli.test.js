@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { createEmptyQueue, enqueueApprovalTicket, saveQueue } = require("../approval_queue");
-const { parseArgs, runAttentionAction } = require("../ops_attention_cli");
+const { parseArgs, runAttentionAction, writeAttentionOutput } = require("../ops_attention_cli");
 
 function seedQueue(tempDir, requiredBy) {
   const queue = createEmptyQueue("2026-03-25T19:00:00.000Z");
@@ -44,10 +44,13 @@ test("parseArgs keeps status args and detects --fail-on-overdue flag", () => {
     "10",
     "--nudge-limit",
     "3",
+    "--output",
+    "attention.json",
     "--fail-on-overdue",
   ]);
   assert.equal(parsed.queuePath, "queue.json");
   assert.equal(parsed.nudgeLimit, 3);
+  assert.equal(parsed.outputPath, "attention.json");
   assert.equal(parsed.failOnOverdue, true);
 });
 
@@ -102,4 +105,31 @@ test("runAttentionAction fails when overdue tasks exist and flag is enabled", ()
   assert.equal(result.nudges.length, 1);
   assert.equal(result.nudges[0].severity, "high");
   assert.match(result.nudges[0].message, /Review and decide approval ticket/);
+});
+
+test("writeAttentionOutput persists attention summary JSON", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-ops-attention-"));
+  const queuePath = seedQueue(tempDir, "2026-03-25T21:00:00.000Z");
+  const outputPath = path.join(tempDir, "attention.json");
+  const result = runAttentionAction({
+    queuePath,
+    workflowStatePath: null,
+    baseDir: tempDir,
+    now: "2026-03-25T19:30:00.000Z",
+    slaMinutes: 120,
+    workflowStaleMinutes: 240,
+    dueSoonMinutes: 30,
+    pendingLimit: 5,
+    staleLimit: 5,
+    taskLimit: 10,
+    nudgeLimit: 5,
+    failOnOverdue: false,
+  });
+  const writtenPath = writeAttentionOutput(outputPath, result);
+
+  assert.equal(writtenPath, outputPath);
+  assert.equal(fs.existsSync(writtenPath), true);
+  const written = JSON.parse(fs.readFileSync(writtenPath, "utf8"));
+  assert.equal(written.result, "pass");
+  assert.ok(written.attention);
 });

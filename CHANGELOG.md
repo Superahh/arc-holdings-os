@@ -50,6 +50,7 @@
 - Added attention summary (`top_task`, `next_attention_at`) to status/report outputs so operators can immediately identify the next item to act on (`runtime/ops_status_cli.js`, `runtime/ops_report_cli.js`, related tests and runtime docs).
 - Added compact attention CLI with optional fail-fast behavior when overdue tasks exist (`runtime/ops_attention_cli.js`, `runtime/tests/ops_attention_cli.test.js`, runtime docs).
 - Added urgency-based nudge generation to compact attention output with configurable limit (`--nudge-limit`) for automation-friendly follow-ups (`runtime/ops_attention_cli.js`, `runtime/tests/ops_attention_cli.test.js`, runtime docs).
+- Added optional persisted attention snapshot output (`--output`) for automation/monitoring ingestion (`runtime/ops_attention_cli.js`, `runtime/tests/ops_attention_cli.test.js`, runtime docs).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.

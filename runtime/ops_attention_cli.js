@@ -1,13 +1,20 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 const { parseArgs: parseStatusArgs, runStatusAction } = require("./ops_status_cli");
 
 function parseArgs(argv) {
   const statusArgs = parseStatusArgs(argv);
   let nudgeLimit = 5;
+  let outputPath = null;
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--nudge-limit") {
       nudgeLimit = Number(argv[i + 1]);
+      i += 1;
+    } else if (argv[i] === "--output") {
+      outputPath = argv[i + 1];
       i += 1;
     }
   }
@@ -18,6 +25,7 @@ function parseArgs(argv) {
     ...statusArgs,
     failOnOverdue: argv.includes("--fail-on-overdue"),
     nudgeLimit,
+    outputPath,
   };
 }
 
@@ -56,9 +64,19 @@ function runAttentionAction(args) {
   };
 }
 
+function writeAttentionOutput(outputPath, result) {
+  const absolutePath = path.resolve(outputPath);
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+  fs.writeFileSync(absolutePath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  return absolutePath;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const result = runAttentionAction(args);
+  if (args.outputPath) {
+    writeAttentionOutput(args.outputPath, result);
+  }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   if (result.result !== "pass") {
     process.exitCode = 1;
@@ -72,5 +90,6 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   runAttentionAction,
+  writeAttentionOutput,
   main,
 };

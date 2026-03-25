@@ -52,6 +52,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add top-task attention summary for status/report operator clarity
 - [x] add compact attention CLI with fail-on-overdue mode for automation hooks
 - [x] add urgency-based nudge generation to compact attention output
+- [x] add persisted compact attention output mode for external monitors
 
 ## Out of scope
 

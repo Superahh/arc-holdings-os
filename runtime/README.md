@@ -258,6 +258,12 @@ Run compact attention check and fail on overdue tasks:
 node runtime/ops_attention_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --due-soon-minutes 30 --nudge-limit 5 --fail-on-overdue
 ```
 
+Persist compact attention summary to file:
+
+```powershell
+node runtime/ops_attention_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --output runtime/output/attention/latest.attention.json
+```
+
 Run full ops loop in one command:
 
 ```powershell
