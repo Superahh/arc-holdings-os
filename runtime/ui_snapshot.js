@@ -492,6 +492,83 @@ function mapStatusToLaneStage(status) {
   return "monitor";
 }
 
+function mapAgentToLaneStage(agentName) {
+  if (agentName === "Risk and Compliance Agent" || agentName === "Valuation Agent") {
+    return "verification";
+  }
+  if (agentName === "CEO Agent") {
+    return "approval";
+  }
+  if (agentName === "Operations Coordinator Agent") {
+    return "execution";
+  }
+  if (agentName === "Department Operator Agent") {
+    return "market";
+  }
+  return "monitor";
+}
+
+function buildOfficeZoneAnchors(presenceEntries) {
+  const defaults = {
+    "executive-suite": {
+      anchor: { x: 0.26, y: 0.24 },
+      ingress: { x: 0.17, y: 0.24 },
+      egress: { x: 0.35, y: 0.24 },
+      handoff_dock: { x: 0.30, y: 0.30 },
+      connections: ["verification-bay", "routing-desk"],
+    },
+    "verification-bay": {
+      anchor: { x: 0.74, y: 0.24 },
+      ingress: { x: 0.65, y: 0.24 },
+      egress: { x: 0.83, y: 0.24 },
+      handoff_dock: { x: 0.69, y: 0.30 },
+      connections: ["executive-suite", "routing-desk"],
+    },
+    "routing-desk": {
+      anchor: { x: 0.26, y: 0.76 },
+      ingress: { x: 0.17, y: 0.76 },
+      egress: { x: 0.35, y: 0.76 },
+      handoff_dock: { x: 0.30, y: 0.70 },
+      connections: ["executive-suite", "verification-bay", "market-floor"],
+    },
+    "market-floor": {
+      anchor: { x: 0.74, y: 0.76 },
+      ingress: { x: 0.65, y: 0.76 },
+      egress: { x: 0.83, y: 0.76 },
+      handoff_dock: { x: 0.69, y: 0.70 },
+      connections: ["routing-desk"],
+    },
+    "company-floor": {
+      anchor: { x: 0.5, y: 0.5 },
+      ingress: { x: 0.42, y: 0.5 },
+      egress: { x: 0.58, y: 0.5 },
+      handoff_dock: { x: 0.5, y: 0.56 },
+      connections: [],
+    },
+  };
+
+  const seen = new Set();
+  const anchors = [];
+  for (const presence of presenceEntries) {
+    if (!presence || !presence.zone_id || seen.has(presence.zone_id)) {
+      continue;
+    }
+    seen.add(presence.zone_id);
+    const base = defaults[presence.zone_id] || defaults["company-floor"];
+    anchors.push({
+      zone_id: presence.zone_id,
+      zone_label: presence.zone_label,
+      department_label: presence.department_label,
+      anchor: base.anchor,
+      ingress: base.ingress,
+      egress: base.egress,
+      handoff_dock: base.handoff_dock,
+      connections: base.connections,
+    });
+  }
+  return anchors;
+}
+
 function summarizeFlowEvent(event) {
   if (!event || typeof event !== "object") {
     return "Workflow update recorded.";
@@ -572,6 +649,228 @@ function buildOfficeFlowEvents(workflowState, opportunities, limit = 8) {
     }
   }
   return events;
+}
+
+function getOpportunityOwner(opportunity) {
+  if (!opportunity || typeof opportunity !== "object") {
+    return null;
+  }
+  if (
+    opportunity.latest_task &&
+    typeof opportunity.latest_task.owner === "string" &&
+    opportunity.latest_task.owner
+  ) {
+    return opportunity.latest_task.owner;
+  }
+  if (
+    opportunity.contract_bundle &&
+    opportunity.contract_bundle.handoff_packet &&
+    typeof opportunity.contract_bundle.handoff_packet.to_agent === "string" &&
+    opportunity.contract_bundle.handoff_packet.to_agent
+  ) {
+    return opportunity.contract_bundle.handoff_packet.to_agent;
+  }
+  return null;
+}
+
+function summarizeOfficeEvent(event) {
+  if (event.type === "handoff_started") {
+    return `${event.from_agent} started handoff to ${event.to_agent} on ${event.opportunity_id}.`;
+  }
+  if (event.type === "handoff_completed") {
+    return `${event.to_agent} accepted handoff ownership for ${event.opportunity_id}.`;
+  }
+  if (event.type === "focus_changed") {
+    return `${event.agent} focus changed to ${event.opportunity_id}.`;
+  }
+  if (event.type === "lane_changed") {
+    return `${event.opportunity_id} moved from ${event.lane_from} to ${event.lane_to} lane.`;
+  }
+  if (event.type === "approval_waiting") {
+    return `Approval ticket ${event.ticket_id} is waiting for owner decision.`;
+  }
+  if (event.type === "approval_resolved") {
+    return `Approval ticket ${event.ticket_id} resolved: ${event.decision}.`;
+  }
+  return "Operational event recorded.";
+}
+
+function eventSeverityFromType(type, details = {}) {
+  if (type === "approval_resolved" && details.decision === "reject") {
+    return "alert";
+  }
+  if (type === "approval_waiting") {
+    return "attention";
+  }
+  if (type === "lane_changed" && details.lane_to === "approval") {
+    return "attention";
+  }
+  if (type === "handoff_started" && details.blocking_count > 0) {
+    return "attention";
+  }
+  return "info";
+}
+
+function pushOfficeEvent(events, baseEvent) {
+  const event = {
+    ...baseEvent,
+    lane_stage: baseEvent.lane_to || "monitor",
+    summary: summarizeOfficeEvent(baseEvent),
+    severity: eventSeverityFromType(baseEvent.type, baseEvent),
+  };
+  events.push(event);
+}
+
+function buildOfficeEvents(opportunities, queue, handoffSignals, nowIso, limit = 12) {
+  const events = [];
+  const opportunityById = new Map(opportunities.map((entry) => [entry.opportunity_id, entry]));
+
+  for (const signal of handoffSignals) {
+    const opportunity = opportunityById.get(signal.opportunity_id) || null;
+    const owner = getOpportunityOwner(opportunity);
+    const handoffType = owner && owner === signal.to_agent ? "handoff_completed" : "handoff_started";
+    const timestamp =
+      (opportunity &&
+        opportunity.workflow_record &&
+        opportunity.workflow_record.last_updated_at) ||
+      signal.due_by ||
+      nowIso;
+    pushOfficeEvent(events, {
+      event_id: `office-handoff-${signal.opportunity_id}-${handoffType}-${timestamp}`,
+      type: handoffType,
+      source: "handoff_signal",
+      timestamp,
+      opportunity_id: signal.opportunity_id,
+      from_agent: signal.from_agent,
+      to_agent: signal.to_agent,
+      from_zone_id: signal.from_zone_id || null,
+      to_zone_id: signal.to_zone_id || null,
+      lane_from: mapAgentToLaneStage(signal.from_agent),
+      lane_to: mapAgentToLaneStage(signal.to_agent),
+      blocking_count: signal.blocking_count || 0,
+      ticket_id: null,
+      decision: null,
+      agent: null,
+    });
+    if (owner && owner === signal.to_agent) {
+      pushOfficeEvent(events, {
+        event_id: `office-focus-${signal.opportunity_id}-${signal.to_agent}-${timestamp}`,
+        type: "focus_changed",
+        source: "handoff_signal",
+        timestamp,
+        opportunity_id: signal.opportunity_id,
+        from_agent: signal.from_agent,
+        to_agent: signal.to_agent,
+        from_zone_id: signal.from_zone_id || null,
+        to_zone_id: signal.to_zone_id || null,
+        lane_from: mapAgentToLaneStage(signal.from_agent),
+        lane_to: mapAgentToLaneStage(signal.to_agent),
+        blocking_count: signal.blocking_count || 0,
+        ticket_id: null,
+        decision: null,
+        agent: signal.to_agent,
+      });
+    }
+  }
+
+  for (const opportunity of opportunities) {
+    const history =
+      opportunity &&
+      opportunity.workflow_record &&
+      Array.isArray(opportunity.workflow_record.status_history)
+        ? opportunity.workflow_record.status_history
+        : [];
+    if (!history.length) {
+      continue;
+    }
+
+    const latest = history[history.length - 1];
+    const previous = history.length > 1 ? history[history.length - 2] : null;
+    const laneFrom = mapStatusToLaneStage(previous ? previous.status : "monitor");
+    const laneTo = mapStatusToLaneStage(latest.status);
+    if (laneFrom === laneTo) {
+      continue;
+    }
+
+    pushOfficeEvent(events, {
+      event_id: `office-lane-${opportunity.opportunity_id}-${laneFrom}-${laneTo}-${latest.timestamp}`,
+      type: "lane_changed",
+      source: "workflow_state",
+      timestamp: latest.timestamp || opportunity.workflow_record.last_updated_at || nowIso,
+      opportunity_id: opportunity.opportunity_id,
+      from_agent: null,
+      to_agent: null,
+      from_zone_id: null,
+      to_zone_id: null,
+      lane_from: laneFrom,
+      lane_to: laneTo,
+      blocking_count: 0,
+      ticket_id: null,
+      decision: null,
+      agent: null,
+    });
+  }
+
+  for (const item of queue.items) {
+    if (!item || !item.ticket_id) {
+      continue;
+    }
+    if (item.status === "pending") {
+      pushOfficeEvent(events, {
+        event_id: `office-approval-waiting-${item.ticket_id}-${item.created_at}`,
+        type: "approval_waiting",
+        source: "approval_queue",
+        timestamp: item.created_at || nowIso,
+        opportunity_id: item.opportunity_id || null,
+        from_agent: item.ticket && item.ticket.requested_by ? item.ticket.requested_by : null,
+        to_agent: "CEO Agent",
+        from_zone_id: item.ticket && item.ticket.requested_by
+          ? getPresenceBlueprint(item.ticket.requested_by).zone_id
+          : null,
+        to_zone_id: getPresenceBlueprint("CEO Agent").zone_id,
+        lane_from: "approval",
+        lane_to: "approval",
+        blocking_count: 0,
+        ticket_id: item.ticket_id,
+        decision: "pending",
+        agent: "CEO Agent",
+      });
+      continue;
+    }
+    pushOfficeEvent(events, {
+      event_id: `office-approval-resolved-${item.ticket_id}-${item.decided_at || item.created_at}`,
+      type: "approval_resolved",
+      source: "approval_queue",
+      timestamp: item.decided_at || item.created_at || nowIso,
+      opportunity_id: item.opportunity_id || null,
+      from_agent: "CEO Agent",
+      to_agent:
+        item.status === "approve" ? "Operations Coordinator Agent" : "Risk and Compliance Agent",
+      from_zone_id: getPresenceBlueprint("CEO Agent").zone_id,
+      to_zone_id:
+        item.status === "approve"
+          ? getPresenceBlueprint("Operations Coordinator Agent").zone_id
+          : getPresenceBlueprint("Risk and Compliance Agent").zone_id,
+      lane_from: "approval",
+      lane_to: item.status === "approve" ? "execution" : "verification",
+      blocking_count: 0,
+      ticket_id: item.ticket_id,
+      decision: item.status,
+      agent: item.decided_by || "CEO Agent",
+    });
+  }
+
+  const deduped = new Map();
+  for (const event of events) {
+    if (!event || !event.event_id) {
+      continue;
+    }
+    deduped.set(event.event_id, event);
+  }
+
+  return [...deduped.values()]
+    .sort((a, b) => Date.parse(b.timestamp || 0) - Date.parse(a.timestamp || 0))
+    .slice(0, limit);
 }
 
 function buildPresenceBubble(card, attentionTask) {
@@ -674,6 +973,8 @@ function buildOfficeHandoffSignals(opportunities) {
       opportunity_id: entry.opportunity_id,
       from_agent: packet.from_agent,
       to_agent: packet.to_agent,
+      from_zone_id: getPresenceBlueprint(packet.from_agent).zone_id,
+      to_zone_id: getPresenceBlueprint(packet.to_agent).zone_id,
       next_action: packet.next_action,
       due_by: packet.due_by,
       blocking_count: Array.isArray(packet.blocking_items) ? packet.blocking_items.length : 0,
@@ -725,6 +1026,13 @@ function buildUiSnapshot(options = {}) {
   );
   const officeHandoffSignals = buildOfficeHandoffSignals(opportunities);
   const officeFlowEvents = buildOfficeFlowEvents(workflowState, opportunities);
+  const officeZoneAnchors = buildOfficeZoneAnchors(officePresence);
+  const officeEvents = buildOfficeEvents(
+    opportunities,
+    queue,
+    officeHandoffSignals,
+    nowIso
+  );
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
     opportunities,
     statusSnapshot.awaiting_tasks.tasks,
@@ -772,6 +1080,8 @@ function buildUiSnapshot(options = {}) {
       agent_status_cards: agentStatusCards,
       presence: officePresence,
       handoff_signals: officeHandoffSignals,
+      zone_anchors: officeZoneAnchors,
+      events: officeEvents,
       flow_events: officeFlowEvents,
       company_board_snapshot: companyBoardSnapshot,
     },
@@ -790,6 +1100,8 @@ module.exports = {
   buildAgentStatusCards,
   buildOfficePresence,
   buildOfficeHandoffSignals,
+  buildOfficeZoneAnchors,
+  buildOfficeEvents,
   buildOfficeFlowEvents,
   buildCompanyBoardSnapshot,
   buildKpis,

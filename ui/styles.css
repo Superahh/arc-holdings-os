@@ -279,6 +279,13 @@ h2 {
   line-height: 1.32;
 }
 
+.flow-chip-sub {
+  margin: 0;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.67rem;
+  color: var(--muted);
+}
+
 .flow-info {
   border-color: rgba(20, 35, 34, 0.14);
 }

@@ -69,7 +69,9 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.kpis.approvals_waiting, 1);
   assert.equal(snapshot.office.agent_status_cards.length, 4);
   assert.equal(snapshot.office.presence.length, 4);
+  assert.equal(snapshot.office.zone_anchors.length, 4);
   assert.equal(snapshot.office.handoff_signals.length, 1);
+  assert.equal(snapshot.office.events.length >= 3, true);
   assert.equal(snapshot.office.flow_events.length, 1);
   assert.equal(snapshot.office.company_board_snapshot.approvals_waiting, 1);
   assert.equal(snapshot.capital_controls.status, "manual_only");
@@ -92,6 +94,10 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.match(snapshot.office.presence[0].bubble_text, /approval queue is waiting on owner action/i);
   assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
   assert.equal(snapshot.office.handoff_signals[0].to_agent, "Risk and Compliance Agent");
+  assert.equal(snapshot.office.handoff_signals[0].from_zone_id, "company-floor");
+  assert.equal(snapshot.office.handoff_signals[0].to_zone_id, "verification-bay");
+  assert.equal(snapshot.office.events[0].type, "approval_waiting");
+  assert.equal(snapshot.office.events[1].type, "handoff_completed");
   assert.equal(snapshot.office.flow_events[0].action, "status_update");
   assert.equal(snapshot.office.flow_events[0].lane_stage, "verification");
 });

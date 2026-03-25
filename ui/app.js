@@ -94,6 +94,12 @@ function formatFlowSeverityClass(value) {
   return `flow-${normalizeToken(value || "info")}`;
 }
 
+function formatOfficeEventType(value) {
+  return String(value || "event")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 function mapStatusToLaneStage(status) {
   if (["awaiting_seller_verification", "researching"].includes(status)) {
     return "verification";
@@ -137,6 +143,12 @@ function findAgentByName(name) {
 
 function findPresenceByAgent(name) {
   return state.snapshot.office.presence.find((entry) => entry.agent === name) || null;
+}
+
+function findZoneAnchorById(zoneId) {
+  return (
+    (state.snapshot.office.zone_anchors || []).find((entry) => entry.zone_id === zoneId) || null
+  );
 }
 
 function findOpportunityById(opportunityId) {
@@ -189,7 +201,9 @@ function computeTransitionState(previousSnapshot, nextSnapshot) {
     (previousSnapshot.office.handoff_signals || []).map((entry) => buildSignalKey(entry))
   );
   const prevFlowEventIds = new Set(
-    (previousSnapshot.office.flow_events || [])
+    ((previousSnapshot.office.events && previousSnapshot.office.events.length
+      ? previousSnapshot.office.events
+      : previousSnapshot.office.flow_events) || [])
       .map((entry) => entry && entry.event_id)
       .filter(Boolean)
   );
@@ -265,7 +279,11 @@ function computeTransitionState(previousSnapshot, nextSnapshot) {
   transitions.handoffs = [...handoffByKey.values()]
     .sort((a, b) => Date.parse(a.due_by || 0) - Date.parse(b.due_by || 0))
     .slice(0, 4);
-  for (const event of nextSnapshot.office.flow_events || []) {
+  const incomingEvents =
+    (nextSnapshot.office.events && nextSnapshot.office.events.length
+      ? nextSnapshot.office.events
+      : nextSnapshot.office.flow_events) || [];
+  for (const event of incomingEvents) {
     if (!event || !event.event_id) {
       continue;
     }
@@ -420,7 +438,10 @@ function renderPresenceMeta(presence) {
 }
 
 function renderFlowEvents(activeTransitions) {
-  const events = (state.snapshot.office.flow_events || []).slice(0, 5);
+  const events =
+    ((state.snapshot.office.events && state.snapshot.office.events.length
+      ? state.snapshot.office.events
+      : state.snapshot.office.flow_events) || []).slice(0, 5);
   if (!events.length) {
     return `<div class="flow-feed empty">No recent workflow events.</div>`;
   }
@@ -431,10 +452,11 @@ function renderFlowEvents(activeTransitions) {
       return `
         <article class="flow-chip ${formatLaneClass(event.lane_stage)} ${formatFlowSeverityClass(event.severity)} ${isNew ? "is-new" : ""}">
           <p class="flow-chip-meta">
-            <span>${escapeHtml(event.opportunity_id || "company")}</span>
+            <span>${escapeHtml(formatOfficeEventType(event.type || event.action || "event"))}</span>
             <span>${escapeHtml(formatTimestamp(event.timestamp))}</span>
           </p>
-          <p class="flow-chip-text">${escapeHtml(event.summary)}</p>
+          <p class="flow-chip-text">${escapeHtml(event.summary || "Operational event recorded.")}</p>
+          <p class="flow-chip-sub">${escapeHtml(event.opportunity_id || "company")}</p>
         </article>
       `;
     })
@@ -463,6 +485,44 @@ function buildZoneSignalClasses(agent, activeTransitions, renderableHandoffs) {
   return classes.join(" ");
 }
 
+function buildZoneAnchorLookup() {
+  const lookup = new Map();
+  const zones = state.snapshot.office.zone_anchors || [];
+  for (const zone of zones) {
+    if (!zone || !zone.zone_id) {
+      continue;
+    }
+    lookup.set(zone.zone_id, zone);
+  }
+  return lookup;
+}
+
+function resolveZoneAnchorPoint(zoneLookup, zoneId, pointKind, layoutRect) {
+  const zone = zoneLookup.get(zoneId);
+  if (!zone || !zone[pointKind]) {
+    return null;
+  }
+  const point = zone[pointKind];
+  if (typeof point.x !== "number" || typeof point.y !== "number") {
+    return null;
+  }
+  return {
+    x: point.x * layoutRect.width,
+    y: point.y * layoutRect.height,
+  };
+}
+
+function resolveFallbackNodeCenter(node, layoutRect) {
+  if (!node) {
+    return null;
+  }
+  const rect = node.getBoundingClientRect();
+  return {
+    x: rect.left - layoutRect.left + rect.width / 2,
+    y: rect.top - layoutRect.top + rect.height / 2,
+  };
+}
+
 function renderHandoffOverlay(renderableHandoffs) {
   const overlay = elements.officeCanvas.querySelector(".handoff-overlay");
   const svg = elements.officeCanvas.querySelector(".handoff-svg");
@@ -484,6 +544,7 @@ function renderHandoffOverlay(renderableHandoffs) {
   const layoutRect = layout.getBoundingClientRect();
   const width = Math.max(1, layoutRect.width);
   const height = Math.max(1, layoutRect.height);
+  const zoneLookup = buildZoneAnchorLookup();
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("width", `${width}`);
   svg.setAttribute("height", `${height}`);
@@ -501,12 +562,22 @@ function renderHandoffOverlay(renderableHandoffs) {
       continue;
     }
 
-    const fromRect = fromNode.getBoundingClientRect();
-    const toRect = toNode.getBoundingClientRect();
-    const startX = fromRect.left - layoutRect.left + fromRect.width / 2;
-    const startY = fromRect.top - layoutRect.top + fromRect.height / 2;
-    const endX = toRect.left - layoutRect.left + toRect.width / 2;
-    const endY = toRect.top - layoutRect.top + toRect.height / 2;
+    const fromZoneId =
+      signal.from_zone_id ||
+      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.from_agent)?.zone_id ||
+      null;
+    const toZoneId =
+      signal.to_zone_id ||
+      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.to_agent)?.zone_id ||
+      null;
+    const fromAnchor = resolveZoneAnchorPoint(zoneLookup, fromZoneId, "egress", layoutRect);
+    const toAnchor = resolveZoneAnchorPoint(zoneLookup, toZoneId, "ingress", layoutRect);
+    const fromFallback = resolveFallbackNodeCenter(fromNode, layoutRect);
+    const toFallback = resolveFallbackNodeCenter(toNode, layoutRect);
+    const startX = (fromAnchor || fromFallback).x;
+    const startY = (fromAnchor || fromFallback).y;
+    const endX = (toAnchor || toFallback).x;
+    const endY = (toAnchor || toFallback).y;
     const midX = (startX + endX) / 2;
     const midY = (startY + endY) / 2;
     const curveY = midY - 32;
@@ -535,7 +606,7 @@ function renderHandoffOverlay(renderableHandoffs) {
     chipNode.style.top = `${curveY - 12}px`;
     chipNode.innerHTML = `
       <strong>${escapeHtml(signal.opportunity_id)}</strong>
-      <span>${escapeHtml(shortAgentLabel(signal.from_agent))} → ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>
+      <span>${escapeHtml(shortAgentLabel(signal.from_agent))} -> ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>
     `;
     chipLayer.append(chipNode);
   }
@@ -588,6 +659,7 @@ function renderOfficeCanvas() {
           class="zone-card zone-card-${escapeHtml(presence.accent_token)} ${formatLaneClass(presence.lane_stage)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
           data-type="agent"
           data-id="${escapeHtml(presence.agent)}"
+          data-zone-id="${escapeHtml(presence.zone_id)}"
         >
           <div class="zone-title-row">
             <div>
@@ -786,6 +858,7 @@ function renderDetailForAgent(card) {
   );
   const activeOpportunity = card.opportunity_id ? findOpportunityById(card.opportunity_id) : null;
   const presence = findPresenceByAgent(card.agent);
+  const zoneAnchor = presence ? findZoneAnchorById(presence.zone_id) : null;
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -813,6 +886,11 @@ function renderDetailForAgent(card) {
         <li>Bubble state: ${escapeHtml(presence ? presence.bubble_label : "N/A")}</li>
         <li>Bubble text: ${escapeHtml(presence ? presence.bubble_text : "N/A")}</li>
         <li>Lane: ${escapeHtml(formatLaneLabel(presence ? presence.lane_stage : "monitor"))}</li>
+        <li>Anchor: ${escapeHtml(
+          zoneAnchor && zoneAnchor.anchor
+            ? `${Math.round(zoneAnchor.anchor.x * 100)}%, ${Math.round(zoneAnchor.anchor.y * 100)}%`
+            : "N/A"
+        )}</li>
       </ul>
     </section>
 
@@ -1051,3 +1129,4 @@ elements.refreshButton.addEventListener("click", () => {
 
 loadSnapshot();
 window.setInterval(loadSnapshot, 30000);
+
