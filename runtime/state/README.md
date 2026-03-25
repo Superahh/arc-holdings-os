@@ -16,3 +16,4 @@ Local mutable state for runtime workflows.
 - Use `runtime/workflow_list_cli.js` to inspect lifecycle state from terminal.
 - Use `runtime/workflow_health_cli.js` for stale-state and lifecycle health checks.
 - Use `runtime/workflow_replay_cli.js` for workflow lifecycle event replay artifacts.
+- Use `runtime/workflow_update_cli.js` for controlled manual lifecycle progression.

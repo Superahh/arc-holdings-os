@@ -13,6 +13,8 @@ const {
   saveWorkflowState,
   upsertFromPipeline,
   applyDecisionToOpportunity,
+  canTransitionStatus,
+  updateOpportunityStatus,
 } = require("../workflow_state");
 
 function loadFixture(name) {
@@ -81,4 +83,38 @@ test("applyDecisionToOpportunity transitions to rejected and approved", () => {
     "2026-03-26T15:30:00.000Z"
   );
   assert.equal(approved.current_status, "approved");
+});
+
+test("canTransitionStatus and updateOpportunityStatus enforce transition policy", () => {
+  assert.equal(canTransitionStatus("researching", "awaiting_approval"), true);
+  assert.equal(canTransitionStatus("researching", "monetizing"), false);
+
+  const input = loadFixture("golden-scenario.json");
+  const output = runOpportunityPipeline(input, "2026-03-25T19:20:00.000Z");
+  const state = createEmptyWorkflowState("2026-03-25T19:20:00.000Z");
+  const seeded = upsertFromPipeline(state, output, "pipeline_runner", "2026-03-25T19:20:00.000Z");
+  assert.equal(seeded.current_status, "researching");
+
+  const updated = updateOpportunityStatus(
+    state,
+    seeded.opportunity_id,
+    "awaiting_approval",
+    "owner_operator",
+    "Manual progression for handoff.",
+    "2026-03-25T19:30:00.000Z"
+  );
+  assert.equal(updated.current_status, "awaiting_approval");
+
+  assert.throws(
+    () =>
+      updateOpportunityStatus(
+        state,
+        seeded.opportunity_id,
+        "monetizing",
+        "owner_operator",
+        "Should fail invalid transition.",
+        "2026-03-25T19:40:00.000Z"
+      ),
+    /Invalid status transition/
+  );
 });

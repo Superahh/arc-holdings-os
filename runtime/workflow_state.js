@@ -15,6 +15,18 @@ const OPPORTUNITY_STATES = new Set([
   "rejected",
 ]);
 
+const ALLOWED_STATUS_TRANSITIONS = {
+  discovered: new Set(["researching", "closed", "rejected"]),
+  researching: new Set(["awaiting_approval", "closed", "rejected"]),
+  awaiting_approval: new Set(["approved", "rejected", "researching"]),
+  approved: new Set(["acquired", "rejected", "closed"]),
+  acquired: new Set(["routed", "closed"]),
+  routed: new Set(["monetizing", "closed"]),
+  monetizing: new Set(["closed"]),
+  rejected: new Set(["researching", "closed"]),
+  closed: new Set(["researching"]),
+};
+
 function toIso(value) {
   if (typeof value === "string" && !Number.isNaN(Date.parse(value))) {
     return new Date(value).toISOString();
@@ -144,6 +156,14 @@ function setOpportunityStatus(state, record, status, actor, reason, timestamp) {
   });
 }
 
+function canTransitionStatus(fromStatus, toStatus) {
+  if (fromStatus === toStatus) {
+    return true;
+  }
+  const allowed = ALLOWED_STATUS_TRANSITIONS[fromStatus];
+  return Boolean(allowed && allowed.has(toStatus));
+}
+
 function upsertFromPipeline(state, output, actor = "pipeline_runner", timestamp = new Date().toISOString()) {
   ensureWorkflowShape(state);
   const record = ensureOpportunityRecord(
@@ -205,13 +225,52 @@ function applyDecisionToOpportunity(
   return record;
 }
 
+function updateOpportunityStatus(
+  state,
+  opportunityId,
+  status,
+  actor = "owner_operator",
+  reason = "",
+  timestamp = new Date().toISOString(),
+  options = {}
+) {
+  ensureWorkflowShape(state);
+  if (typeof opportunityId !== "string" || !opportunityId) {
+    throw new Error("opportunityId is required.");
+  }
+  if (!OPPORTUNITY_STATES.has(status)) {
+    throw new Error(`Unknown opportunity status: ${status}`);
+  }
+
+  const record = state.opportunities[opportunityId];
+  if (!record) {
+    throw new Error(`Opportunity not found in workflow state: ${opportunityId}`);
+  }
+
+  const forceTransition = Boolean(options.forceTransition);
+  if (!forceTransition && !canTransitionStatus(record.current_status, status)) {
+    throw new Error(`Invalid status transition: ${record.current_status} -> ${status}`);
+  }
+
+  const finalReason =
+    typeof reason === "string" && reason.trim().length > 0
+      ? reason
+      : `Manual status update: ${record.current_status} -> ${status}`;
+  setOpportunityStatus(state, record, status, actor, finalReason, timestamp);
+  state.updated_at = toIso(timestamp);
+  return record;
+}
+
 module.exports = {
   OPPORTUNITY_STATES,
+  ALLOWED_STATUS_TRANSITIONS,
   createEmptyWorkflowState,
   loadWorkflowState,
   saveWorkflowState,
   upsertFromPipeline,
   applyDecisionToOpportunity,
+  updateOpportunityStatus,
+  canTransitionStatus,
   mapRecommendationToStatus,
   mapDecisionToStatus,
 };

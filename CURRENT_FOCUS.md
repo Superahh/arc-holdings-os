@@ -37,6 +37,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] add fast terminal status snapshot CLI for operators
 - [x] add state bootstrap/reset CLI for queue and workflow files
 - [x] add workflow replay timeline CLI for lifecycle audits
+- [x] add transition-checked manual workflow update CLI
 
 ## Out of scope
 

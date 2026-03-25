@@ -24,6 +24,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `workflow_list_cli.js`: CLI for workflow state inspection (`summary`, `opportunities`, `history`, `opportunity`)
 - `workflow_health_cli.js`: CLI for workflow lifecycle health and stale-state monitoring
 - `workflow_replay_cli.js`: CLI to replay workflow lifecycle events into timeline artifacts
+- `workflow_update_cli.js`: CLI for manual, policy-checked workflow status progression
 - `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
@@ -48,6 +49,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/workflow_list_cli.test.js`: workflow state query CLI tests
 - `tests/workflow_health_cli.test.js`: workflow health KPI CLI tests
 - `tests/workflow_replay_cli.test.js`: workflow replay timeline CLI tests
+- `tests/workflow_update_cli.test.js`: workflow manual update CLI tests
 - `tests/state_bootstrap_cli.test.js`: state bootstrap/reset CLI tests
 - `tests/queue_decision_cli.test.js`: queue decision CLI and post-decision artifact tests
 - `tests/queue_list_cli.test.js`: queue listing/history CLI tests
@@ -75,6 +77,7 @@ node runtime/tests/workflow_state.test.js
 node runtime/tests/workflow_list_cli.test.js
 node runtime/tests/workflow_health_cli.test.js
 node runtime/tests/workflow_replay_cli.test.js
+node runtime/tests/workflow_update_cli.test.js
 node runtime/tests/state_bootstrap_cli.test.js
 node runtime/tests/queue_decision_cli.test.js
 node runtime/tests/queue_list_cli.test.js
@@ -161,6 +164,18 @@ Replay workflow lifecycle events into timeline artifact:
 
 ```powershell
 node runtime/workflow_replay_cli.js --state-path runtime/state/workflow_state.json --limit 50
+```
+
+Apply manual workflow status progression (transition-checked):
+
+```powershell
+node runtime/workflow_update_cli.js --state-path runtime/state/workflow_state.json --opportunity-id opp-2026-03-25-001 --status awaiting_approval --actor risk_agent --reason "Remote verification complete"
+```
+
+Force manual transition override:
+
+```powershell
+node runtime/workflow_update_cli.js --state-path runtime/state/workflow_state.json --opportunity-id opp-2026-03-25-001 --status monetizing --force-transition --actor owner_operator --reason "Recovery override"
 ```
 
 Inspect queue from terminal:
