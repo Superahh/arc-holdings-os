@@ -18,6 +18,8 @@ const state = {
   selected: null,
   transitions: createEmptyTransitionState(),
   transitionTimerId: null,
+  decisionInFlight: false,
+  decisionMessage: null,
 };
 
 const elements = {
@@ -370,6 +372,58 @@ function ensureSelection() {
 function setSelection(type, id) {
   state.selected = { type, id };
   render();
+}
+
+function formatDecisionLabel(decision) {
+  const labels = {
+    approve: "Approve",
+    reject: "Reject",
+    request_more_info: "More Info",
+  };
+  return labels[decision] || decision;
+}
+
+function buildDecisionConfirmMessage(ticketId, decision) {
+  const label = formatDecisionLabel(decision);
+  return `Submit ${label} decision for ${ticketId}?`;
+}
+
+async function submitApprovalDecision(ticketId, decision) {
+  if (state.decisionInFlight) {
+    return;
+  }
+  state.decisionInFlight = true;
+  state.decisionMessage = `Submitting ${formatDecisionLabel(decision)} for ${ticketId}...`;
+  renderAttention();
+  renderApprovalQueue();
+
+  try {
+    const response = await fetch("/api/approval-decision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ticket_id: ticketId,
+        decision,
+        actor: "owner_operator",
+        note: `Submitted from UI shell (${decision}).`,
+      }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload && payload.message ? payload.message : "Decision submission failed.");
+    }
+    state.decisionMessage = `Submitted ${formatDecisionLabel(decision)} for ${ticketId}.`;
+    await loadSnapshot();
+  } catch (error) {
+    state.decisionMessage = error instanceof Error ? error.message : String(error);
+    renderAttention();
+  } finally {
+    state.decisionInFlight = false;
+    renderApprovalQueue();
+  }
 }
 
 function renderKpis() {
@@ -1238,8 +1292,18 @@ function renderApprovalQueue() {
             state.selected &&
             state.selected.type === "opportunity" &&
             state.selected.id === item.opportunity_id;
+          const decisionControls =
+            item.status === "pending"
+              ? `
+                <div class="queue-actions">
+                  <button type="button" class="queue-action queue-action-approve" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="approve" ${state.decisionInFlight ? "disabled" : ""}>Approve</button>
+                  <button type="button" class="queue-action queue-action-info" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="request_more_info" ${state.decisionInFlight ? "disabled" : ""}>More info</button>
+                  <button type="button" class="queue-action queue-action-reject" data-ticket-id="${escapeHtml(item.ticket_id)}" data-decision="reject" ${state.decisionInFlight ? "disabled" : ""}>Reject</button>
+                </div>
+              `
+              : "";
           return `
-            <button type="button" class="queue-item ${isSelected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(item.opportunity_id)}">
+            <article class="queue-item queue-item-selectable ${isSelected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(item.opportunity_id)}">
               <div class="queue-title-row">
                 <div>
                   <strong>${escapeHtml(item.ticket_id)}</strong>
@@ -1253,7 +1317,8 @@ function renderApprovalQueue() {
                 <div class="detail-meta-item"><span>Required by</span><strong>${escapeHtml(formatTimestamp(item.ticket.required_by))}</strong></div>
                 <div class="detail-meta-item"><span>Decision</span><strong>${escapeHtml(item.decided_by || "Pending")}</strong></div>
               </div>
-            </button>
+              ${decisionControls}
+            </article>
           `;
         })
         .join("")
@@ -1265,14 +1330,36 @@ function renderApprovalQueue() {
       setSelection(node.dataset.type, node.dataset.id);
     });
   });
+  elements.approvalQueue.querySelectorAll("[data-ticket-id][data-decision]").forEach((node) => {
+    node.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.decisionInFlight) {
+        return;
+      }
+      const ticketId = node.dataset.ticketId;
+      const decision = node.dataset.decision;
+      if (!ticketId || !decision) {
+        return;
+      }
+      const confirmed = window.confirm(buildDecisionConfirmMessage(ticketId, decision));
+      if (!confirmed) {
+        return;
+      }
+      submitApprovalDecision(ticketId, decision);
+    });
+  });
 }
 
 function renderAttention() {
   const task = state.snapshot.attention.top_task;
   elements.generatedAt.textContent = formatTimestamp(state.snapshot.generated_at);
-  elements.attentionNote.textContent = task
+  const baseMessage = task
     ? `${task.owner} next: ${task.next_action}`
     : "No active attention item.";
+  elements.attentionNote.textContent = state.decisionMessage
+    ? `${baseMessage} | ${state.decisionMessage}`
+    : baseMessage;
 }
 
 function render() {

@@ -30,6 +30,10 @@ Versioning rule:
 - Add a contract version note as `v1.x` in this file when optional fields are added.
 - Move to `v2` only when a breaking change is required.
 
+Current extension note:
+
+- `v1.1` adds planned capital-control interfaces to support explicit deposit/reserve/approve-to-use/withdraw modeling with auditability.
+
 ## OpportunityRecord
 
 Purpose: represent opportunity evaluation state from intake through recommendation.
@@ -149,6 +153,76 @@ These shapes are read-only snapshot interfaces and do not create write paths.
   "egress": { "x": 0.0, "y": 0.0 },
   "handoff_dock": { "x": 0.0, "y": 0.0 },
   "connections": ["zone_id"]
+}
+```
+
+## Capital Control Extensions (`v1.1` planned)
+
+Purpose: define explicit capital lifecycle contracts before writable UI actions are introduced.
+
+These contracts are planning and interface definitions in the current phase. They do not imply active write-path support yet.
+
+### CapitalAccountSnapshot
+
+```json
+{
+  "account_id": "string",
+  "as_of": "ISO-8601 datetime",
+  "currency": "USD",
+  "available_usd": 0,
+  "reserved_usd": 0,
+  "committed_usd": 0,
+  "pending_withdrawal_usd": 0,
+  "manual_only": true
+}
+```
+
+### CapitalMovementRequest
+
+```json
+{
+  "request_id": "string",
+  "action": "deposit|reserve|release_reserve|approve_use|withdraw",
+  "amount_usd": 0,
+  "requested_by": "string",
+  "requested_at": "ISO-8601 datetime",
+  "reason": "string",
+  "opportunity_id": "string|null",
+  "approval_ticket_id": "string|null",
+  "status": "requested|approved|rejected|executed|cancelled"
+}
+```
+
+### CapitalReservation
+
+```json
+{
+  "reservation_id": "string",
+  "opportunity_id": "string",
+  "amount_usd": 0,
+  "created_from_request_id": "string",
+  "status": "active|released|consumed|expired",
+  "created_at": "ISO-8601 datetime",
+  "updated_at": "ISO-8601 datetime"
+}
+```
+
+### CapitalLedgerEntry
+
+```json
+{
+  "entry_id": "string",
+  "timestamp": "ISO-8601 datetime",
+  "action": "deposit|reserve|release_reserve|approve_use|withdraw|adjustment",
+  "amount_usd": 0,
+  "balance_after_usd": 0,
+  "reserved_after_usd": 0,
+  "committed_after_usd": 0,
+  "performed_by": "string",
+  "authorized_by": "string|null",
+  "request_id": "string|null",
+  "opportunity_id": "string|null",
+  "notes": "string"
 }
 ```
 

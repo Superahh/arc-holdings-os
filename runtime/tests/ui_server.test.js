@@ -55,7 +55,7 @@ function seedFixtureEnvironment() {
   };
 }
 
-function request(server, route) {
+function request(server, route, options = {}) {
   return new Promise((resolve, reject) => {
     const address = server.address();
     const req = http.request(
@@ -63,7 +63,8 @@ function request(server, route) {
         host: "127.0.0.1",
         port: address.port,
         path: route,
-        method: "GET",
+        method: options.method || "GET",
+        headers: options.headers || {},
       },
       (response) => {
         let body = "";
@@ -81,6 +82,9 @@ function request(server, route) {
       }
     );
     req.on("error", reject);
+    if (options.body) {
+      req.write(options.body);
+    }
     req.end();
   });
 }
@@ -125,6 +129,32 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.office.events[0].lane_stage, "approval");
     assert.equal(snapshot.office.flow_events[0].action, "status_update");
     assert.match(snapshot.office.presence[1].bubble_text, /purchase recommendation remains blocked/i);
+
+    const decisionResponse = await request(server, "/api/approval-decision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ticket_id: "apr-ui-server-001",
+        decision: "approve",
+        actor: "ui_test_operator",
+        note: "Submitting decision from ui_server integration test.",
+      }),
+    });
+    assert.equal(decisionResponse.statusCode, 200);
+    const decisionPayload = JSON.parse(decisionResponse.body);
+    assert.equal(decisionPayload.ok, true);
+    assert.equal(decisionPayload.result.decision, "approve");
+
+    const postDecisionSnapshotResponse = await request(
+      server,
+      "/api/snapshot?now=2026-03-25T19:12:00.000Z"
+    );
+    assert.equal(postDecisionSnapshotResponse.statusCode, 200);
+    const postDecisionSnapshot = JSON.parse(postDecisionSnapshotResponse.body);
+    assert.equal(postDecisionSnapshot.kpis.approvals_waiting, 0);
+    assert.equal(postDecisionSnapshot.approval_queue.items[0].status, "approve");
   } finally {
     await new Promise((resolve, reject) => {
       server.close((error) => {

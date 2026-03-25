@@ -178,6 +178,45 @@ h2 {
   color: var(--muted);
 }
 
+.queue-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.queue-action {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 252, 245, 0.94);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.queue-action:hover {
+  border-color: rgba(20, 35, 34, 0.28);
+}
+
+.queue-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.queue-action-approve {
+  border-color: rgba(47, 107, 79, 0.35);
+}
+
+.queue-action-info {
+  border-color: rgba(124, 99, 30, 0.35);
+}
+
+.queue-action-reject {
+  border-color: rgba(163, 52, 52, 0.35);
+}
+
 .kpi-value {
   display: block;
   margin: 6px 0;

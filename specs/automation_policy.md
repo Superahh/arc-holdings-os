@@ -18,6 +18,11 @@ These actions must emit an `ApprovalTicket`:
 - policy overrides
 - actions that move money or commit inventory
 
+Capital-control interpretation:
+
+- capital movement intents must be explicit (`deposit`, `reserve`, `approve_use`, `release_reserve`, `withdraw`)
+- no capital movement executes without operator authorization and audit trail
+
 ## Conditionally automatable
 
 - duplicate detection
@@ -45,3 +50,10 @@ Every recommendation should expose:
 ## Integration rule
 
 Version 1 should not depend on user-supplied API keys during normal operation.
+
+## Writable UI sequencing rule
+
+When writable UI is introduced:
+
+1. first writable UI surface must be approval decisioning only (`approve|reject|request_more_info`)
+2. capital movement writes remain disabled until capital contracts and audit rails are implemented end-to-end

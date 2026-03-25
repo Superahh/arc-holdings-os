@@ -6,6 +6,7 @@ const path = require("node:path");
 const { URL } = require("node:url");
 
 const { buildUiSnapshot } = require("../runtime/ui_snapshot");
+const { runDecisionAction } = require("../runtime/queue_decision_cli");
 
 const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -79,6 +80,31 @@ function sendStatic(response, filePath) {
   fs.createReadStream(filePath).pipe(response);
 }
 
+function readJsonBody(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1024 * 1024) {
+        reject(new Error("Request body too large."));
+      }
+    });
+    request.on("end", () => {
+      if (!body.trim()) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(new Error("Invalid JSON body."));
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
 function createUiServer(options = {}) {
   const rootDir = path.resolve(options.rootDir || __dirname);
   const snapshotOptions = {
@@ -103,6 +129,60 @@ function createUiServer(options = {}) {
           message: error instanceof Error ? error.message : String(error),
         });
       }
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/approval-decision") {
+      readJsonBody(request)
+        .then((body) => {
+          const ticketId = typeof body.ticket_id === "string" ? body.ticket_id.trim() : "";
+          const decision = typeof body.decision === "string" ? body.decision.trim() : "";
+          const actor = typeof body.actor === "string" && body.actor.trim() ? body.actor.trim() : "ui_operator";
+          const note = typeof body.note === "string" ? body.note : "";
+
+          if (!ticketId) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "ticket_id is required.",
+            });
+            return;
+          }
+          if (!decision) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "decision is required.",
+            });
+            return;
+          }
+
+          try {
+            const result = runDecisionAction({
+              queuePath: snapshotOptions.queuePath,
+              workflowStatePath: snapshotOptions.workflowStatePath,
+              baseDir: snapshotOptions.baseDir,
+              ticketId,
+              decision,
+              actor,
+              note,
+              now: new Date().toISOString(),
+            });
+            sendJson(response, 200, {
+              ok: true,
+              result,
+            });
+          } catch (error) {
+            sendJson(response, 400, {
+              error: "decision_failed",
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
+        })
+        .catch((error) => {
+          sendJson(response, 400, {
+            error: "invalid_request",
+            message: error instanceof Error ? error.message : String(error),
+          });
+        });
       return;
     }
 

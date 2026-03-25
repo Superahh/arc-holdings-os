@@ -2,6 +2,10 @@
 
 ## 2026-03-26
 
+- Added first writable UI action surface for approval decision submission only (`ui/server.js`, `ui/app.js`, `ui/styles.css`, `runtime/tests/ui_server.test.js`), routed through existing queue decision policy/audit logic.
+- Added macro project navigation map [STATUS.md](./STATUS.md) to separate phase-level orientation from sprint tracking.
+- Defined capital-control contract layer and lifecycle spec for deposit/reserve/approve-use/withdraw modeling (`specs/contracts.md`, `specs/capital_controls.md`, `specs/technical_spec.md`, `specs/automation_policy.md`).
+- Locked first writable UI surface to approval decision submission only and updated milestone sequencing (`CURRENT_FOCUS.md`, `DECISIONS.md`, `STATUS.md`).
 - Added headless browser smoke coverage for the live UI shell using local Edge/Chrome binaries with auto-skip fallback (`runtime/tests/ui_browser_smoke.test.js`, `CURRENT_FOCUS.md`, `runtime/README.md`).
 - Added a read-only zone connection rail overlay in the office canvas, highlighted by live handoff routes from `office.route_hints`, to strengthen spatial identity and future walking foundations (`ui/app.js`, `ui/styles.css`).
 - Added deterministic read-only office transition rails with `office.events`, `office.zone_anchors`, `office.route_hints`, and runtime contract validation for each shape (`runtime/contracts.js`, `runtime/ui_snapshot.js`, `runtime/tests/contracts_office.test.js`, `runtime/tests/ui_snapshot.test.js`).

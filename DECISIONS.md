@@ -92,3 +92,33 @@ Less file granularity, better coherence.
 
 ### Revisit later
 No.
+
+## 2026-03-26
+
+### Decision
+Define capital controls as explicit contracts (`CapitalAccountSnapshot`, `CapitalMovementRequest`, `CapitalReservation`, `CapitalLedgerEntry`) before enabling capital write paths.
+
+### Why
+This keeps capital behavior operator-controlled, auditable, and implementation-ready without introducing unsafe mutation paths early.
+
+### Tradeoff
+Adds contract/planning overhead now, but reduces ambiguity and rework when capital writes are implemented.
+
+### Revisit later
+Yes.
+Trigger: first runtime implementation of capital movement and ledger persistence.
+
+## 2026-03-26
+
+### Decision
+Set the first writable UI action surface to approval decision submission only (`approve|reject|request_more_info`).
+
+### Why
+Approval decisioning already has policy checks and audit trail rails in runtime, making it the narrowest safe write entry point.
+
+### Tradeoff
+Capital movement and broader UI writes are delayed until capital-control implementation catches up.
+
+### Revisit later
+Yes.
+Trigger: writable approval flow is stable and capital ledger contracts are implemented end-to-end.

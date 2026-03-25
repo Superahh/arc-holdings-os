@@ -4,10 +4,11 @@ This folder contains the first visible ARC Holdings OS UI shell.
 
 ## Scope
 
-- desktop-first, read-only v1 shell
+- desktop-first v1 shell
 - contract-driven rendering from runtime state and latest run artifacts
 - zero external dependencies
-- no new write-paths or backend mutation logic
+- first writable action limited to approval decision submission (`approve|reject|request_more_info`)
+- no capital movement write-paths
 - deterministic office transition visuals (handoff overlays + zone connection rails) from read-only snapshot data
 
 ## Regions

@@ -26,9 +26,12 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] add first visible shell in [ui/](./ui)
 - [x] keep approval queue and workflow state as source of truth
 - [x] add UI shell tests for snapshot composition and HTTP serving
-- [ ] define capital deposit, reserve, approval-to-use, and withdrawal controls with explicit user control and auditability
-- [ ] decide the first safe writable UI action surface
+- [x] define capital deposit, reserve, approval-to-use, and withdrawal controls with explicit user control and auditability
+- [x] decide the first safe writable UI action surface
 - [x] add browser-level smoke coverage before expanding interaction scope
+- [x] implement first writable UI action: approval decision submission over existing queue policy checks and audit trail
+- [ ] keep capital movement flows read-only until capital contracts are implemented in runtime with immutable ledger support
+- [ ] add UI confirmation and recovery behavior for decision failures/timeouts
 
 ## Out of scope
 

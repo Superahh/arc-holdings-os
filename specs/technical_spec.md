@@ -16,6 +16,7 @@ ARC Holdings OS is a layered system:
 - valuation and risk evaluation
 - CEO routing and prioritization
 - approval queue
+- approval decision write endpoint (narrow writable surface)
 - workflow/state tracker
 - read-only UI snapshot composer
 - office status composer
@@ -31,6 +32,10 @@ All cross-agent outputs must use contracts in [contracts.md](./contracts.md):
 - `ApprovalTicket`
 - `AgentStatusCard`
 - `CompanyBoardSnapshot`
+- `CapitalAccountSnapshot` (planned)
+- `CapitalMovementRequest` (planned)
+- `CapitalReservation` (planned)
+- `CapitalLedgerEntry` (planned)
 
 ## Data flow (v1)
 
@@ -93,4 +98,4 @@ Approval requests must emit `ApprovalTicket`.
 
 - first concrete source feed for opportunity intake
 - KPI subset required at launch
-- capital control model for deposit, reserve, approval-to-use, and withdrawal with explicit user control and audit trail
+- exact operator interaction flow for writable approval decisions in the UI
