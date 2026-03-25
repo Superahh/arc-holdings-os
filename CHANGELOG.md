@@ -27,6 +27,7 @@
 - Added workflow lifecycle persistence module and CLI integrations (`runtime/workflow_state.js`, `runtime/run_pipeline.js`, `runtime/queue_decision_cli.js`, `runtime/company_cycle_cli.js`, `runtime/ops_loop_cli.js`, `runtime/batch_ops_cli.js`).
 - Added workflow and pipeline CLI integration tests (`runtime/tests/workflow_state.test.js`, `runtime/tests/run_pipeline_cli.test.js`, `runtime/tests/queue_decision_cli.test.js`, `runtime/tests/company_cycle_cli.test.js`, `runtime/tests/ops_loop_cli.test.js`, `runtime/tests/batch_ops_cli.test.js`).
 - Added workflow inspection CLI with summary/history/opportunity views (`runtime/workflow_list_cli.js`, `runtime/tests/workflow_list_cli.test.js`).
+- Added workflow health CLI for stale lifecycle monitoring and KPI artifacts (`runtime/workflow_health_cli.js`, `runtime/tests/workflow_health_cli.test.js`).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.

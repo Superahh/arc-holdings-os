@@ -22,6 +22,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `approval_queue.js`: queue load/save/enqueue/decision helpers
 - `workflow_state.js`: opportunity lifecycle state persistence and transition helpers
 - `workflow_list_cli.js`: CLI for workflow state inspection (`summary`, `opportunities`, `history`, `opportunity`)
+- `workflow_health_cli.js`: CLI for workflow lifecycle health and stale-state monitoring
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
 - `queue_list_cli.js`: CLI for queue inspection (`pending`, `all`, `history`, `ticket`)
@@ -42,6 +43,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/approval_queue.test.js`: approval queue state and audit tests
 - `tests/workflow_state.test.js`: workflow state persistence and transition tests
 - `tests/workflow_list_cli.test.js`: workflow state query CLI tests
+- `tests/workflow_health_cli.test.js`: workflow health KPI CLI tests
 - `tests/queue_decision_cli.test.js`: queue decision CLI and post-decision artifact tests
 - `tests/queue_list_cli.test.js`: queue listing/history CLI tests
 - `tests/queue_replay_cli.test.js`: queue replay timeline artifact tests
@@ -65,6 +67,7 @@ node runtime/tests/run_pipeline_cli.test.js
 node runtime/tests/approval_queue.test.js
 node runtime/tests/workflow_state.test.js
 node runtime/tests/workflow_list_cli.test.js
+node runtime/tests/workflow_health_cli.test.js
 node runtime/tests/queue_decision_cli.test.js
 node runtime/tests/queue_list_cli.test.js
 node runtime/tests/queue_replay_cli.test.js
@@ -125,6 +128,12 @@ Inspect workflow lifecycle state:
 ```powershell
 node runtime/workflow_list_cli.js --state-path runtime/state/workflow_state.json --mode summary
 node runtime/workflow_list_cli.js --state-path runtime/state/workflow_state.json --mode history --opportunity-id opp-2026-03-26-002 --limit 10
+```
+
+Generate workflow health KPI artifact:
+
+```powershell
+node runtime/workflow_health_cli.js --state-path runtime/state/workflow_state.json --stale-minutes 240
 ```
 
 Inspect queue from terminal:
