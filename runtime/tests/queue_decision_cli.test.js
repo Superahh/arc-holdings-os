@@ -131,3 +131,37 @@ test("reject decision records rejection alert and no capital approval", () => {
   assert.equal(operationsCard.status, "working");
   assert.equal(operationsCard.blocker, null);
 });
+
+test("runDecisionAction updates workflow state when workflow path is provided", () => {
+  const input = loadFixture("rejection-scenario.json");
+  const output = runOpportunityPipeline(input, "2026-03-26T15:00:00.000Z");
+  assert.ok(output.approval_ticket, "Expected approval ticket.");
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-decision-cli-"));
+  const queuePath = path.join(tempDir, "approval_queue.json");
+  const workflowPath = path.join(tempDir, "workflow_state.json");
+  const queue = createEmptyQueue("2026-03-26T15:00:00.000Z");
+  enqueueApprovalTicket(queue, output.approval_ticket, "pipeline", "2026-03-26T15:01:00.000Z");
+  saveQueue(queuePath, queue, "2026-03-26T15:01:00.000Z");
+
+  const result = runDecisionAction({
+    queuePath,
+    ticketId: output.approval_ticket.ticket_id,
+    decision: "reject",
+    actor: "owner_operator",
+    workflowStatePath: workflowPath,
+    workflowActor: "workflow_operator",
+    note: "Rejecting during workflow state integration test.",
+    now: "2026-03-26T15:20:00.000Z",
+    baseDir: tempDir,
+  });
+
+  assert.ok(result.workflow_result, "Expected workflow_result in action response.");
+  assert.equal(result.workflow_result.current_status, "rejected");
+  assert.ok(fs.existsSync(workflowPath), "Expected workflow state file to exist.");
+
+  const workflow = JSON.parse(fs.readFileSync(workflowPath, "utf8"));
+  const record = workflow.opportunities[output.approval_ticket.opportunity_id];
+  assert.ok(record, "Expected opportunity record in workflow state.");
+  assert.equal(record.current_status, "rejected");
+});

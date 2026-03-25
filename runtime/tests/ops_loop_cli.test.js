@@ -37,6 +37,7 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-ops-loop-"));
   const fixturePath = writeFixture(tempDir, "verified");
   const queuePath = path.join(tempDir, "approval_queue.json");
+  const workflowPath = path.join(tempDir, "workflow_state.json");
 
   const result = runOpsLoopAction({
     fixture: fixturePath,
@@ -44,6 +45,8 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
     now: "2026-03-25T19:30:00.000Z",
     baseDir: tempDir,
     queueActor: "ops_loop_runner",
+    workflowStatePath: workflowPath,
+    workflowActor: "workflow_runner",
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -53,6 +56,7 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
   const loopArtifact = JSON.parse(fs.readFileSync(result.loop_artifact_path, "utf8"));
   assert.ok(fs.existsSync(loopArtifact.outputs.cycle_artifact_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.run_artifact_path));
+  assert.ok(fs.existsSync(loopArtifact.outputs.workflow_state_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.timeline_artifact_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.health_artifact_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.report_json_path));

@@ -5,6 +5,7 @@ const path = require("node:path");
 const { loadQueue, saveQueue, decideApproval } = require("./approval_queue");
 const { buildDecisionOfficeState } = require("./decision_state");
 const { writeDecisionArtifact } = require("./output");
+const { loadWorkflowState, saveWorkflowState, applyDecisionToOpportunity } = require("./workflow_state");
 
 function parseArgs(argv) {
   const args = {
@@ -12,6 +13,8 @@ function parseArgs(argv) {
     ticketId: null,
     decision: null,
     actor: "owner_operator",
+    workflowActor: null,
+    workflowStatePath: null,
     note: "",
     now: new Date().toISOString(),
     baseDir: path.join(__dirname, "output"),
@@ -30,6 +33,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--actor") {
       args.actor = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-actor") {
+      args.workflowActor = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-state-path") {
+      args.workflowStatePath = argv[i + 1];
       i += 1;
     } else if (token === "--note") {
       args.note = argv[i + 1];
@@ -59,6 +68,7 @@ function runDecisionAction(args) {
   const queuePath = path.resolve(args.queuePath);
   const baseOutputDir = path.resolve(args.baseDir);
   const queue = loadQueue(queuePath);
+  const workflowActor = args.workflowActor || args.actor;
 
   decideApproval(queue, args.ticketId, args.decision, args.actor, args.note, args.now);
   const savedQueuePath = saveQueue(queuePath, queue, args.now);
@@ -82,9 +92,30 @@ function runDecisionAction(args) {
   };
   const artifactPath = writeDecisionArtifact(baseOutputDir, decisionArtifact);
 
+  let workflowResult = null;
+  if (args.workflowStatePath) {
+    const workflow = loadWorkflowState(args.workflowStatePath);
+    const updatedRecord = applyDecisionToOpportunity(
+      workflow,
+      decidedItem.ticket_id,
+      decidedItem.status,
+      workflowActor,
+      args.now,
+      decidedItem.opportunity_id
+    );
+    const savedWorkflowPath = saveWorkflowState(args.workflowStatePath, workflow, args.now);
+    workflowResult = {
+      workflow_state_path: savedWorkflowPath,
+      opportunity_id: updatedRecord.opportunity_id,
+      current_status: updatedRecord.current_status,
+      approval_ticket_id: updatedRecord.approval_ticket_id,
+    };
+  }
+
   return {
     queue_path: savedQueuePath,
     decision_artifact_path: artifactPath,
+    workflow_result: workflowResult,
     ticket_id: decidedItem.ticket_id,
     decision: decidedItem.status,
     pending_count: officeState.queue_counts.pending,

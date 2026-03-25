@@ -13,6 +13,8 @@ function parseArgs(argv) {
     now: new Date().toISOString(),
     baseDir: path.join(__dirname, "output"),
     queueActor: "batch_runner",
+    workflowStatePath: null,
+    workflowActor: "batch_runner",
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -35,6 +37,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--queue-actor") {
       args.queueActor = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-state-path") {
+      args.workflowStatePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-actor") {
+      args.workflowActor = argv[i + 1];
       i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
@@ -111,6 +119,8 @@ function runBatchOpsAction(args) {
       now: runNow,
       baseDir,
       queueActor: args.queueActor,
+      workflowStatePath: args.workflowStatePath,
+      workflowActor: args.workflowActor,
       slaMinutes: args.slaMinutes,
       replayLimit: args.replayLimit,
       pendingLimit: args.pendingLimit,
@@ -129,6 +139,7 @@ function runBatchOpsAction(args) {
     skip_count: runs.filter((run) => run.recommendation === "skip").length,
     final_queue_health: runs[runs.length - 1].queue_health,
     final_pending_count: runs[runs.length - 1].pending_count,
+    workflow_state_path: runs[runs.length - 1].workflow_state_path || null,
   };
 
   const batchArtifact = {

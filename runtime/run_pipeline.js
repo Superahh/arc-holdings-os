@@ -11,6 +11,7 @@ const {
   compareWithSnapshot,
 } = require("./output");
 const { loadQueue, enqueueApprovalTicket, saveQueue } = require("./approval_queue");
+const { loadWorkflowState, saveWorkflowState, upsertFromPipeline } = require("./workflow_state");
 
 function parseArgs(argv) {
   const args = {
@@ -19,6 +20,8 @@ function parseArgs(argv) {
     baseDir: path.join(__dirname, "output"),
     queuePath: null,
     queueActor: "pipeline_runner",
+    workflowStatePath: null,
+    workflowActor: "pipeline_runner",
     updateSnapshot: false,
     checkSnapshot: false,
   };
@@ -40,6 +43,12 @@ function parseArgs(argv) {
     } else if (token === "--queue-actor") {
       args.queueActor = argv[i + 1];
       i += 1;
+    } else if (token === "--workflow-state-path") {
+      args.workflowStatePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-actor") {
+      args.workflowActor = argv[i + 1];
+      i += 1;
     } else if (token === "--update-snapshot") {
       args.updateSnapshot = true;
     } else if (token === "--check-snapshot") {
@@ -53,8 +62,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
+function runPipelineAction(args) {
   const fixturePath = path.resolve(args.fixture);
   const baseOutputDir = path.resolve(args.baseDir);
   const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
@@ -97,14 +105,33 @@ function main() {
     }
   }
 
-  const summary = {
+  let workflowResult = null;
+  if (args.workflowStatePath) {
+    const workflow = loadWorkflowState(args.workflowStatePath);
+    const updatedRecord = upsertFromPipeline(workflow, artifact.output, args.workflowActor, args.now);
+    const savedWorkflowPath = saveWorkflowState(args.workflowStatePath, workflow, args.now);
+    workflowResult = {
+      workflow_state_path: savedWorkflowPath,
+      opportunity_id: updatedRecord.opportunity_id,
+      current_status: updatedRecord.current_status,
+      approval_ticket_id: updatedRecord.approval_ticket_id,
+    };
+  }
+
+  return {
     artifact_path: artifactPath,
     snapshot_path: snapshotPath,
     snapshot_result: snapshotResult,
     queue_result: queueResult,
+    workflow_result: workflowResult,
     opportunity_id: artifact.opportunity_id,
     recommendation: artifact.output.opportunity_record.recommendation,
   };
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const summary = runPipelineAction(args);
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
@@ -114,5 +141,6 @@ if (require.main === module) {
 
 module.exports = {
   parseArgs,
+  runPipelineAction,
   main,
 };

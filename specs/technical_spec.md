@@ -89,5 +89,4 @@ Approval requests must emit `ApprovalTicket`.
 ## Open questions
 
 - first concrete source feed for opportunity intake
-- minimum persistence model for v1 build
 - KPI subset required at launch

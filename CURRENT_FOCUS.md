@@ -27,6 +27,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] freeze v1 interface contracts for implementation handoff
 - [x] add additional runtime scenario coverage for `request_more_info` and rejection paths
 - [x] add acceptance gate CLI for repeatable scenario validation
+- [x] implement minimum lifecycle persistence model for v1 runtime
 
 ## Out of scope
 

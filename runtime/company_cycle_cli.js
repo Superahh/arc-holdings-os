@@ -7,6 +7,7 @@ const { runOpportunityPipeline } = require("./pipeline");
 const { loadQueue, enqueueApprovalTicket, saveQueue, getPendingTickets } = require("./approval_queue");
 const { buildRunArtifact, writeRunArtifact, writeCycleArtifact } = require("./output");
 const { computeHealth } = require("./queue_health_cli");
+const { loadWorkflowState, saveWorkflowState, upsertFromPipeline } = require("./workflow_state");
 
 function parseArgs(argv) {
   const args = {
@@ -15,6 +16,8 @@ function parseArgs(argv) {
     baseDir: path.join(__dirname, "output"),
     queuePath: null,
     queueActor: "cycle_runner",
+    workflowStatePath: null,
+    workflowActor: "cycle_runner",
     slaMinutes: 120,
   };
 
@@ -34,6 +37,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--queue-actor") {
       args.queueActor = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-state-path") {
+      args.workflowStatePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-actor") {
+      args.workflowActor = argv[i + 1];
       i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
@@ -87,6 +96,19 @@ function runCycleAction(args) {
     };
   }
 
+  let workflowSummary = null;
+  if (args.workflowStatePath) {
+    const workflow = loadWorkflowState(args.workflowStatePath);
+    const updatedRecord = upsertFromPipeline(workflow, output, args.workflowActor, nowIso);
+    const savedWorkflowPath = saveWorkflowState(args.workflowStatePath, workflow, nowIso);
+    workflowSummary = {
+      workflow_state_path: savedWorkflowPath,
+      opportunity_id: updatedRecord.opportunity_id,
+      current_status: updatedRecord.current_status,
+      approval_ticket_id: updatedRecord.approval_ticket_id,
+    };
+  }
+
   const cycleArtifact = {
     schema_version: "v1",
     generated_at: nowIso,
@@ -98,6 +120,7 @@ function runCycleAction(args) {
     approval_ticket_id: output.approval_ticket ? output.approval_ticket.ticket_id : null,
     handoff_target: output.handoff_packet.to_agent,
     queue_summary: queueSummary,
+    workflow_summary: workflowSummary,
   };
 
   const cycleArtifactPath = writeCycleArtifact(baseDir, cycleArtifact);
@@ -105,6 +128,7 @@ function runCycleAction(args) {
     cycle_artifact_path: cycleArtifactPath,
     run_artifact_path: runArtifactPath,
     queue_summary: queueSummary,
+    workflow_summary: workflowSummary,
     opportunity_id: output.opportunity_record.opportunity_id,
     recommendation: output.opportunity_record.recommendation,
   };

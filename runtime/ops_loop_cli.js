@@ -15,6 +15,8 @@ function parseArgs(argv) {
     now: new Date().toISOString(),
     baseDir: path.join(__dirname, "output"),
     queueActor: "ops_loop_runner",
+    workflowStatePath: null,
+    workflowActor: "ops_loop_runner",
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -36,6 +38,12 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--queue-actor") {
       args.queueActor = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-state-path") {
+      args.workflowStatePath = argv[i + 1];
+      i += 1;
+    } else if (token === "--workflow-actor") {
+      args.workflowActor = argv[i + 1];
       i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
@@ -79,6 +87,8 @@ function runOpsLoopAction(args) {
     baseDir,
     queuePath,
     queueActor: args.queueActor,
+    workflowStatePath: args.workflowStatePath,
+    workflowActor: args.workflowActor,
     slaMinutes: args.slaMinutes,
   });
 
@@ -114,6 +124,7 @@ function runOpsLoopAction(args) {
     outputs: {
       cycle_artifact_path: cycle.cycle_artifact_path,
       run_artifact_path: cycle.run_artifact_path,
+      workflow_state_path: cycle.workflow_summary ? cycle.workflow_summary.workflow_state_path : null,
       timeline_artifact_path: replay.timeline_artifact_path,
       health_artifact_path: health.health_artifact_path,
       report_json_path: report.report_json_path,
@@ -130,6 +141,7 @@ function runOpsLoopAction(args) {
   const loopArtifactPath = writeLoopArtifact(baseDir, loopArtifact);
   return {
     loop_artifact_path: loopArtifactPath,
+    workflow_state_path: cycle.workflow_summary ? cycle.workflow_summary.workflow_state_path : null,
     recommendation: cycle.recommendation,
     queue_health: health.queue_health,
     pending_count: health.pending_count,

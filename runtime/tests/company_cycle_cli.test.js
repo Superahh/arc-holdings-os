@@ -67,3 +67,25 @@ test("runCycleAction does not enqueue when approval ticket is absent", () => {
   const queue = loadQueue(queuePath);
   assert.equal(queue.items.length, 0);
 });
+
+test("runCycleAction updates workflow state when workflow path is provided", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-cycle-"));
+  const fixturePath = buildFixture(tempDir, "verified");
+  const queuePath = path.join(tempDir, "approval_queue.json");
+  const workflowPath = path.join(tempDir, "workflow_state.json");
+
+  const result = runCycleAction({
+    fixture: fixturePath,
+    now: "2026-03-25T19:30:00.000Z",
+    baseDir: tempDir,
+    queuePath,
+    queueActor: "cycle_runner",
+    workflowStatePath: workflowPath,
+    workflowActor: "workflow_runner",
+    slaMinutes: 120,
+  });
+
+  assert.ok(result.workflow_summary, "Expected workflow summary.");
+  assert.equal(result.workflow_summary.current_status, "awaiting_approval");
+  assert.ok(fs.existsSync(workflowPath), "Expected workflow state file.");
+});
