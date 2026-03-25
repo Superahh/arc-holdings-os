@@ -23,6 +23,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `workflow_state.js`: opportunity lifecycle state persistence and transition helpers
 - `workflow_list_cli.js`: CLI for workflow state inspection (`summary`, `opportunities`, `history`, `opportunity`)
 - `workflow_health_cli.js`: CLI for workflow lifecycle health and stale-state monitoring
+- `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
 - `queue_list_cli.js`: CLI for queue inspection (`pending`, `all`, `history`, `ticket`)
@@ -45,6 +46,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/workflow_state.test.js`: workflow state persistence and transition tests
 - `tests/workflow_list_cli.test.js`: workflow state query CLI tests
 - `tests/workflow_health_cli.test.js`: workflow health KPI CLI tests
+- `tests/state_bootstrap_cli.test.js`: state bootstrap/reset CLI tests
 - `tests/queue_decision_cli.test.js`: queue decision CLI and post-decision artifact tests
 - `tests/queue_list_cli.test.js`: queue listing/history CLI tests
 - `tests/queue_replay_cli.test.js`: queue replay timeline artifact tests
@@ -70,6 +72,7 @@ node runtime/tests/approval_queue.test.js
 node runtime/tests/workflow_state.test.js
 node runtime/tests/workflow_list_cli.test.js
 node runtime/tests/workflow_health_cli.test.js
+node runtime/tests/state_bootstrap_cli.test.js
 node runtime/tests/queue_decision_cli.test.js
 node runtime/tests/queue_list_cli.test.js
 node runtime/tests/queue_replay_cli.test.js
@@ -112,6 +115,18 @@ Execute pipeline and enqueue ticket when approval is required:
 
 ```powershell
 node runtime/run_pipeline.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --queue-actor pipeline_runner
+```
+
+Bootstrap queue/workflow state files (safe default: does not overwrite existing):
+
+```powershell
+node runtime/state_bootstrap_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json
+```
+
+Force reset state files:
+
+```powershell
+node runtime/state_bootstrap_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --force
 ```
 
 Apply decision and emit post-decision office-state artifact:

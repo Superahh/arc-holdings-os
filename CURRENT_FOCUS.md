@@ -35,6 +35,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] harden acceptance gate with workflow transition checks
 - [x] split queue vs workflow health artifact references in ops report
 - [x] add fast terminal status snapshot CLI for operators
+- [x] add state bootstrap/reset CLI for queue and workflow files
 
 ## Out of scope
 

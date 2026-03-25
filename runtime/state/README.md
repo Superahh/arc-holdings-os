@@ -12,5 +12,6 @@ Local mutable state for runtime workflows.
 - State files are runtime artifacts and are ignored by git.
 - Keep state schema aligned with `runtime/approval_queue.js`.
 - Keep lifecycle schema aligned with `runtime/workflow_state.js`.
+- Use `runtime/state_bootstrap_cli.js` to initialize/reset local state files.
 - Use `runtime/workflow_list_cli.js` to inspect lifecycle state from terminal.
 - Use `runtime/workflow_health_cli.js` for stale-state and lifecycle health checks.
