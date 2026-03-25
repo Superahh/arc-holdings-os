@@ -57,8 +57,20 @@ function formatStatusClass(value) {
   return `status-${String(value || "unknown").replaceAll(/[^a-z0-9_]+/gi, "_").toLowerCase()}`;
 }
 
+function formatMotionClass(value) {
+  return `motion-${String(value || "idle").replaceAll(/[^a-z0-9_]+/gi, "_").toLowerCase()}`;
+}
+
+function formatBubbleClass(value) {
+  return `bubble-${String(value || "task").replaceAll(/[^a-z0-9_]+/gi, "_").toLowerCase()}`;
+}
+
 function findAgentByName(name) {
   return state.snapshot.office.agent_status_cards.find((card) => card.agent === name) || null;
+}
+
+function findPresenceByAgent(name) {
+  return state.snapshot.office.presence.find((entry) => entry.agent === name) || null;
 }
 
 function findOpportunityById(opportunityId) {
@@ -142,33 +154,100 @@ function renderKpis() {
   }
 }
 
+function renderPresenceMeta(presence) {
+  const pieces = [];
+  if (presence.opportunity_id) {
+    pieces.push(`Focus ${presence.opportunity_id}`);
+  }
+  if (presence.queue_signal && typeof presence.queue_signal.minutes_to_due === "number") {
+    pieces.push(
+      presence.queue_signal.overdue
+        ? "Attention overdue"
+        : `${presence.queue_signal.minutes_to_due} min to due`
+    );
+  }
+  if (!pieces.length) {
+    pieces.push("No live blocker");
+  }
+  return pieces.join(" | ");
+}
+
 function renderOfficeCanvas() {
-  const cards = state.snapshot.office.agent_status_cards;
+  const presenceEntries = state.snapshot.office.presence || [];
   const opportunities = state.snapshot.workflow.opportunities;
   const topTask = state.snapshot.attention.top_task;
 
-  const zonesHtml = cards
-    .map((card) => {
+  const floorBanner = `
+    <div class="floor-banner">
+      <div>
+        <p class="eyebrow">Operations floor</p>
+        <strong>${escapeHtml(
+          topTask ? topTask.next_action : "No active attention item."
+        )}</strong>
+        <p class="muted">${escapeHtml(
+          topTask
+            ? `${topTask.owner} owns the next move.`
+            : "The floor is clear enough to monitor without escalation."
+        )}</p>
+      </div>
+      <div class="floor-banner-metrics">
+        <span class="priority-pill">${state.snapshot.kpis.active_opportunities} active</span>
+        <span class="priority-pill">${state.snapshot.kpis.blocked_opportunities} blocked</span>
+        <span class="priority-pill">${state.snapshot.kpis.approvals_waiting} approvals</span>
+      </div>
+    </div>
+  `;
+
+  const zonesHtml = presenceEntries
+    .map((presence) => {
       const isSelected =
-        state.selected && state.selected.type === "agent" && state.selected.id === card.agent;
-      const taskStamp =
-        topTask && topTask.owner === card.agent
-          ? `<span class="task-chip ${formatStatusClass(topTask.urgency)}">${escapeHtml(topTask.urgency)} attention</span>`
-          : "";
+        state.selected && state.selected.type === "agent" && state.selected.id === presence.agent;
       return `
-        <button type="button" class="zone-card ${isSelected ? "is-selected" : ""}" data-type="agent" data-id="${escapeHtml(card.agent)}">
+        <button
+          type="button"
+          class="zone-card zone-card-${escapeHtml(presence.accent_token)} ${isSelected ? "is-selected" : ""}"
+          data-type="agent"
+          data-id="${escapeHtml(presence.agent)}"
+        >
           <div class="zone-title-row">
             <div>
-              <p class="eyebrow">${escapeHtml(card.agent)}</p>
-              <h3>${escapeHtml(card.active_task)}</h3>
+              <p class="eyebrow">${escapeHtml(presence.zone_label)}</p>
+              <h3>${escapeHtml(presence.agent)}</h3>
             </div>
-            <span class="status-pill ${formatStatusClass(card.status)}">${escapeHtml(card.status)}</span>
+            <span class="status-pill ${formatStatusClass(presence.status)}">${escapeHtml(presence.status)}</span>
           </div>
-          <p class="muted">${card.blocker ? escapeHtml(card.blocker) : "No current blocker."}</p>
-          <div class="card-tags">
-            <span class="priority-pill ${formatStatusClass(card.urgency)}">${escapeHtml(card.urgency)} urgency</span>
-            ${taskStamp}
-            <span class="priority-pill">${escapeHtml(card.opportunity_id || "company-wide")}</span>
+
+          <div class="zone-stage">
+            <div class="presence-strip">
+              <div class="avatar-shell ${formatMotionClass(presence.motion_state)} accent-${escapeHtml(presence.accent_token)}">
+                <div class="avatar-ring"></div>
+                <div class="avatar-glow"></div>
+                <div class="avatar-body">
+                  <div class="avatar-head"></div>
+                  <div class="avatar-torso"></div>
+                </div>
+                <div class="avatar-monogram">${escapeHtml(presence.avatar_monogram)}</div>
+                <div class="activity-dots" aria-hidden="true">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+
+              <div class="presence-bubble ${formatBubbleClass(presence.bubble_kind)}">
+                <p class="presence-bubble-label">${escapeHtml(presence.bubble_label)}</p>
+                <p class="presence-bubble-text">${escapeHtml(presence.bubble_text)}</p>
+              </div>
+            </div>
+
+            <div class="presence-caption">
+              <strong>${escapeHtml(presence.department_label)}</strong>
+              <p class="muted">${escapeHtml(presence.headline)}</p>
+              <div class="card-tags">
+                <span class="priority-pill ${formatStatusClass(presence.urgency)}">${escapeHtml(presence.urgency)} urgency</span>
+                <span class="priority-pill">${escapeHtml(renderPresenceMeta(presence))}</span>
+              </div>
+            </div>
           </div>
         </button>
       `;
@@ -195,6 +274,7 @@ function renderOfficeCanvas() {
     : `<div class="empty-state">No active opportunities loaded.</div>`;
 
   elements.officeCanvas.innerHTML = `
+    ${floorBanner}
     <div class="office-layout">${zonesHtml}</div>
     <div class="workflow-rail">${opportunityRailHtml}</div>
   `;
@@ -309,6 +389,7 @@ function renderDetailForAgent(card) {
     (entry) => entry.latest_task && entry.latest_task.owner === card.agent
   );
   const activeOpportunity = card.opportunity_id ? findOpportunityById(card.opportunity_id) : null;
+  const presence = findPresenceByAgent(card.agent);
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -329,6 +410,16 @@ function renderDetailForAgent(card) {
     </section>
 
     <section class="detail-section">
+      <h3>Office presence</h3>
+      <ul class="detail-list">
+        <li>Zone: ${escapeHtml(presence ? presence.zone_label : "Unknown")}</li>
+        <li>Department: ${escapeHtml(presence ? presence.department_label : "Unknown")}</li>
+        <li>Bubble state: ${escapeHtml(presence ? presence.bubble_label : "N/A")}</li>
+        <li>Bubble text: ${escapeHtml(presence ? presence.bubble_text : "N/A")}</li>
+      </ul>
+    </section>
+
+    <section class="detail-section">
       <h3>Current lane</h3>
       <ul class="detail-list">
         <li>Blocker: ${escapeHtml(card.blocker || "No blocker.")}</li>
@@ -346,7 +437,7 @@ function renderDetailForAgent(card) {
                 (entry) => `
                   <li>
                     <button type="button" class="task-chip" data-type="opportunity" data-id="${escapeHtml(entry.opportunity_id)}">
-                      ${escapeHtml(entry.opportunity_id)} · ${escapeHtml(entry.current_status)}
+                      ${escapeHtml(entry.opportunity_id)} | ${escapeHtml(entry.current_status)}
                     </button>
                   </li>
                 `

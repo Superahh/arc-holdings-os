@@ -24,6 +24,13 @@ Office simulation should be driven by:
 - `CompanyBoardSnapshot` for board area
 - `ApprovalTicket` count/status for approval queue indicators
 
+Intermediate presence layer for the first visible shell:
+
+- visible agent avatars anchored to real department zones
+- state-driven motion cues tied to agent status
+- task or blocker bubbles tied to live workflow state
+- no free-roaming movement until handoff/location state exists
+
 ## Agent status states
 
 - idle
@@ -50,6 +57,7 @@ No personality filler.
 - no animation-first design
 - prioritize readability and queue clarity
 - highlight blockers and approvals first
+- use avatar/bubble motion only to reinforce state
 
 ## Anti-patterns
 

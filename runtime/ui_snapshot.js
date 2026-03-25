@@ -433,6 +433,124 @@ function buildKpis(statusSnapshot, opportunities) {
   };
 }
 
+function getPresenceBlueprint(agentName) {
+  const defaults = {
+    zone_id: "company-floor",
+    zone_label: "Company Floor",
+    department_label: "Shared Operations",
+    avatar_monogram: "AR",
+    accent_token: "slate",
+  };
+
+  const mapping = {
+    "CEO Agent": {
+      zone_id: "executive-suite",
+      zone_label: "Executive Suite",
+      department_label: "Priority and approvals",
+      avatar_monogram: "CEO",
+      accent_token: "copper",
+    },
+    "Risk and Compliance Agent": {
+      zone_id: "verification-bay",
+      zone_label: "Verification Bay",
+      department_label: "Risk and seller checks",
+      avatar_monogram: "R&C",
+      accent_token: "olive",
+    },
+    "Operations Coordinator Agent": {
+      zone_id: "routing-desk",
+      zone_label: "Routing Desk",
+      department_label: "Execution readiness",
+      avatar_monogram: "OPS",
+      accent_token: "umber",
+    },
+    "Department Operator Agent": {
+      zone_id: "market-floor",
+      zone_label: "Market Floor",
+      department_label: "Listings and monetization",
+      avatar_monogram: "DPT",
+      accent_token: "forest",
+    },
+  };
+
+  return mapping[agentName] || defaults;
+}
+
+function buildPresenceBubble(card, attentionTask) {
+  if (card.blocker) {
+    return {
+      bubble_kind: "blocker",
+      bubble_text: card.blocker,
+      bubble_label: "Blocker",
+    };
+  }
+  if (attentionTask && attentionTask.owner === card.agent) {
+    return {
+      bubble_kind: attentionTask.overdue ? "alert" : "attention",
+      bubble_text: attentionTask.next_action,
+      bubble_label: attentionTask.overdue ? "Needs attention" : "Next action",
+    };
+  }
+  if (card.status === "awaiting_approval") {
+    return {
+      bubble_kind: "approval",
+      bubble_text: card.active_task,
+      bubble_label: "Approval queue",
+    };
+  }
+  return {
+    bubble_kind: "task",
+    bubble_text: card.active_task,
+    bubble_label: "Active task",
+  };
+}
+
+function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso) {
+  return agentStatusCards.map((card) => {
+    const blueprint = getPresenceBlueprint(card.agent);
+    const attentionTask =
+      attention && attention.top_task && attention.top_task.owner === card.agent
+        ? attention.top_task
+        : null;
+    const bubble = buildPresenceBubble(card, attentionTask);
+    const focusedOpportunity = card.opportunity_id
+      ? opportunities.find((entry) => entry.opportunity_id === card.opportunity_id) || null
+      : null;
+
+    return {
+      agent: card.agent,
+      zone_id: blueprint.zone_id,
+      zone_label: blueprint.zone_label,
+      department_label: blueprint.department_label,
+      avatar_monogram: blueprint.avatar_monogram,
+      accent_token: blueprint.accent_token,
+      status: card.status,
+      urgency: card.urgency,
+      motion_state: card.status,
+      opportunity_id: card.opportunity_id,
+      headline: card.active_task,
+      bubble_kind: bubble.bubble_kind,
+      bubble_label: bubble.bubble_label,
+      bubble_text: bubble.bubble_text,
+      focus_note:
+        (focusedOpportunity &&
+          focusedOpportunity.contract_bundle &&
+          focusedOpportunity.contract_bundle.opportunity_record &&
+          focusedOpportunity.contract_bundle.opportunity_record.notes) ||
+        null,
+      queue_signal:
+        attentionTask && typeof attentionTask.minutes_to_due === "number"
+          ? {
+              due_by: attentionTask.due_by,
+              minutes_to_due: attentionTask.minutes_to_due,
+              overdue: attentionTask.overdue,
+            }
+          : null,
+      updated_at: nowIso,
+    };
+  });
+}
+
 function buildUiSnapshot(options = {}) {
   const queuePath = path.resolve(options.queuePath || path.join(__dirname, "state", "approval_queue.json"));
   const workflowStatePath = path.resolve(
@@ -466,6 +584,12 @@ function buildUiSnapshot(options = {}) {
   const queueTotals = summarizeQueueTotals(queue);
   const kpis = buildKpis(statusSnapshot, opportunities);
   const agentStatusCards = buildAgentStatusCards(opportunities, statusSnapshot.attention, queueTotals, nowIso);
+  const officePresence = buildOfficePresence(
+    agentStatusCards,
+    opportunities,
+    statusSnapshot.attention,
+    nowIso
+  );
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
     opportunities,
     statusSnapshot.awaiting_tasks.tasks,
@@ -511,6 +635,7 @@ function buildUiSnapshot(options = {}) {
     },
     office: {
       agent_status_cards: agentStatusCards,
+      presence: officePresence,
       company_board_snapshot: companyBoardSnapshot,
     },
     awaiting_tasks: statusSnapshot.awaiting_tasks,
@@ -526,6 +651,7 @@ module.exports = {
   listLatestRunArtifactsByOpportunity,
   buildOpportunityEntries,
   buildAgentStatusCards,
+  buildOfficePresence,
   buildCompanyBoardSnapshot,
   buildKpis,
 };

@@ -2,6 +2,8 @@
 
 ## 2026-03-26
 
+- Extended the UI shell office canvas with visible agent-presence zones, state-driven avatar motion cues, and task/blocker bubbles derived from runtime truth.
+- Added an explicit read-only office presence layer to [runtime/ui_snapshot.js](./runtime/ui_snapshot.js) so visual behavior stays tied to real agent/task state.
 - Added the first visible desktop UI shell in [ui/](./ui) with office canvas, selected detail panel, shared company board, approval queue, and KPI strip.
 - Added [runtime/ui_snapshot.js](./runtime/ui_snapshot.js) as a read-only snapshot composer over queue state, workflow state, and latest run artifacts.
 - Added UI shell verification coverage with [runtime/tests/ui_snapshot.test.js](./runtime/tests/ui_snapshot.test.js) and [runtime/tests/ui_server.test.js](./runtime/tests/ui_server.test.js).
