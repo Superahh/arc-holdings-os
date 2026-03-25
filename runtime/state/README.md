@@ -15,3 +15,4 @@ Local mutable state for runtime workflows.
 - Use `runtime/state_bootstrap_cli.js` to initialize/reset local state files.
 - Use `runtime/workflow_list_cli.js` to inspect lifecycle state from terminal.
 - Use `runtime/workflow_health_cli.js` for stale-state and lifecycle health checks.
+- Use `runtime/workflow_replay_cli.js` for workflow lifecycle event replay artifacts.
