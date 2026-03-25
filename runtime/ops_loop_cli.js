@@ -19,6 +19,7 @@ function parseArgs(argv) {
     workflowStatePath: null,
     workflowActor: "ops_loop_runner",
     workflowStaleMinutes: 240,
+    dueSoonMinutes: 30,
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -50,6 +51,9 @@ function parseArgs(argv) {
       i += 1;
     } else if (token === "--workflow-stale-minutes") {
       args.workflowStaleMinutes = Number(argv[i + 1]);
+      i += 1;
+    } else if (token === "--due-soon-minutes") {
+      args.dueSoonMinutes = Number(argv[i + 1]);
       i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
@@ -86,6 +90,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(args.workflowStaleMinutes) || args.workflowStaleMinutes <= 0) {
     throw new Error("--workflow-stale-minutes must be a positive integer.");
+  }
+  if (!Number.isInteger(args.dueSoonMinutes) || args.dueSoonMinutes <= 0) {
+    throw new Error("--due-soon-minutes must be a positive integer.");
   }
   return args;
 }
@@ -138,6 +145,7 @@ function runOpsLoopAction(args) {
     pendingLimit: args.pendingLimit,
     taskLimit: args.taskLimit,
     slaMinutes: args.slaMinutes,
+    dueSoonMinutes: args.dueSoonMinutes,
     workflowStatePath: args.workflowStatePath,
     workflowStaleMinutes: args.workflowStaleMinutes,
   });
@@ -164,6 +172,8 @@ function runOpsLoopAction(args) {
       workflow_health: workflowHealth ? workflowHealth.workflow_health : null,
       pending_count: health.pending_count,
       pending_over_sla_count: health.pending_over_sla_count,
+      awaiting_due_soon_count: report.awaiting_due_soon_count,
+      awaiting_overdue_count: report.awaiting_overdue_count,
       stale_non_terminal_count: workflowHealth ? workflowHealth.stale_non_terminal_count : null,
     },
   };
@@ -176,6 +186,8 @@ function runOpsLoopAction(args) {
     queue_health: health.queue_health,
     workflow_health: workflowHealth ? workflowHealth.workflow_health : null,
     pending_count: health.pending_count,
+    awaiting_due_soon_count: report.awaiting_due_soon_count,
+    awaiting_overdue_count: report.awaiting_overdue_count,
   };
 }
 

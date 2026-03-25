@@ -47,7 +47,7 @@ Stabilize contracts, align prompts to those contracts, and verify approval-aware
 - [x] harden pipeline tests for remote-safe handoff wording across scenario branches
 - [x] add one-command markdown link integrity check utility
 - [x] add one-command repo quality gate wrapper
-- [x] add due-soon awaiting-task signal for status/report operator visibility
+- [x] add due-soon awaiting-task signal for status/report and loop/batch operator visibility
 
 ## Out of scope
 

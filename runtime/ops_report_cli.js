@@ -236,6 +236,8 @@ function runOpsReportAction(args) {
     queue_health: health.observations.queue_health,
     workflow_health: workflowHealth ? workflowHealth.observations.workflow_health : null,
     pending_count: health.queue_totals.pending,
+    awaiting_due_soon_count: dueSoonCount,
+    awaiting_overdue_count: overdueCount,
   };
 }
 

@@ -37,6 +37,10 @@ test("parseArgs validates required values", () => {
     /positive integer/
   );
   assert.throws(
+    () => parseArgs(["--fixture", "f.json", "--queue-path", "q.json", "--due-soon-minutes", "0"]),
+    /positive integer/
+  );
+  assert.throws(
     () => parseArgs(["--fixture", "f.json", "--queue-path", "q.json", "--task-limit", "0"]),
     /positive integer/
   );
@@ -56,6 +60,7 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
     queueActor: "ops_loop_runner",
     workflowStatePath: workflowPath,
     workflowActor: "workflow_runner",
+    dueSoonMinutes: 30,
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -72,5 +77,9 @@ test("runOpsLoopAction writes loop artifact and downstream artifacts", () => {
   assert.ok(fs.existsSync(loopArtifact.outputs.workflow_health_artifact_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.report_json_path));
   assert.ok(fs.existsSync(loopArtifact.outputs.report_markdown_path));
+  assert.equal(loopArtifact.summary.awaiting_due_soon_count, 0);
+  assert.equal(loopArtifact.summary.awaiting_overdue_count, 0);
   assert.equal(result.workflow_health, "watch");
+  assert.equal(result.awaiting_due_soon_count, 0);
+  assert.equal(result.awaiting_overdue_count, 0);
 });

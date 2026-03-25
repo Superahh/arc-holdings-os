@@ -252,25 +252,25 @@ node runtime/ops_status_cli.js --queue-path runtime/state/approval_queue.json --
 Run full ops loop in one command:
 
 ```powershell
-node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --sla-minutes 120 --replay-limit 50 --pending-limit 10 --task-limit 20
+node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --sla-minutes 120 --replay-limit 50 --pending-limit 10 --task-limit 20 --due-soon-minutes 30
 ```
 
 Run ops loop with workflow lifecycle persistence:
 
 ```powershell
-node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --workflow-stale-minutes 240 --sla-minutes 120 --replay-limit 50 --pending-limit 10 --task-limit 20
+node runtime/ops_loop_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --workflow-stale-minutes 240 --sla-minutes 120 --replay-limit 50 --pending-limit 10 --task-limit 20 --due-soon-minutes 30
 ```
 
 Run batch ops across all JSON fixtures in a directory:
 
 ```powershell
-node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --sla-minutes 120 --task-limit 20
+node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --sla-minutes 120 --task-limit 20 --due-soon-minutes 30
 ```
 
 Run batch ops with shared workflow lifecycle state:
 
 ```powershell
-node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --task-limit 20
+node runtime/batch_ops_cli.js --fixtures-dir runtime/fixtures --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --sla-minutes 120 --task-limit 20 --due-soon-minutes 30
 ```
 
 Generate output artifact index:

@@ -15,6 +15,7 @@ function parseArgs(argv) {
     queueActor: "batch_runner",
     workflowStatePath: null,
     workflowActor: "batch_runner",
+    dueSoonMinutes: 30,
     slaMinutes: 120,
     replayLimit: 50,
     pendingLimit: 10,
@@ -45,6 +46,9 @@ function parseArgs(argv) {
     } else if (token === "--workflow-actor") {
       args.workflowActor = argv[i + 1];
       i += 1;
+    } else if (token === "--due-soon-minutes") {
+      args.dueSoonMinutes = Number(argv[i + 1]);
+      i += 1;
     } else if (token === "--sla-minutes") {
       args.slaMinutes = Number(argv[i + 1]);
       i += 1;
@@ -70,6 +74,7 @@ function parseArgs(argv) {
     throw new Error("Missing required argument: --queue-path <path-to-queue-json>");
   }
   for (const [name, value] of [
+    ["--due-soon-minutes", args.dueSoonMinutes],
     ["--sla-minutes", args.slaMinutes],
     ["--replay-limit", args.replayLimit],
     ["--pending-limit", args.pendingLimit],
@@ -126,6 +131,7 @@ function runBatchOpsAction(args) {
       queueActor: args.queueActor,
       workflowStatePath: args.workflowStatePath,
       workflowActor: args.workflowActor,
+      dueSoonMinutes: args.dueSoonMinutes,
       slaMinutes: args.slaMinutes,
       replayLimit: args.replayLimit,
       pendingLimit: args.pendingLimit,
@@ -146,6 +152,8 @@ function runBatchOpsAction(args) {
     final_queue_health: runs[runs.length - 1].queue_health,
     final_workflow_health: runs[runs.length - 1].workflow_health || null,
     final_pending_count: runs[runs.length - 1].pending_count,
+    final_awaiting_due_soon_count: runs[runs.length - 1].awaiting_due_soon_count,
+    final_awaiting_overdue_count: runs[runs.length - 1].awaiting_overdue_count,
     workflow_state_path: runs[runs.length - 1].workflow_state_path || null,
   };
 

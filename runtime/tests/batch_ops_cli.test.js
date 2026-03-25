@@ -30,6 +30,10 @@ test("parseArgs validates required args and numeric bounds", () => {
     () => parseArgs(["--fixtures-dir", "f", "--queue-path", "q", "--task-limit", "0"]),
     /positive integer/
   );
+  assert.throws(
+    () => parseArgs(["--fixtures-dir", "f", "--queue-path", "q", "--due-soon-minutes", "0"]),
+    /positive integer/
+  );
 });
 
 test("listFixtureFiles returns sorted json files with limit", () => {
@@ -60,6 +64,7 @@ test("runBatchOpsAction executes loop across fixtures and writes batch artifact"
     queuePath: path.join(tempDir, "approval_queue.json"),
     workflowStatePath: path.join(tempDir, "workflow_state.json"),
     workflowActor: "workflow_runner",
+    dueSoonMinutes: 30,
     now: "2026-03-25T19:30:00.000Z",
     baseDir: tempDir,
     queueActor: "batch_runner",
@@ -75,6 +80,8 @@ test("runBatchOpsAction executes loop across fixtures and writes batch artifact"
   assert.equal(result.acquire_count + result.request_more_info_count + result.skip_count, 2);
   assert.ok(result.workflow_state_path, "Expected workflow_state_path in summary.");
   assert.equal(result.final_workflow_health, "watch");
+  assert.equal(typeof result.final_awaiting_due_soon_count, "number");
+  assert.equal(typeof result.final_awaiting_overdue_count, "number");
 
   const batch = JSON.parse(fs.readFileSync(result.batch_artifact_path, "utf8"));
   assert.equal(batch.runs.length, 2);
@@ -82,4 +89,6 @@ test("runBatchOpsAction executes loop across fixtures and writes batch artifact"
   assert.ok(fs.existsSync(batch.runs[1].loop_artifact_path));
   assert.ok(fs.existsSync(batch.summary.workflow_state_path));
   assert.equal(batch.summary.final_workflow_health, "watch");
+  assert.equal(batch.summary.final_awaiting_due_soon_count, result.final_awaiting_due_soon_count);
+  assert.equal(batch.summary.final_awaiting_overdue_count, result.final_awaiting_overdue_count);
 });

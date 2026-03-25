@@ -45,7 +45,7 @@
 - Hardened pipeline scenario tests with explicit remote-safe handoff assertions across request-more-info, acquisition, and skip paths (`runtime/tests/pipeline.test.js`).
 - Added reusable markdown link checker utility and wired it into repo quality-check docs (`tools/check_markdown_links.js`, `README.md`, `RUNBOOK.md`).
 - Added one-command quality gate wrapper to run runtime tests + markdown link checks from repo root (`tools/run_quality_checks.js`, `README.md`, `RUNBOOK.md`).
-- Added due-soon awaiting-task signal and counters to fast status and consolidated ops reports (`runtime/ops_status_cli.js`, `runtime/ops_report_cli.js`, related tests and runtime docs).
+- Added due-soon awaiting-task signal and counters to status/report outputs and propagated the signal into ops loop and batch summaries (`runtime/ops_status_cli.js`, `runtime/ops_report_cli.js`, `runtime/ops_loop_cli.js`, `runtime/batch_ops_cli.js`, related tests and runtime docs).
 - Added clean [AGENTS.md](./AGENTS.md) and removed malformed `agents.md`.
 - Merged `prompts/templates/prompt_template.md` into `prompts/templates/task_brief_template.md`.
 - Merged `experiments/experiment_001.md` and `experiments/experiment_002.md` into `experiments/prompt_iterations.md`.

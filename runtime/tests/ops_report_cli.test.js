@@ -120,6 +120,8 @@ test("runOpsReportAction creates JSON and Markdown reports", () => {
   assert.equal(result.queue_health, "watch");
   assert.equal(result.workflow_health, "watch");
   assert.equal(result.pending_count, 1);
+  assert.equal(result.awaiting_due_soon_count, 1);
+  assert.equal(result.awaiting_overdue_count, 0);
   assert.ok(fs.existsSync(result.report_json_path), "Expected JSON report file.");
   assert.ok(fs.existsSync(result.report_markdown_path), "Expected Markdown report file.");
 
