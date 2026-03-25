@@ -31,6 +31,13 @@ Intermediate presence layer for the first visible shell:
 - task or blocker bubbles tied to live workflow state
 - no free-roaming movement until handoff/location state exists
 
+Deterministic movement foundation:
+
+- `office.events` provides read-only operational transition signals
+- `office.zone_anchors` provides explicit spatial anchors and connection graph
+- `office.route_hints` provides deterministic handoff waypoints
+- future room-to-room walking must route through these contracts (no random movement)
+
 ## Agent status states
 
 - idle

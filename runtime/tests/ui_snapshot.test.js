@@ -11,6 +11,12 @@ const { buildRunArtifact, writeRunArtifact } = require("../output");
 const { createEmptyQueue, enqueueApprovalTicket, saveQueue } = require("../approval_queue");
 const { createEmptyWorkflowState, upsertFromPipeline, saveWorkflowState } = require("../workflow_state");
 const { buildUiSnapshot } = require("../ui_snapshot");
+const {
+  validateOfficeZoneAnchor,
+  validateOfficeHandoffSignal,
+  validateOfficeRouteHint,
+  validateOfficeEvent,
+} = require("../contracts");
 
 function seedFixtureEnvironment() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-ui-snapshot-"));
@@ -69,7 +75,8 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.kpis.approvals_waiting, 1);
   assert.equal(snapshot.office.agent_status_cards.length, 4);
   assert.equal(snapshot.office.presence.length, 4);
-  assert.equal(snapshot.office.zone_anchors.length, 4);
+  assert.equal(snapshot.office.zone_anchors.length >= 4, true);
+  assert.equal(snapshot.office.route_hints.length, 1);
   assert.equal(snapshot.office.handoff_signals.length, 1);
   assert.equal(snapshot.office.events.length >= 3, true);
   assert.equal(snapshot.office.flow_events.length, 1);
@@ -96,8 +103,41 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.handoff_signals[0].to_agent, "Risk and Compliance Agent");
   assert.equal(snapshot.office.handoff_signals[0].from_zone_id, "company-floor");
   assert.equal(snapshot.office.handoff_signals[0].to_zone_id, "verification-bay");
+  assert.equal(snapshot.office.route_hints[0].from_zone_id, "company-floor");
+  assert.equal(snapshot.office.route_hints[0].to_zone_id, "verification-bay");
+  assert.equal(snapshot.office.route_hints[0].path_zone_ids.length >= 2, true);
+  assert.equal(snapshot.office.route_hints[0].waypoints.length >= 2, true);
   assert.equal(snapshot.office.events[0].type, "approval_waiting");
   assert.equal(snapshot.office.events[1].type, "handoff_completed");
   assert.equal(snapshot.office.flow_events[0].action, "status_update");
   assert.equal(snapshot.office.flow_events[0].lane_stage, "verification");
+
+  for (const zone of snapshot.office.zone_anchors) {
+    assert.equal(
+      validateOfficeZoneAnchor(zone).length,
+      0,
+      "Expected zone_anchors to conform to OfficeZoneAnchor contract."
+    );
+  }
+  for (const signal of snapshot.office.handoff_signals) {
+    assert.equal(
+      validateOfficeHandoffSignal(signal).length,
+      0,
+      "Expected handoff_signals to conform to OfficeHandoffSignal contract."
+    );
+  }
+  for (const hint of snapshot.office.route_hints) {
+    assert.equal(
+      validateOfficeRouteHint(hint).length,
+      0,
+      "Expected route_hints to conform to OfficeRouteHint contract."
+    );
+  }
+  for (const event of snapshot.office.events) {
+    assert.equal(
+      validateOfficeEvent(event).length,
+      0,
+      "Expected office.events to conform to OfficeEvent contract."
+    );
+  }
 });

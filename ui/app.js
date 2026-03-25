@@ -497,6 +497,18 @@ function buildZoneAnchorLookup() {
   return lookup;
 }
 
+function buildRouteHintLookup() {
+  const lookup = new Map();
+  for (const hint of state.snapshot.office.route_hints || []) {
+    if (!hint || !hint.opportunity_id || !hint.from_zone_id || !hint.to_zone_id) {
+      continue;
+    }
+    const key = `${hint.opportunity_id}|${hint.from_zone_id}|${hint.to_zone_id}`;
+    lookup.set(key, hint);
+  }
+  return lookup;
+}
+
 function resolveZoneAnchorPoint(zoneLookup, zoneId, pointKind, layoutRect) {
   const zone = zoneLookup.get(zoneId);
   if (!zone || !zone[pointKind]) {
@@ -509,6 +521,43 @@ function resolveZoneAnchorPoint(zoneLookup, zoneId, pointKind, layoutRect) {
   return {
     x: point.x * layoutRect.width,
     y: point.y * layoutRect.height,
+  };
+}
+
+function resolveLayoutPoint(layoutRect, point) {
+  if (!point || typeof point.x !== "number" || typeof point.y !== "number") {
+    return null;
+  }
+  return {
+    x: point.x * layoutRect.width,
+    y: point.y * layoutRect.height,
+  };
+}
+
+function buildPathFromPoints(points) {
+  if (!Array.isArray(points) || points.length < 2) {
+    return null;
+  }
+  const commands = [`M ${points[0].x} ${points[0].y}`];
+  for (const point of points.slice(1)) {
+    commands.push(`L ${point.x} ${point.y}`);
+  }
+  return commands.join(" ");
+}
+
+function midpointFromPoints(points) {
+  if (!Array.isArray(points) || !points.length) {
+    return null;
+  }
+  if (points.length === 1) {
+    return points[0];
+  }
+  const midIndex = Math.floor((points.length - 1) / 2);
+  const a = points[midIndex];
+  const b = points[midIndex + 1] || a;
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
   };
 }
 
@@ -545,6 +594,7 @@ function renderHandoffOverlay(renderableHandoffs) {
   const width = Math.max(1, layoutRect.width);
   const height = Math.max(1, layoutRect.height);
   const zoneLookup = buildZoneAnchorLookup();
+  const routeHintLookup = buildRouteHintLookup();
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("width", `${width}`);
   svg.setAttribute("height", `${height}`);
@@ -574,16 +624,35 @@ function renderHandoffOverlay(renderableHandoffs) {
     const toAnchor = resolveZoneAnchorPoint(zoneLookup, toZoneId, "ingress", layoutRect);
     const fromFallback = resolveFallbackNodeCenter(fromNode, layoutRect);
     const toFallback = resolveFallbackNodeCenter(toNode, layoutRect);
-    const startX = (fromAnchor || fromFallback).x;
-    const startY = (fromAnchor || fromFallback).y;
-    const endX = (toAnchor || toFallback).x;
-    const endY = (toAnchor || toFallback).y;
-    const midX = (startX + endX) / 2;
-    const midY = (startY + endY) / 2;
-    const curveY = midY - 32;
+    const defaultStart = fromAnchor || fromFallback;
+    const defaultEnd = toAnchor || toFallback;
+    const routeKey = `${signal.opportunity_id}|${fromZoneId || ""}|${toZoneId || ""}`;
+    const routeHint = routeHintLookup.get(routeKey) || null;
+    const routePoints =
+      routeHint && Array.isArray(routeHint.waypoints) && routeHint.waypoints.length >= 2
+        ? routeHint.waypoints
+            .map((point) => resolveLayoutPoint(layoutRect, point))
+            .filter(Boolean)
+        : [];
+
+    const effectivePoints =
+      routePoints.length >= 2
+        ? routePoints
+        : [defaultStart, defaultEnd].filter(Boolean);
+    if (effectivePoints.length < 2) {
+      continue;
+    }
+
+    const pathD =
+      buildPathFromPoints(effectivePoints) ||
+      `M ${defaultStart.x} ${defaultStart.y} L ${defaultEnd.x} ${defaultEnd.y}`;
+    const midPoint = midpointFromPoints(effectivePoints) || {
+      x: (defaultStart.x + defaultEnd.x) / 2,
+      y: (defaultStart.y + defaultEnd.y) / 2,
+    };
 
     const pathNode = document.createElementNS(namespace, "path");
-    pathNode.setAttribute("d", `M ${startX} ${startY} Q ${midX} ${curveY} ${endX} ${endY}`);
+    pathNode.setAttribute("d", pathD);
     pathNode.setAttribute(
       "class",
       `handoff-path ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim()
@@ -591,8 +660,8 @@ function renderHandoffOverlay(renderableHandoffs) {
     svg.append(pathNode);
 
     const pulseNode = document.createElementNS(namespace, "circle");
-    pulseNode.setAttribute("cx", `${midX}`);
-    pulseNode.setAttribute("cy", `${curveY}`);
+    pulseNode.setAttribute("cx", `${midPoint.x}`);
+    pulseNode.setAttribute("cy", `${midPoint.y}`);
     pulseNode.setAttribute("r", signal.is_transition ? "6" : "4");
     pulseNode.setAttribute(
       "class",
@@ -602,8 +671,8 @@ function renderHandoffOverlay(renderableHandoffs) {
 
     const chipNode = document.createElement("div");
     chipNode.className = `handoff-chip ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim();
-    chipNode.style.left = `${midX}px`;
-    chipNode.style.top = `${curveY - 12}px`;
+    chipNode.style.left = `${midPoint.x}px`;
+    chipNode.style.top = `${midPoint.y - 12}px`;
     chipNode.innerHTML = `
       <strong>${escapeHtml(signal.opportunity_id)}</strong>
       <span>${escapeHtml(shortAgentLabel(signal.from_agent))} -> ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>

@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added deterministic read-only office transition rails with `office.events`, `office.zone_anchors`, `office.route_hints`, and runtime contract validation for each shape (`runtime/contracts.js`, `runtime/ui_snapshot.js`, `runtime/tests/contracts_office.test.js`, `runtime/tests/ui_snapshot.test.js`).
 - Extended the UI shell office canvas with visible agent-presence zones, state-driven avatar motion cues, and task/blocker bubbles derived from runtime truth.
 - Added an explicit read-only office presence layer to [runtime/ui_snapshot.js](./runtime/ui_snapshot.js) so visual behavior stays tied to real agent/task state.
 - Added the first visible desktop UI shell in [ui/](./ui) with office canvas, selected detail panel, shared company board, approval queue, and KPI strip.

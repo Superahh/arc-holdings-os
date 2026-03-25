@@ -12,6 +12,10 @@ const {
   assertValidHandoffPacket,
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
+  assertValidOfficeZoneAnchor,
+  assertValidOfficeHandoffSignal,
+  assertValidOfficeRouteHint,
+  assertValidOfficeEvent,
 } = require("./contracts");
 
 const TERMINAL_OPPORTUNITY_STATES = new Set(["closed", "rejected"]);
@@ -543,7 +547,7 @@ function buildOfficeZoneAnchors(presenceEntries) {
       ingress: { x: 0.42, y: 0.5 },
       egress: { x: 0.58, y: 0.5 },
       handoff_dock: { x: 0.5, y: 0.56 },
-      connections: [],
+      connections: ["executive-suite", "verification-bay", "routing-desk", "market-floor"],
     },
   };
 
@@ -566,7 +570,139 @@ function buildOfficeZoneAnchors(presenceEntries) {
       connections: base.connections,
     });
   }
+
+  if (!seen.has("company-floor")) {
+    const base = defaults["company-floor"];
+    anchors.push({
+      zone_id: "company-floor",
+      zone_label: "Company Floor",
+      department_label: "Shared Operations",
+      anchor: base.anchor,
+      ingress: base.ingress,
+      egress: base.egress,
+      handoff_dock: base.handoff_dock,
+      connections: base.connections,
+    });
+  }
+  for (const anchor of anchors) {
+    assertValidOfficeZoneAnchor(anchor);
+  }
   return anchors;
+}
+
+function buildZoneAnchorLookup(anchors) {
+  const lookup = new Map();
+  for (const anchor of anchors || []) {
+    if (!anchor || !anchor.zone_id) {
+      continue;
+    }
+    lookup.set(anchor.zone_id, anchor);
+  }
+  return lookup;
+}
+
+function findZonePath(zoneLookup, fromZoneId, toZoneId) {
+  if (!fromZoneId || !toZoneId || !zoneLookup.has(fromZoneId) || !zoneLookup.has(toZoneId)) {
+    return null;
+  }
+  if (fromZoneId === toZoneId) {
+    return [fromZoneId];
+  }
+
+  const queue = [[fromZoneId]];
+  const visited = new Set([fromZoneId]);
+
+  while (queue.length) {
+    const path = queue.shift();
+    const current = path[path.length - 1];
+    const node = zoneLookup.get(current);
+    const neighbors = Array.isArray(node.connections) ? node.connections : [];
+    for (const neighbor of neighbors) {
+      if (!zoneLookup.has(neighbor) || visited.has(neighbor)) {
+        continue;
+      }
+      const nextPath = [...path, neighbor];
+      if (neighbor === toZoneId) {
+        return nextPath;
+      }
+      visited.add(neighbor);
+      queue.push(nextPath);
+    }
+  }
+
+  return null;
+}
+
+function pointOrNull(value) {
+  if (!value || typeof value.x !== "number" || typeof value.y !== "number") {
+    return null;
+  }
+  return { x: value.x, y: value.y };
+}
+
+function buildRouteWaypoints(zoneLookup, zonePath) {
+  if (!Array.isArray(zonePath) || !zonePath.length) {
+    return [];
+  }
+  const first = zoneLookup.get(zonePath[0]);
+  const last = zoneLookup.get(zonePath[zonePath.length - 1]);
+  const points = [];
+
+  const startPoint = pointOrNull(first && first.egress) || pointOrNull(first && first.anchor);
+  const endPoint = pointOrNull(last && last.ingress) || pointOrNull(last && last.anchor);
+  if (startPoint) {
+    points.push(startPoint);
+  }
+
+  if (zonePath.length > 2) {
+    for (const zoneId of zonePath.slice(1, -1)) {
+      const zone = zoneLookup.get(zoneId);
+      const midPoint =
+        pointOrNull(zone && zone.handoff_dock) ||
+        pointOrNull(zone && zone.anchor) ||
+        null;
+      if (midPoint) {
+        points.push(midPoint);
+      }
+    }
+  }
+
+  if (endPoint) {
+    points.push(endPoint);
+  }
+  return points;
+}
+
+function buildOfficeRouteHints(zoneAnchors, handoffSignals) {
+  const zoneLookup = buildZoneAnchorLookup(zoneAnchors);
+  const hints = [];
+  for (const signal of handoffSignals || []) {
+    if (!signal || !signal.opportunity_id) {
+      continue;
+    }
+    const fromZoneId = signal.from_zone_id || null;
+    const toZoneId = signal.to_zone_id || null;
+    if (!fromZoneId || !toZoneId) {
+      continue;
+    }
+
+    const resolvedPath =
+      findZonePath(zoneLookup, fromZoneId, toZoneId) || [fromZoneId, toZoneId];
+    const waypoints = buildRouteWaypoints(zoneLookup, resolvedPath);
+    hints.push({
+      route_id: `route-${signal.opportunity_id}-${fromZoneId}-${toZoneId}`,
+      opportunity_id: signal.opportunity_id,
+      from_zone_id: fromZoneId,
+      to_zone_id: toZoneId,
+      path_zone_ids: resolvedPath,
+      waypoints,
+      source: "handoff_signal",
+    });
+  }
+  for (const hint of hints) {
+    assertValidOfficeRouteHint(hint);
+  }
+  return hints;
 }
 
 function summarizeFlowEvent(event) {
@@ -718,6 +854,7 @@ function pushOfficeEvent(events, baseEvent) {
     summary: summarizeOfficeEvent(baseEvent),
     severity: eventSeverityFromType(baseEvent.type, baseEvent),
   };
+  assertValidOfficeEvent(event);
   events.push(event);
 }
 
@@ -982,6 +1119,9 @@ function buildOfficeHandoffSignals(opportunities) {
     });
   }
   signals.sort((a, b) => Date.parse(a.due_by || 0) - Date.parse(b.due_by || 0));
+  for (const signal of signals) {
+    assertValidOfficeHandoffSignal(signal);
+  }
   return signals;
 }
 
@@ -1027,6 +1167,7 @@ function buildUiSnapshot(options = {}) {
   const officeHandoffSignals = buildOfficeHandoffSignals(opportunities);
   const officeFlowEvents = buildOfficeFlowEvents(workflowState, opportunities);
   const officeZoneAnchors = buildOfficeZoneAnchors(officePresence);
+  const officeRouteHints = buildOfficeRouteHints(officeZoneAnchors, officeHandoffSignals);
   const officeEvents = buildOfficeEvents(
     opportunities,
     queue,
@@ -1081,6 +1222,7 @@ function buildUiSnapshot(options = {}) {
       presence: officePresence,
       handoff_signals: officeHandoffSignals,
       zone_anchors: officeZoneAnchors,
+      route_hints: officeRouteHints,
       events: officeEvents,
       flow_events: officeFlowEvents,
       company_board_snapshot: companyBoardSnapshot,
@@ -1101,6 +1243,7 @@ module.exports = {
   buildOfficePresence,
   buildOfficeHandoffSignals,
   buildOfficeZoneAnchors,
+  buildOfficeRouteHints,
   buildOfficeEvents,
   buildOfficeFlowEvents,
   buildCompanyBoardSnapshot,

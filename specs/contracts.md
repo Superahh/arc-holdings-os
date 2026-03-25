@@ -131,6 +131,82 @@ Required fields:
 }
 ```
 
+## Read-only Office Extensions (UI snapshot)
+
+Purpose: keep office-presence and future movement rails deterministic while runtime remains source of truth.
+
+These shapes are read-only snapshot interfaces and do not create write paths.
+
+### OfficeZoneAnchor
+
+```json
+{
+  "zone_id": "string",
+  "zone_label": "string",
+  "department_label": "string",
+  "anchor": { "x": 0.0, "y": 0.0 },
+  "ingress": { "x": 0.0, "y": 0.0 },
+  "egress": { "x": 0.0, "y": 0.0 },
+  "handoff_dock": { "x": 0.0, "y": 0.0 },
+  "connections": ["zone_id"]
+}
+```
+
+### OfficeHandoffSignal
+
+```json
+{
+  "opportunity_id": "string",
+  "from_agent": "string",
+  "to_agent": "string",
+  "from_zone_id": "string",
+  "to_zone_id": "string",
+  "next_action": "string",
+  "due_by": "ISO-8601 datetime",
+  "blocking_count": 0,
+  "source_stale": false
+}
+```
+
+### OfficeRouteHint
+
+```json
+{
+  "route_id": "string",
+  "opportunity_id": "string",
+  "from_zone_id": "string",
+  "to_zone_id": "string",
+  "path_zone_ids": ["zone_id"],
+  "waypoints": [{ "x": 0.0, "y": 0.0 }],
+  "source": "handoff_signal"
+}
+```
+
+### OfficeEvent
+
+```json
+{
+  "event_id": "string",
+  "type": "handoff_started|handoff_completed|focus_changed|lane_changed|approval_waiting|approval_resolved",
+  "source": "handoff_signal|workflow_state|approval_queue",
+  "timestamp": "ISO-8601 datetime",
+  "opportunity_id": "string|null",
+  "from_agent": "string|null",
+  "to_agent": "string|null",
+  "from_zone_id": "string|null",
+  "to_zone_id": "string|null",
+  "lane_from": "verification|approval|execution|market|monitor",
+  "lane_to": "verification|approval|execution|market|monitor",
+  "lane_stage": "verification|approval|execution|market|monitor",
+  "blocking_count": 0,
+  "ticket_id": "string|null",
+  "decision": "pending|approve|reject|request_more_info|null",
+  "agent": "string|null",
+  "summary": "string",
+  "severity": "info|attention|alert"
+}
+```
+
 ## Usage guidance
 
 - Task prompts should declare a `Contract Target` section and emit one or more contracts.

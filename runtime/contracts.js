@@ -15,6 +15,19 @@ const APPROVAL_OPTIONS = new Set(["approve", "reject", "request_more_info"]);
 const PAYLOAD_TYPES = new Set(["OpportunityRecord", "ApprovalTicket", "other"]);
 const AGENT_STATUSES = new Set(["idle", "working", "blocked", "awaiting_approval", "alert"]);
 const URGENCY_LEVELS = new Set(["low", "medium", "high"]);
+const LANE_STAGES = new Set(["verification", "approval", "execution", "market", "monitor"]);
+const OFFICE_EVENT_TYPES = new Set([
+  "handoff_started",
+  "handoff_completed",
+  "focus_changed",
+  "lane_changed",
+  "approval_waiting",
+  "approval_resolved",
+]);
+const OFFICE_EVENT_SOURCES = new Set(["handoff_signal", "workflow_state", "approval_queue"]);
+const OFFICE_EVENT_SEVERITIES = new Set(["info", "attention", "alert"]);
+const APPROVAL_DECISIONS = new Set(["pending", "approve", "reject", "request_more_info"]);
+const OFFICE_ROUTE_SOURCES = new Set(["handoff_signal"]);
 
 function isIsoDateTime(value) {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -22,6 +35,25 @@ function isIsoDateTime(value) {
 
 function isStringArray(value) {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+}
+
+function isNullableString(value) {
+  return value === null || typeof value === "string";
+}
+
+function validateNormalizedPoint(point, label) {
+  const errors = [];
+  if (!point || typeof point !== "object") {
+    errors.push(`${label} must be an object with x/y.`);
+    return errors;
+  }
+  if (typeof point.x !== "number" || point.x < 0 || point.x > 1) {
+    errors.push(`${label}.x must be a number between 0 and 1.`);
+  }
+  if (typeof point.y !== "number" || point.y < 0 || point.y > 1) {
+    errors.push(`${label}.y must be a number between 0 and 1.`);
+  }
+  return errors;
 }
 
 function validateOpportunityRecord(record) {
@@ -219,6 +251,169 @@ function validateCompanyBoardSnapshot(snapshot) {
   return errors;
 }
 
+function validateOfficeZoneAnchor(anchor) {
+  const errors = [];
+  if (!anchor || typeof anchor !== "object") {
+    return ["OfficeZoneAnchor must be an object."];
+  }
+  if (typeof anchor.zone_id !== "string" || !anchor.zone_id) {
+    errors.push("zone_id must be a non-empty string.");
+  }
+  if (typeof anchor.zone_label !== "string" || !anchor.zone_label) {
+    errors.push("zone_label must be a non-empty string.");
+  }
+  if (typeof anchor.department_label !== "string" || !anchor.department_label) {
+    errors.push("department_label must be a non-empty string.");
+  }
+  errors.push(...validateNormalizedPoint(anchor.anchor, "anchor"));
+  errors.push(...validateNormalizedPoint(anchor.ingress, "ingress"));
+  errors.push(...validateNormalizedPoint(anchor.egress, "egress"));
+  errors.push(...validateNormalizedPoint(anchor.handoff_dock, "handoff_dock"));
+  if (!isStringArray(anchor.connections)) {
+    errors.push("connections must be an array of zone_id strings.");
+  }
+  return errors;
+}
+
+function validateOfficeHandoffSignal(signal) {
+  const errors = [];
+  if (!signal || typeof signal !== "object") {
+    return ["OfficeHandoffSignal must be an object."];
+  }
+  if (typeof signal.opportunity_id !== "string" || !signal.opportunity_id) {
+    errors.push("opportunity_id must be a non-empty string.");
+  }
+  if (typeof signal.from_agent !== "string" || !signal.from_agent) {
+    errors.push("from_agent must be a non-empty string.");
+  }
+  if (typeof signal.to_agent !== "string" || !signal.to_agent) {
+    errors.push("to_agent must be a non-empty string.");
+  }
+  if (typeof signal.from_zone_id !== "string" || !signal.from_zone_id) {
+    errors.push("from_zone_id must be a non-empty string.");
+  }
+  if (typeof signal.to_zone_id !== "string" || !signal.to_zone_id) {
+    errors.push("to_zone_id must be a non-empty string.");
+  }
+  if (typeof signal.next_action !== "string" || !signal.next_action) {
+    errors.push("next_action must be a non-empty string.");
+  }
+  if (!isIsoDateTime(signal.due_by)) {
+    errors.push("due_by must be ISO-8601 datetime.");
+  }
+  if (!Number.isInteger(signal.blocking_count) || signal.blocking_count < 0) {
+    errors.push("blocking_count must be a non-negative integer.");
+  }
+  if (typeof signal.source_stale !== "boolean") {
+    errors.push("source_stale must be boolean.");
+  }
+  return errors;
+}
+
+function validateOfficeRouteHint(hint) {
+  const errors = [];
+  if (!hint || typeof hint !== "object") {
+    return ["OfficeRouteHint must be an object."];
+  }
+  if (typeof hint.route_id !== "string" || !hint.route_id) {
+    errors.push("route_id must be a non-empty string.");
+  }
+  if (typeof hint.opportunity_id !== "string" || !hint.opportunity_id) {
+    errors.push("opportunity_id must be a non-empty string.");
+  }
+  if (typeof hint.from_zone_id !== "string" || !hint.from_zone_id) {
+    errors.push("from_zone_id must be a non-empty string.");
+  }
+  if (typeof hint.to_zone_id !== "string" || !hint.to_zone_id) {
+    errors.push("to_zone_id must be a non-empty string.");
+  }
+  if (!Array.isArray(hint.path_zone_ids) || hint.path_zone_ids.some((value) => typeof value !== "string")) {
+    errors.push("path_zone_ids must be an array of strings.");
+  } else {
+    const minimumPathLength = hint.from_zone_id === hint.to_zone_id ? 1 : 2;
+    if (hint.path_zone_ids.length < minimumPathLength) {
+      errors.push(`path_zone_ids must contain at least ${minimumPathLength} zone(s).`);
+    }
+  }
+  if (!Array.isArray(hint.waypoints) || !hint.waypoints.length) {
+    errors.push("waypoints must be a non-empty array.");
+  } else {
+    const minimumWaypointLength = hint.from_zone_id === hint.to_zone_id ? 1 : 2;
+    if (hint.waypoints.length < minimumWaypointLength) {
+      errors.push(`waypoints must contain at least ${minimumWaypointLength} point(s).`);
+    }
+    hint.waypoints.forEach((point, index) => {
+      errors.push(...validateNormalizedPoint(point, `waypoints[${index}]`));
+    });
+  }
+  if (!OFFICE_ROUTE_SOURCES.has(hint.source)) {
+    errors.push("source contains invalid enum value.");
+  }
+  return errors;
+}
+
+function validateOfficeEvent(event) {
+  const errors = [];
+  if (!event || typeof event !== "object") {
+    return ["OfficeEvent must be an object."];
+  }
+  if (typeof event.event_id !== "string" || !event.event_id) {
+    errors.push("event_id must be a non-empty string.");
+  }
+  if (!OFFICE_EVENT_TYPES.has(event.type)) {
+    errors.push("type contains invalid enum value.");
+  }
+  if (!OFFICE_EVENT_SOURCES.has(event.source)) {
+    errors.push("source contains invalid enum value.");
+  }
+  if (!isIsoDateTime(event.timestamp)) {
+    errors.push("timestamp must be ISO-8601 datetime.");
+  }
+  if (!isNullableString(event.opportunity_id)) {
+    errors.push("opportunity_id must be string or null.");
+  }
+  if (!isNullableString(event.from_agent)) {
+    errors.push("from_agent must be string or null.");
+  }
+  if (!isNullableString(event.to_agent)) {
+    errors.push("to_agent must be string or null.");
+  }
+  if (!isNullableString(event.from_zone_id)) {
+    errors.push("from_zone_id must be string or null.");
+  }
+  if (!isNullableString(event.to_zone_id)) {
+    errors.push("to_zone_id must be string or null.");
+  }
+  if (!LANE_STAGES.has(event.lane_from)) {
+    errors.push("lane_from contains invalid enum value.");
+  }
+  if (!LANE_STAGES.has(event.lane_to)) {
+    errors.push("lane_to contains invalid enum value.");
+  }
+  if (!LANE_STAGES.has(event.lane_stage)) {
+    errors.push("lane_stage contains invalid enum value.");
+  }
+  if (!Number.isInteger(event.blocking_count) || event.blocking_count < 0) {
+    errors.push("blocking_count must be a non-negative integer.");
+  }
+  if (!isNullableString(event.ticket_id)) {
+    errors.push("ticket_id must be string or null.");
+  }
+  if (!(event.decision === null || APPROVAL_DECISIONS.has(event.decision))) {
+    errors.push("decision contains invalid enum value.");
+  }
+  if (!isNullableString(event.agent)) {
+    errors.push("agent must be string or null.");
+  }
+  if (typeof event.summary !== "string" || !event.summary) {
+    errors.push("summary must be a non-empty string.");
+  }
+  if (!OFFICE_EVENT_SEVERITIES.has(event.severity)) {
+    errors.push("severity contains invalid enum value.");
+  }
+  return errors;
+}
+
 function assertValidOpportunityRecord(record) {
   const errors = validateOpportunityRecord(record);
   if (errors.length > 0) {
@@ -254,15 +449,51 @@ function assertValidCompanyBoardSnapshot(snapshot) {
   }
 }
 
+function assertValidOfficeZoneAnchor(anchor) {
+  const errors = validateOfficeZoneAnchor(anchor);
+  if (errors.length > 0) {
+    throw new Error(`Invalid OfficeZoneAnchor: ${errors.join(" | ")}`);
+  }
+}
+
+function assertValidOfficeHandoffSignal(signal) {
+  const errors = validateOfficeHandoffSignal(signal);
+  if (errors.length > 0) {
+    throw new Error(`Invalid OfficeHandoffSignal: ${errors.join(" | ")}`);
+  }
+}
+
+function assertValidOfficeRouteHint(hint) {
+  const errors = validateOfficeRouteHint(hint);
+  if (errors.length > 0) {
+    throw new Error(`Invalid OfficeRouteHint: ${errors.join(" | ")}`);
+  }
+}
+
+function assertValidOfficeEvent(event) {
+  const errors = validateOfficeEvent(event);
+  if (errors.length > 0) {
+    throw new Error(`Invalid OfficeEvent: ${errors.join(" | ")}`);
+  }
+}
+
 module.exports = {
   validateOpportunityRecord,
   validateApprovalTicket,
   validateHandoffPacket,
   validateAgentStatusCard,
   validateCompanyBoardSnapshot,
+  validateOfficeZoneAnchor,
+  validateOfficeHandoffSignal,
+  validateOfficeRouteHint,
+  validateOfficeEvent,
   assertValidOpportunityRecord,
   assertValidApprovalTicket,
   assertValidHandoffPacket,
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
+  assertValidOfficeZoneAnchor,
+  assertValidOfficeHandoffSignal,
+  assertValidOfficeRouteHint,
+  assertValidOfficeEvent,
 };

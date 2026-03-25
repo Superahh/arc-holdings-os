@@ -7,6 +7,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `HandoffPacket` generation
 - `AgentStatusCard` generation
 - `CompanyBoardSnapshot` generation
+- read-only office event/anchor/route contracts for UI presence and future movement rails
 - contract validation helpers
 - deterministic opportunity pipeline logic
 - deterministic artifact export
@@ -15,7 +16,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 
 ## Files
 
-- `contracts.js`: contract validators for `OpportunityRecord`, `ApprovalTicket`, `HandoffPacket`, `AgentStatusCard`, and `CompanyBoardSnapshot`
+- `contracts.js`: contract validators for core contracts plus read-only office snapshot contracts (`OfficeZoneAnchor`, `OfficeHandoffSignal`, `OfficeRouteHint`, `OfficeEvent`)
 - `pipeline.js`: intake-to-decision pipeline skeleton
 - `output.js`: run artifact writing and snapshot comparison helpers
 - `run_pipeline.js`: CLI entrypoint for pipeline execution + persistence
