@@ -42,7 +42,8 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] decide whether to promote room-transition requests to an approval-gated writable endpoint or keep them read-only through v1
 - [x] keep room-transition controls read-only through v1 and gather validator/audit evidence before reconsidering writable promotion
 - [x] set a concrete evidence threshold for re-evaluating writable room-transition promotion (minimum run count, pass rate, and failure profile)
-- [ ] run recurring evidence snapshots and review trend stability before any writable room-transition proposal
+- [x] enable recurring evidence snapshot capture and trend review workflow before any writable room-transition proposal
+- [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Out of scope
 

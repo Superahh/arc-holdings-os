@@ -29,6 +29,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `ui_snapshot.js`: read-only snapshot composer for the visible UI shell
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
 - `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
+- `room_transition_evidence_snapshot_cli.js`: helper to persist timestamped evidence summaries plus `latest.summary.json` for recurring review
 - `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
@@ -74,6 +75,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/ui_browser_smoke.test.js`: headless browser smoke check for live shell rendering (skips when browser binary is unavailable)
 - `tests/room_transition_validator_cli.test.js`: room-transition request boundary validator tests
 - `tests/room_transition_evidence_cli.test.js`: room-transition validator evidence summary CLI tests
+- `tests/room_transition_evidence_snapshot_cli.test.js`: recurring evidence snapshot helper tests
 - `tests/run_all_tests.js`: helper script to execute all runtime tests in deterministic order
 - `tests/run_all_tests.test.js`: test coverage for the runtime test runner helper
 - `output/`: generated runs and maintained snapshots
@@ -118,6 +120,7 @@ node runtime/tests/ui_server.test.js
 node runtime/tests/ui_browser_smoke.test.js
 node runtime/tests/room_transition_validator_cli.test.js
 node runtime/tests/room_transition_evidence_cli.test.js
+node runtime/tests/room_transition_evidence_snapshot_cli.test.js
 ```
 
 ## Execute pipeline and persist artifacts
@@ -342,6 +345,12 @@ Fail CI/automation when readiness thresholds are not met:
 
 ```powershell
 node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --fail-on-not-ready
+```
+
+Persist recurring timestamped evidence snapshots:
+
+```powershell
+node runtime/room_transition_evidence_snapshot_cli.js --inputs-dir runtime/output/room_transition_validations --summaries-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
 ```
 
 ## Scope note
