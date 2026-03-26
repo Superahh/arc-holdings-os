@@ -8,6 +8,7 @@ function parseArgs(argv) {
   const args = {
     checkpointPath: path.join(defaultDir, "latest.checkpoint.json"),
     trendPath: path.join(defaultDir, "latest.trend.json"),
+    freshnessPath: path.join(defaultDir, "latest.intent-freshness.json"),
     outputPath: path.join(defaultDir, "latest.operator-brief.md"),
   };
 
@@ -25,6 +26,12 @@ function parseArgs(argv) {
         throw new Error("Missing value for argument: --trend-path");
       }
       args.trendPath = path.resolve(value);
+      index += 1;
+    } else if (token === "--freshness-path") {
+      if (value === undefined || value.startsWith("--")) {
+        throw new Error("Missing value for argument: --freshness-path");
+      }
+      args.freshnessPath = path.resolve(value);
       index += 1;
     } else if (token === "--output-path") {
       if (value === undefined || value.startsWith("--")) {
@@ -61,7 +68,7 @@ function stringifyDelta(value) {
   return `${value}`;
 }
 
-function renderBrief(checkpoint, trend) {
+function renderBrief(checkpoint, trend, freshness) {
   const recommendation = checkpoint.recommendation || {};
   const window = recommendation.window || {};
   const latest = trend.latest || {};
@@ -69,6 +76,8 @@ function renderBrief(checkpoint, trend) {
   const failedChecks = Array.isArray(recommendation.failed_checks)
     ? recommendation.failed_checks
     : [];
+  const freshnessTotals = freshness && freshness.totals ? freshness.totals : {};
+  const freshestIntent = freshness ? freshness.freshest_intent || null : null;
 
   return [
     "# Room-Transition Promotion Operator Brief",
@@ -96,6 +105,14 @@ function renderBrief(checkpoint, trend) {
     `- allowed_rate: ${stringifyDelta(deltas.allowed_rate)}`,
     `- observed_hours: ${stringifyDelta(deltas.observed_hours)}`,
     "",
+    "## Intent Freshness",
+    `- stale_minutes: ${freshness ? freshness.stale_minutes ?? "n/a" : "n/a"}`,
+    `- fresh_count: ${freshnessTotals.fresh_count ?? "n/a"}`,
+    `- stale_or_invalid_count: ${freshnessTotals.stale_or_invalid_count ?? "n/a"}`,
+    `- freshest_intent_id: ${freshestIntent ? freshestIntent.intent_id || "n/a" : "n/a"}`,
+    `- freshest_intent_age_minutes: ${freshestIntent ? freshestIntent.age_minutes ?? "n/a" : "n/a"}`,
+    `- freshest_intent_is_fresh: ${freshestIntent ? freshestIntent.fresh === true : false}`,
+    "",
     "## Failed Threshold Checks",
     failedChecks.length > 0 ? `- ${failedChecks.join(", ")}` : "- none",
     "",
@@ -105,7 +122,8 @@ function renderBrief(checkpoint, trend) {
 function runOperatorBriefAction(options) {
   const checkpoint = readJson(options.checkpointPath, "Checkpoint");
   const trend = readJson(options.trendPath, "Trend");
-  const markdown = renderBrief(checkpoint, trend);
+  const freshness = readJson(options.freshnessPath, "Freshness");
+  const markdown = renderBrief(checkpoint, trend, freshness);
 
   fs.mkdirSync(path.dirname(options.outputPath), { recursive: true });
   fs.writeFileSync(options.outputPath, markdown, "utf8");
@@ -114,6 +132,7 @@ function runOperatorBriefAction(options) {
     output_path: options.outputPath,
     markdown,
     recommendation: checkpoint.recommendation || {},
+    freshness: freshness || {},
   };
 }
 

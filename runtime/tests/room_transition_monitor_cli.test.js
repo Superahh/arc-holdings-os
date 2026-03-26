@@ -34,6 +34,7 @@ test("runMonitorAction runs capture + checkpoint + trend + brief", () => {
   const summariesDir = validationsDir;
   const checkpointPath = path.join(validationsDir, "latest.checkpoint.json");
   const trendPath = path.join(validationsDir, "latest.trend.json");
+  const freshnessPath = path.join(validationsDir, "latest.intent-freshness.json");
   const briefPath = path.join(validationsDir, "latest.operator-brief.md");
   const requestPath = path.join(
     __dirname,
@@ -80,6 +81,7 @@ test("runMonitorAction runs capture + checkpoint + trend + brief", () => {
     summariesDir,
     checkpointPath,
     trendPath,
+    freshnessPath,
     briefPath,
     windowHours: 168,
     maxFiles: 500,
@@ -97,6 +99,7 @@ test("runMonitorAction runs capture + checkpoint + trend + brief", () => {
   assert.equal(fs.existsSync(result.capture.output_path), true);
   assert.equal(fs.existsSync(checkpointPath), true);
   assert.equal(fs.existsSync(trendPath), true);
+  assert.equal(fs.existsSync(freshnessPath), true);
   assert.equal(fs.existsSync(briefPath), true);
   assert.equal(result.gate.promotion_decision, "no_go");
 
@@ -192,6 +195,7 @@ test("runMonitorAction can fail preflight when fresh intent is required", () => 
     summariesDir: path.join(tempDir, "summaries"),
     checkpointPath: path.join(tempDir, "latest.checkpoint.json"),
     trendPath: path.join(tempDir, "latest.trend.json"),
+    freshnessPath: path.join(tempDir, "latest.intent-freshness.json"),
     briefPath: path.join(tempDir, "latest.operator-brief.md"),
     windowHours: 168,
     maxFiles: 500,

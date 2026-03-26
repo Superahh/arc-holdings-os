@@ -58,6 +58,7 @@ function parseArgs(argv) {
     summariesDir: defaultDir,
     checkpointPath: path.join(defaultDir, "latest.checkpoint.json"),
     trendPath: path.join(defaultDir, "latest.trend.json"),
+    freshnessPath: path.join(defaultDir, "latest.intent-freshness.json"),
     briefPath: path.join(defaultDir, "latest.operator-brief.md"),
     windowHours: 168,
     maxFiles: 500,
@@ -106,6 +107,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--trend-path") {
       args.trendPath = path.resolve(readValue(index, token));
+      index += 1;
+    } else if (token === "--freshness-path") {
+      args.freshnessPath = path.resolve(readValue(index, token));
       index += 1;
     } else if (token === "--brief-path") {
       args.briefPath = path.resolve(readValue(index, token));
@@ -165,7 +169,7 @@ function runMonitorAction(options) {
     baseDir: options.baseDir,
     now: options.now,
     staleMinutes: options.staleMinutes,
-    outputPath: null,
+    outputPath: options.freshnessPath,
   });
   const preflightSatisfied = freshness.totals.fresh_count > 0;
 
@@ -225,6 +229,7 @@ function runMonitorAction(options) {
   const brief = runOperatorBriefAction({
     checkpointPath: options.checkpointPath,
     trendPath: options.trendPath,
+    freshnessPath: options.freshnessPath,
     outputPath: options.briefPath,
   });
 
@@ -238,6 +243,7 @@ function runMonitorAction(options) {
     capture,
     checkpoint_path: options.checkpointPath,
     trend_path: options.trendPath,
+    freshness_path: options.freshnessPath,
     brief_path: brief.output_path,
     gate: {
       promotion_decision:

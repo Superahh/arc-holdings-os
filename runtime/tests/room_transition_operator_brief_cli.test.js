@@ -14,12 +14,15 @@ const {
 test("parseArgs validates unknown and missing values", () => {
   assert.throws(() => parseArgs(["--unknown"]), /Unknown argument/);
   assert.throws(() => parseArgs(["--checkpoint-path"]), /Missing value/);
+  const parsed = parseArgs([]);
+  assert.match(parsed.freshnessPath.replaceAll("\\", "/"), /latest\.intent-freshness\.json$/);
 });
 
 test("runOperatorBriefAction writes consolidated markdown brief", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-operator-brief-"));
   const checkpointPath = path.join(tempDir, "checkpoint.json");
   const trendPath = path.join(tempDir, "trend.json");
+  const freshnessPath = path.join(tempDir, "freshness.json");
   const outputPath = path.join(tempDir, "brief.md");
 
   fs.writeFileSync(
@@ -69,9 +72,31 @@ test("runOperatorBriefAction writes consolidated markdown brief", () => {
     "utf8"
   );
 
+  fs.writeFileSync(
+    freshnessPath,
+    JSON.stringify(
+      {
+        stale_minutes: 15,
+        totals: {
+          fresh_count: 0,
+          stale_or_invalid_count: 8,
+        },
+        freshest_intent: {
+          intent_id: "intent-office-handoff-001",
+          age_minutes: 285.1487,
+          fresh: false,
+        },
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
   const result = runOperatorBriefAction({
     checkpointPath,
     trendPath,
+    freshnessPath,
     outputPath,
   });
 
@@ -79,4 +104,6 @@ test("runOperatorBriefAction writes consolidated markdown brief", () => {
   assert.match(result.markdown, /Promotion decision: no_go/);
   assert.match(result.markdown, /remaining_hours: 144/);
   assert.match(result.markdown, /records_considered: \+2/);
+  assert.match(result.markdown, /fresh_count: 0/);
+  assert.match(result.markdown, /freshest_intent_age_minutes: 285.1487/);
 });

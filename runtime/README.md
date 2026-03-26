@@ -384,10 +384,10 @@ Inspect current movement-intent freshness against the validator window:
 node runtime/room_transition_intent_freshness_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15 --output-path runtime/output/room_transition_validations/latest.intent-freshness.json
 ```
 
-Run one-command room-transition evidence monitor cycle (capture + checkpoint + trend + brief):
+Run one-command room-transition evidence monitor cycle (freshness + capture + checkpoint + trend + brief):
 
 ```powershell
-node runtime/room_transition_monitor_cli.js --request-path runtime/output/room_transition_validations/latest.request.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --records-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --trend-path runtime/output/room_transition_validations/latest.trend.json --brief-path runtime/output/room_transition_validations/latest.operator-brief.md
+node runtime/room_transition_monitor_cli.js --request-path runtime/output/room_transition_validations/latest.request.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --records-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --trend-path runtime/output/room_transition_validations/latest.trend.json --freshness-path runtime/output/room_transition_validations/latest.intent-freshness.json --brief-path runtime/output/room_transition_validations/latest.operator-brief.md
 ```
 
 Use gate flags for automation failure signaling:
