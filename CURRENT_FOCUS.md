@@ -41,7 +41,8 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] add a read-only room-transition request validator (contract + policy checks only, no mutation endpoint) to prove boundary discipline
 - [x] decide whether to promote room-transition requests to an approval-gated writable endpoint or keep them read-only through v1
 - [x] keep room-transition controls read-only through v1 and gather validator/audit evidence before reconsidering writable promotion
-- [ ] set a concrete evidence threshold for re-evaluating writable room-transition promotion (minimum run count, pass rate, and failure profile)
+- [x] set a concrete evidence threshold for re-evaluating writable room-transition promotion (minimum run count, pass rate, and failure profile)
+- [ ] run recurring evidence snapshots and review trend stability before any writable room-transition proposal
 
 ## Out of scope
 

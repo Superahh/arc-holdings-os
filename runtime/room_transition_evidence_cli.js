@@ -15,6 +15,22 @@ function parsePositiveInteger(rawValue, optionName) {
   return value;
 }
 
+function parseNonNegativeInteger(rawValue, optionName) {
+  const value = Number.parseInt(rawValue, 10);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${optionName} must be a non-negative integer.`);
+  }
+  return value;
+}
+
+function parseRate(rawValue, optionName) {
+  const value = Number.parseFloat(rawValue);
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${optionName} must be a number between 0 and 1.`);
+  }
+  return value;
+}
+
 function parseArgs(argv) {
   function readValue(index, option) {
     const value = argv[index + 1];
@@ -31,6 +47,10 @@ function parseArgs(argv) {
     windowHours: 168,
     maxFiles: 500,
     all: false,
+    minRuns: 30,
+    minAllowedRate: 0.95,
+    maxParseErrors: 0,
+    maxCriticalFailures: 0,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -49,6 +69,24 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--max-files") {
       args.maxFiles = parsePositiveInteger(readValue(index, token), "--max-files");
+      index += 1;
+    } else if (token === "--min-runs") {
+      args.minRuns = parsePositiveInteger(readValue(index, token), "--min-runs");
+      index += 1;
+    } else if (token === "--min-allowed-rate") {
+      args.minAllowedRate = parseRate(readValue(index, token), "--min-allowed-rate");
+      index += 1;
+    } else if (token === "--max-parse-errors") {
+      args.maxParseErrors = parseNonNegativeInteger(
+        readValue(index, token),
+        "--max-parse-errors"
+      );
+      index += 1;
+    } else if (token === "--max-critical-failures") {
+      args.maxCriticalFailures = parseNonNegativeInteger(
+        readValue(index, token),
+        "--max-critical-failures"
+      );
       index += 1;
     } else if (token === "--all") {
       args.all = true;
@@ -130,6 +168,52 @@ function countFailedChecks(records) {
     .map(([check_name, count]) => ({ check_name, count }));
 }
 
+function computeReadiness(totals, failedCheckCounts, thresholds) {
+  const criticalChecks = new Set([
+    "intent_exists",
+    "snapshot_identity_match",
+    "non_terminal_opportunity",
+    "no_workflow_or_capital_mutation_fields",
+  ]);
+  const criticalFailureCount = failedCheckCounts
+    .filter((entry) => criticalChecks.has(entry.check_name))
+    .reduce((sum, entry) => sum + entry.count, 0);
+
+  const checks = [
+    {
+      name: "minimum_runs",
+      pass: totals.records_considered >= thresholds.min_runs,
+      actual: totals.records_considered,
+      threshold: thresholds.min_runs,
+    },
+    {
+      name: "minimum_allowed_rate",
+      pass: totals.allowed_rate >= thresholds.min_allowed_rate,
+      actual: totals.allowed_rate,
+      threshold: thresholds.min_allowed_rate,
+    },
+    {
+      name: "max_parse_errors",
+      pass: totals.parse_errors <= thresholds.max_parse_errors,
+      actual: totals.parse_errors,
+      threshold: thresholds.max_parse_errors,
+    },
+    {
+      name: "max_critical_failures",
+      pass: criticalFailureCount <= thresholds.max_critical_failures,
+      actual: criticalFailureCount,
+      threshold: thresholds.max_critical_failures,
+    },
+  ];
+
+  return {
+    eligible_for_writable_review: checks.every((check) => check.pass),
+    thresholds,
+    critical_failure_count: criticalFailureCount,
+    checks,
+  };
+}
+
 function summarizeEvidence(input) {
   const files = listEvidenceFiles(input.inputsDir, input.maxFiles);
   const parsed = files.map((filePath) => readEvidenceRecord(filePath));
@@ -155,7 +239,7 @@ function summarizeEvidence(input) {
     summary: entry.summary,
   }));
 
-  return {
+  const summary = {
     generated_at: input.now,
     inputs_dir: input.inputsDir,
     filters: {
@@ -180,6 +264,13 @@ function summarizeEvidence(input) {
       error: entry.parse_error,
     })),
   };
+  summary.readiness = computeReadiness(summary.totals, summary.failed_check_counts, {
+    min_runs: input.minRuns,
+    min_allowed_rate: input.minAllowedRate,
+    max_parse_errors: input.maxParseErrors,
+    max_critical_failures: input.maxCriticalFailures,
+  });
+  return summary;
 }
 
 function runEvidenceAction(options) {

@@ -277,3 +277,4 @@ Verify that boundary-validation outcomes are summarized into operator-readable e
 - summary reports `allowed_count`, `denied_count`, and `allowed_rate`
 - summary surfaces top failing policy checks for denied requests
 - summary includes parse error accounting for malformed records
+- summary includes readiness verdict against promotion thresholds (`min_runs`, `min_allowed_rate`, `max_parse_errors`, `max_critical_failures`)

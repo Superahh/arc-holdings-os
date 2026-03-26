@@ -137,3 +137,18 @@ Operators can preview and validate transitions but cannot commit transition writ
 ### Revisit later
 Yes.
 Trigger: room-transition validator usage is stable and audit expectations are proven in real operator loops.
+
+## 2026-03-26
+
+### Decision
+Use explicit evidence thresholds before reconsidering writable room-transition promotion.
+
+### Why
+This keeps promotion criteria objective and prevents premature expansion of write surfaces.
+
+### Tradeoff
+Potentially slower promotion timeline, but better safety and audit confidence.
+
+### Revisit later
+Yes.
+Trigger: evidence summary (`room_transition_evidence_cli`) meets thresholds for a rolling 7-day window.

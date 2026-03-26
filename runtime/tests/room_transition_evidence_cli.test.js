@@ -21,6 +21,14 @@ test("parseArgs validates unknown and numeric arguments", () => {
     () => parseArgs(["--max-files", "0"]),
     /--max-files/
   );
+  assert.throws(
+    () => parseArgs(["--min-allowed-rate", "1.2"]),
+    /--min-allowed-rate/
+  );
+  assert.throws(
+    () => parseArgs(["--max-parse-errors", "-1"]),
+    /--max-parse-errors/
+  );
 });
 
 test("runEvidenceAction summarizes allowed and denied records", () => {
@@ -70,6 +78,10 @@ test("runEvidenceAction summarizes allowed and denied records", () => {
     windowHours: 2,
     maxFiles: 100,
     all: false,
+    minRuns: 2,
+    minAllowedRate: 0.4,
+    maxParseErrors: 1,
+    maxCriticalFailures: 1,
   });
 
   assert.equal(summary.totals.files_scanned, 3);
@@ -79,4 +91,6 @@ test("runEvidenceAction summarizes allowed and denied records", () => {
   assert.equal(summary.totals.denied_count, 1);
   assert.equal(summary.failed_check_counts[0].check_name, "intent_fresh");
   assert.equal(summary.latest_records.length, 2);
+  assert.equal(summary.readiness.eligible_for_writable_review, true);
+  assert.equal(summary.readiness.checks.find((check) => check.name === "minimum_runs").pass, true);
 });

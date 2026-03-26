@@ -73,3 +73,13 @@ Before any writable room-transition control is enabled, all of the following mus
 Policy guardrail:
 
 - room-transition writes are operational UX controls only; they must not become an implicit authority path for business-state mutation
+
+Writable promotion threshold (v1 reconsideration gate):
+
+- rolling window: 168 hours
+- minimum validated requests: 30
+- minimum allowed rate: 95%
+- maximum parse errors: 0
+- maximum critical failures (`intent_exists`, `snapshot_identity_match`, `non_terminal_opportunity`, `no_workflow_or_capital_mutation_fields`): 0
+
+If threshold is not met, room-transition controls remain read-only.

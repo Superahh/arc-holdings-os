@@ -335,7 +335,7 @@ node runtime/room_transition_validator_cli.js --request-path runtime/fixtures/ro
 Summarize room-transition validation evidence (last 7 days by default):
 
 ```powershell
-node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --output-path runtime/output/room_transition_validations/latest.summary.json
+node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --output-path runtime/output/room_transition_validations/latest.summary.json
 ```
 
 ## Scope note
