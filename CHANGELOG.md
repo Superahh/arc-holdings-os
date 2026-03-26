@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added read-only route playback controls in movement-intent detail sections (select intent + scrub route progress) and preview-dot rendering on the office canvas, with no backend mutation paths (`ui/app.js`, `ui/styles.css`, `CURRENT_FOCUS.md`).
 - Added movement-intent timeline context to opportunity/agent detail panels so operators can inspect route, trigger, and duration metadata before future controls are introduced (`ui/app.js`, `ui/styles.css`, `CURRENT_FOCUS.md`).
 - Added deterministic in-flight travel dots on office handoff routes, driven by fresh `movement_intents` trigger timestamps and durations, with no new write paths or random roaming (`ui/app.js`, `ui/styles.css`, `CURRENT_FOCUS.md`).
 - Added deterministic read-only `office.movement_intents` contracts (route + duration + trigger event) and wired the office overlay to consume them as future walking rails without adding roaming/write paths (`runtime/contracts.js`, `runtime/ui_snapshot.js`, `ui/app.js`, contract/docs/tests).

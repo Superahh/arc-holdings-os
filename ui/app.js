@@ -25,6 +25,10 @@ const state = {
   decisionMessageLevel: "info",
   decisionMessageTimerId: null,
   lastDecisionRetry: null,
+  routePlayback: {
+    intentId: null,
+    progress: 50,
+  },
 };
 
 const elements = {
@@ -204,6 +208,16 @@ function findZoneAnchorById(zoneId) {
 function findOpportunityById(opportunityId) {
   return (
     state.snapshot.workflow.opportunities.find((entry) => entry.opportunity_id === opportunityId) ||
+    null
+  );
+}
+
+function getMovementIntentById(intentId) {
+  if (!state.snapshot || !intentId) {
+    return null;
+  }
+  return (
+    (state.snapshot.office.movement_intents || []).find((intent) => intent.intent_id === intentId) ||
     null
   );
 }
@@ -422,6 +436,7 @@ function withMovementIntent(signal, isTransitionDefault, movementIntentLookup) {
   );
   return {
     ...signal,
+    intent_id: intent ? intent.intent_id : signal.intent_id || null,
     from_zone_id: fromZoneId,
     to_zone_id: toZoneId,
     is_transition: intent
@@ -451,6 +466,7 @@ function getRenderableHandoffs(activeTransitions) {
 
   if ((state.snapshot.office.movement_intents || []).length) {
     return (state.snapshot.office.movement_intents || []).slice(0, 3).map((intent) => ({
+      intent_id: intent.intent_id,
       opportunity_id: intent.opportunity_id,
       from_agent: intent.from_agent,
       to_agent: intent.to_agent,
@@ -837,6 +853,46 @@ function midpointFromPoints(points) {
   };
 }
 
+function pointAtProgress(points, progressRatio) {
+  if (!Array.isArray(points) || !points.length) {
+    return null;
+  }
+  if (points.length === 1) {
+    return points[0];
+  }
+
+  const clamped = Math.max(0, Math.min(1, progressRatio));
+  const segmentLengths = [];
+  let totalLength = 0;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    segmentLengths.push(length);
+    totalLength += length;
+  }
+
+  if (totalLength === 0) {
+    return points[0];
+  }
+
+  let target = clamped * totalLength;
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const segmentLength = segmentLengths[index];
+    const start = points[index];
+    const end = points[index + 1];
+    if (target <= segmentLength || index === segmentLengths.length - 1) {
+      const ratio = segmentLength === 0 ? 0 : target / segmentLength;
+      return {
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio,
+      };
+    }
+    target -= segmentLength;
+  }
+  return points[points.length - 1];
+}
+
 function resolveFallbackNodeCenter(node, layoutRect) {
   if (!node) {
     return null;
@@ -984,6 +1040,14 @@ function renderHandoffOverlay(renderableHandoffs) {
   const height = Math.max(1, layoutRect.height);
   const zoneLookup = buildZoneAnchorLookup();
   const routeHintLookup = buildRouteHintLookup();
+  const previewIntent = getMovementIntentById(state.routePlayback.intentId);
+  const previewIntentKey = previewIntent
+    ? buildMovementIntentKey(
+        previewIntent.opportunity_id,
+        previewIntent.from_zone_id,
+        previewIntent.to_zone_id
+      )
+    : null;
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("width", `${width}`);
   svg.setAttribute("height", `${height}`);
@@ -1017,6 +1081,7 @@ function renderHandoffOverlay(renderableHandoffs) {
     const defaultEnd = toAnchor || toFallback;
     const routeKey = `${signal.opportunity_id}|${fromZoneId || ""}|${toZoneId || ""}`;
     const routeHint = routeHintLookup.get(routeKey) || null;
+    const signalIntentKey = buildMovementIntentKey(signal.opportunity_id, fromZoneId, toZoneId);
     const intentPoints =
       Array.isArray(signal.waypoints) && signal.waypoints.length >= 2
         ? signal.waypoints
@@ -1066,12 +1131,29 @@ function renderHandoffOverlay(renderableHandoffs) {
     );
     svg.append(pulseNode);
 
+    const isPreviewSignal = previewIntentKey && signalIntentKey === previewIntentKey;
     const shouldRenderTravelDot =
       signal.is_transition &&
       typeof signal.duration_ms === "number" &&
       signal.duration_ms >= 300 &&
       isFreshMovementSignal(signal);
-    if (shouldRenderTravelDot) {
+    if (isPreviewSignal) {
+      const previewPoint = pointAtProgress(
+        effectivePoints,
+        state.routePlayback.progress / 100
+      );
+      if (previewPoint) {
+        const previewNode = document.createElementNS(namespace, "circle");
+        previewNode.setAttribute("cx", `${previewPoint.x}`);
+        previewNode.setAttribute("cy", `${previewPoint.y}`);
+        previewNode.setAttribute(
+          "class",
+          `handoff-travel-dot is-preview ${signal.blocking_count > 0 ? "is-blocked" : ""}`
+        );
+        previewNode.setAttribute("r", "4");
+        svg.append(previewNode);
+      }
+    } else if (shouldRenderTravelDot) {
       const travelNode = document.createElementNS(namespace, "circle");
       travelNode.setAttribute("r", "3.4");
       travelNode.setAttribute(
@@ -1268,6 +1350,9 @@ function renderMovementIntentList(intents, emptyMessage) {
   if (!intents.length) {
     return `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;
   }
+  const selectedIntent =
+    intents.find((intent) => intent.intent_id === state.routePlayback.intentId) || null;
+
   return `
     <div class="movement-intent-list">
       ${intents
@@ -1295,12 +1380,99 @@ function renderMovementIntentList(intents, emptyMessage) {
                 <span class="priority-pill">${escapeHtml(`${intent.duration_ms} ms`)}</span>
                 <span class="priority-pill">${escapeHtml(formatTimestamp(intent.trigger_timestamp))}</span>
               </div>
+              <div class="movement-preview-actions">
+                <button
+                  type="button"
+                  class="task-chip movement-preview-button ${
+                    state.routePlayback.intentId === intent.intent_id ? "is-active" : ""
+                  }"
+                  data-intent-action="preview"
+                  data-intent-id="${escapeHtml(intent.intent_id)}"
+                >
+                  ${
+                    state.routePlayback.intentId === intent.intent_id
+                      ? "Previewing route"
+                      : "Preview route"
+                  }
+                </button>
+              </div>
             </article>
           `
         )
         .join("")}
+      ${
+        selectedIntent
+          ? `
+            <div class="movement-playback-control">
+              <div class="detail-title-row">
+                <strong>Route playback</strong>
+                <span class="status-pill ${formatStatusClass("working")}">${escapeHtml(
+                  `${state.routePlayback.progress}%`
+                )}</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value="${state.routePlayback.progress}"
+                data-intent-action="scrub"
+              />
+              <div class="card-tags">
+                <span class="priority-pill">${escapeHtml(selectedIntent.opportunity_id)}</span>
+                <span class="priority-pill">${escapeHtml(
+                  `${shortAgentLabel(selectedIntent.from_agent)} -> ${shortAgentLabel(
+                    selectedIntent.to_agent
+                  )}`
+                )}</span>
+                <button type="button" class="task-chip" data-intent-action="clear-preview">
+                  Clear preview
+                </button>
+              </div>
+            </div>
+          `
+          : ""
+      }
     </div>
   `;
+}
+
+function bindMovementIntentControls() {
+  elements.detailPanel
+    .querySelectorAll('[data-intent-action="preview"][data-intent-id]')
+    .forEach((node) => {
+      node.addEventListener("click", () => {
+        const intentId = node.dataset.intentId;
+        if (!intentId) {
+          return;
+        }
+        state.routePlayback.intentId =
+          state.routePlayback.intentId === intentId ? null : intentId;
+        renderOfficeCanvas();
+        renderDetailPanel();
+      });
+    });
+
+  const scrubControl = elements.detailPanel.querySelector('[data-intent-action="scrub"]');
+  if (scrubControl) {
+    scrubControl.addEventListener("input", () => {
+      const nextProgress = Number.parseInt(scrubControl.value, 10);
+      state.routePlayback.progress = Number.isInteger(nextProgress)
+        ? Math.max(0, Math.min(100, nextProgress))
+        : 50;
+      renderOfficeCanvas();
+      renderDetailPanel();
+    });
+  }
+
+  const clearControl = elements.detailPanel.querySelector('[data-intent-action="clear-preview"]');
+  if (clearControl) {
+    clearControl.addEventListener("click", () => {
+      state.routePlayback.intentId = null;
+      renderOfficeCanvas();
+      renderDetailPanel();
+    });
+  }
 }
 
 function renderDetailForOpportunity(entry) {
@@ -1409,6 +1581,8 @@ function renderDetailForOpportunity(entry) {
       }
     </section>
   `;
+
+  bindMovementIntentControls();
 }
 
 function renderDetailForAgent(card) {
@@ -1511,6 +1685,7 @@ function renderDetailForAgent(card) {
       setSelection(node.dataset.type, node.dataset.id);
     });
   });
+  bindMovementIntentControls();
 }
 
 function renderDetailPanel() {
@@ -1699,10 +1874,29 @@ function renderAttention() {
     : baseMessage;
 }
 
+function syncRoutePlaybackState() {
+  if (!state.snapshot) {
+    state.routePlayback.intentId = null;
+    state.routePlayback.progress = 50;
+    return;
+  }
+  if (
+    state.routePlayback.intentId &&
+    !getMovementIntentById(state.routePlayback.intentId)
+  ) {
+    state.routePlayback.intentId = null;
+  }
+  state.routePlayback.progress = Math.max(
+    0,
+    Math.min(100, state.routePlayback.progress)
+  );
+}
+
 function render() {
   if (!state.snapshot) {
     return;
   }
+  syncRoutePlaybackState();
   ensureSelection();
   renderKpis();
   renderAttention();

@@ -886,6 +886,12 @@ h2 {
   fill: rgba(163, 52, 52, 0.88);
 }
 
+.handoff-travel-dot.is-preview {
+  fill: rgba(20, 35, 34, 0.9);
+  stroke: rgba(255, 252, 245, 0.95);
+  stroke-width: 1.2;
+}
+
 .handoff-chip-layer {
   position: absolute;
   inset: 0;
@@ -992,6 +998,28 @@ h2 {
   border-radius: 14px;
   border: 1px solid rgba(20, 35, 34, 0.12);
   background: rgba(255, 252, 245, 0.9);
+}
+
+.movement-preview-actions {
+  margin-top: 8px;
+}
+
+.movement-preview-button.is-active {
+  border-color: rgba(20, 35, 34, 0.36);
+  background: rgba(20, 35, 34, 0.1);
+}
+
+.movement-playback-control {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px dashed rgba(20, 35, 34, 0.2);
+  background: rgba(255, 252, 245, 0.88);
+  display: grid;
+  gap: 8px;
+}
+
+.movement-playback-control input[type="range"] {
+  width: 100%;
 }
 
 .status-history-item {
