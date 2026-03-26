@@ -32,7 +32,8 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] implement first writable UI action: approval decision submission over existing queue policy checks and audit trail
 - [ ] keep capital movement flows read-only until capital contracts are implemented in runtime with immutable ledger support
 - [x] add UI confirmation and recovery behavior for decision failures/timeouts
-- [ ] add explicit success/failure event chips for writable approvals in office events feed
+- [x] add explicit success/failure event chips for writable approvals in office events feed
+- [ ] define deterministic movement intent payloads (route + duration + trigger event) for future room-to-room walking, without enabling free roaming
 
 ## Out of scope
 

@@ -330,6 +330,48 @@ h2 {
   color: var(--muted);
 }
 
+.flow-chip-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.flow-outcome-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 35, 34, 0.2);
+  padding: 1px 8px;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.flow-outcome-success {
+  border-color: rgba(43, 120, 52, 0.36);
+  color: #1f5f2a;
+  background: rgba(234, 246, 236, 0.9);
+}
+
+.flow-outcome-failure {
+  border-color: rgba(163, 52, 52, 0.34);
+  color: #7e2626;
+  background: rgba(251, 239, 239, 0.95);
+}
+
+.flow-outcome-attention {
+  border-color: rgba(124, 99, 30, 0.34);
+  color: #6c5520;
+  background: rgba(252, 247, 232, 0.94);
+}
+
+.flow-outcome-neutral {
+  border-color: rgba(20, 35, 34, 0.2);
+  color: var(--muted);
+  background: rgba(255, 252, 245, 0.9);
+}
+
 .flow-chip-text {
   font-size: 0.8rem;
   line-height: 1.32;

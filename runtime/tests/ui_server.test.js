@@ -155,6 +155,13 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     const postDecisionSnapshot = JSON.parse(postDecisionSnapshotResponse.body);
     assert.equal(postDecisionSnapshot.kpis.approvals_waiting, 0);
     assert.equal(postDecisionSnapshot.approval_queue.items[0].status, "approve");
+    const resolvedEvent = postDecisionSnapshot.office.events.find(
+      (event) =>
+        event.type === "approval_resolved" && event.ticket_id === "apr-ui-server-001"
+    );
+    assert.ok(resolvedEvent);
+    assert.equal(resolvedEvent.decision, "approve");
+    assert.equal(resolvedEvent.severity, "info");
 
     const missingFieldResponse = await request(server, "/api/approval-decision", {
       method: "POST",

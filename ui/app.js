@@ -107,6 +107,36 @@ function formatOfficeEventType(value) {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+function formatApprovalOutcomeChip(event) {
+  if (!event || event.type !== "approval_resolved") {
+    return null;
+  }
+
+  const decision = normalizeToken(event.decision || "");
+  if (decision === "approve") {
+    return {
+      label: "Approval success",
+      tone: "success",
+    };
+  }
+  if (decision === "reject") {
+    return {
+      label: "Approval failed",
+      tone: "failure",
+    };
+  }
+  if (decision === "request_more_info") {
+    return {
+      label: "Needs more info",
+      tone: "attention",
+    };
+  }
+  return {
+    label: "Decision logged",
+    tone: "neutral",
+  };
+}
+
 function mapStatusToLaneStage(status) {
   if (["awaiting_seller_verification", "researching"].includes(status)) {
     return "verification";
@@ -579,11 +609,18 @@ function renderFlowEvents(activeTransitions) {
   const items = events
     .map((event) => {
       const isNew = activeTransitions.newFlowEventIds.has(event.event_id);
+      const approvalOutcome = formatApprovalOutcomeChip(event);
+      const outcomeChipHtml = approvalOutcome
+        ? `<span class="flow-outcome-chip flow-outcome-${escapeHtml(approvalOutcome.tone)}">${escapeHtml(approvalOutcome.label)}</span>`
+        : "";
       return `
         <article class="flow-chip ${formatLaneClass(event.lane_stage)} ${formatFlowSeverityClass(event.severity)} ${isNew ? "is-new" : ""}">
           <p class="flow-chip-meta">
             <span>${escapeHtml(formatOfficeEventType(event.type || event.action || "event"))}</span>
-            <span>${escapeHtml(formatTimestamp(event.timestamp))}</span>
+            <span class="flow-chip-meta-right">
+              ${outcomeChipHtml}
+              <span>${escapeHtml(formatTimestamp(event.timestamp))}</span>
+            </span>
           </p>
           <p class="flow-chip-text">${escapeHtml(event.summary || "Operational event recorded.")}</p>
           <p class="flow-chip-sub">${escapeHtml(event.opportunity_id || "company")}</p>

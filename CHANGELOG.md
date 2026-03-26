@@ -2,6 +2,8 @@
 
 ## 2026-03-26
 
+- Added explicit approval outcome chips in the office event feed (`Approval success`, `Approval failed`, `Needs more info`) driven from runtime `office.events` decision fields (`ui/app.js`, `ui/styles.css`, `runtime/tests/ui_server.test.js`).
+- Hardened approval-decision reliability with client-side timeout/retry UX and stricter API/CLI argument validation plus tests (`ui/app.js`, `ui/server.js`, `runtime/queue_decision_cli.js`, `runtime/run_pipeline.js`, related tests).
 - Added first writable UI action surface for approval decision submission only (`ui/server.js`, `ui/app.js`, `ui/styles.css`, `runtime/tests/ui_server.test.js`), routed through existing queue decision policy/audit logic.
 - Added macro project navigation map [STATUS.md](./STATUS.md) to separate phase-level orientation from sprint tracking.
 - Defined capital-control contract layer and lifecycle spec for deposit/reserve/approve-use/withdraw modeling (`specs/contracts.md`, `specs/capital_controls.md`, `specs/technical_spec.md`, `specs/automation_policy.md`).
