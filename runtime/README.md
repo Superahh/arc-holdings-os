@@ -383,6 +383,12 @@ Generate deterministic go/no-go recommendation report from latest summary:
 node runtime/room_transition_recommendation_cli.js --summary-path runtime/output/room_transition_validations/latest.summary.json --format markdown --output-path runtime/output/room_transition_validations/latest.recommendation.md
 ```
 
+Run one-command checkpoint (snapshot + window status + recommendation):
+
+```powershell
+node runtime/room_transition_checkpoint_cli.js --inputs-dir runtime/output/room_transition_validations --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
+```
+
 ## Scope note
 
 This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.

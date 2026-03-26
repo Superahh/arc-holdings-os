@@ -46,6 +46,7 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] enable recurring evidence snapshot capture and trend review workflow before any writable room-transition proposal
 - [x] add read-only window status reporting over latest evidence summary so 7-day coverage progress and next review timing are deterministic
 - [x] add deterministic recommendation report generation (`go/no-go`) from latest evidence summary to standardize promotion checkpoint communication
+- [x] add one-command read-only checkpoint runner combining snapshot, window status, and recommendation outputs
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint

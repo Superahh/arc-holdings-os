@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added one-command room-transition checkpoint CLI that generates evidence snapshot, window status, and deterministic promotion recommendation in a single read-only bundle (`runtime/room_transition_checkpoint_cli.js`, `runtime/tests/room_transition_checkpoint_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).
 - Added room-transition promotion recommendation CLI to produce deterministic go/no-go reports (JSON/Markdown) from latest evidence summary and window coverage state (`runtime/room_transition_recommendation_cli.js`, `runtime/tests/room_transition_recommendation_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).
 - Added UI server guard coverage asserting unsupported capital and room-transition write endpoints return `404`, preserving the current read-only boundary outside approval decision submission (`runtime/tests/ui_server.test.js`, `CURRENT_FOCUS.md`).
 - Added read-only room-transition window status CLI to report deterministic 7-day evidence coverage progress (`observed/remaining hours`, `next_review_at`, `recommendation_state`) from latest summaries (`runtime/room_transition_window_status_cli.js`, `runtime/tests/room_transition_window_status_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).

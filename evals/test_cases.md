@@ -295,3 +295,19 @@ Generate a deterministic operator-facing go/no-go recommendation from latest evi
 - incomplete 7-day window yields `promotion_decision=no_go` with explicit wait reason
 - full window + eligible readiness yields `promotion_decision=candidate_for_review`
 - report lists failed threshold checks when present
+
+### Room-transition checkpoint bundle
+
+#### Goal
+Produce a single deterministic checkpoint artifact combining evidence snapshot, window status, and promotion recommendation for operator review.
+
+#### Inputs
+- `runtime/room_transition_checkpoint_cli.js --window-hours 168`
+
+#### Expected contract(s)
+- checkpoint JSON artifact (read-only runtime artifact)
+
+#### Pass checks
+- checkpoint includes `snapshot`, `window_status`, and `recommendation` sections
+- checkpoint writes to configured output path
+- insufficient-data conditions resolve to `recommendation.promotion_decision=no_go`
