@@ -57,6 +57,7 @@ When writable UI is introduced:
 
 1. first writable UI surface must be approval decisioning only (`approve|reject|request_more_info`)
 2. capital movement writes remain disabled until capital contracts and audit rails are implemented end-to-end
+3. room-transition controls remain read-only through v1; only validator + audit-boundary prep is allowed
 
 ## Room-transition writable boundary (planned)
 

@@ -122,3 +122,18 @@ Capital movement and broader UI writes are delayed until capital-control impleme
 ### Revisit later
 Yes.
 Trigger: writable approval flow is stable and capital ledger contracts are implemented end-to-end.
+
+## 2026-03-26
+
+### Decision
+Keep room-transition controls read-only through v1 (no writable transition endpoint).
+
+### Why
+Room-transition behavior is currently a simulation clarity layer, and policy/audit boundaries are defined but not yet proven in production flows.
+
+### Tradeoff
+Operators can preview and validate transitions but cannot commit transition writes yet; this delays flexibility in exchange for lower architectural risk.
+
+### Revisit later
+Yes.
+Trigger: room-transition validator usage is stable and audit expectations are proven in real operator loops.
