@@ -91,7 +91,7 @@ Room-transition writable-promotion evidence baseline
 
 ### Task
 Run readiness summary for room-transition boundary evidence:
-- `node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0`
+- `node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations/records --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0`
 
 ### Variants compared
 - current runtime evidence set
@@ -111,6 +111,6 @@ Run readiness summary for room-transition boundary evidence:
 No-go for promotion at this checkpoint due to `insufficient_data`.
 
 ### Notes
-- Baseline summary (`2026-03-26T00:53:14Z`) reported: `records_considered=0`, `allowed_rate=0`.
-- Recommendation state: `insufficient_data`.
-- Continue recurring snapshot capture and re-evaluate on/after `2026-04-02` after a full 7-day window.
+- Latest summary (`2026-03-26T01:52:14.868Z`) reports: `records_considered=2`, `allowed_rate=0`, `critical_failure_count=2`, recommendation `insufficient_data`.
+- Primary denial pattern is `intent_fresh` failures; freshness diagnostics at `2026-03-26T02:00:31.009Z` showed `fresh_count=0/8` at `stale_minutes=15`.
+- Continue recurring monitor runs and re-evaluate on/after `2026-04-02` after a full 7-day window.

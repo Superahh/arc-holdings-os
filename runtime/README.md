@@ -31,6 +31,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
 - `room_transition_validation_capture_cli.js`: timestamped room-transition validator record capture into evidence `records/`
 - `room_transition_request_builder_cli.js`: snapshot-aligned room-transition request generator for evidence monitoring runs
+- `room_transition_intent_freshness_cli.js`: read-only movement-intent freshness diagnostics for `intent_fresh` gate monitoring
 - `room_transition_monitor_cli.js`: one-command read-only room-transition evidence monitor runner (capture + checkpoint + trend + brief)
 - `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
 - `room_transition_evidence_snapshot_cli.js`: helper to persist timestamped evidence summaries plus `latest.summary.json` for recurring review
@@ -84,6 +85,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/room_transition_validator_cli.test.js`: room-transition request boundary validator tests
 - `tests/room_transition_validation_capture_cli.test.js`: room-transition validator capture CLI tests
 - `tests/room_transition_request_builder_cli.test.js`: room-transition request builder CLI tests
+- `tests/room_transition_intent_freshness_cli.test.js`: room-transition movement-intent freshness diagnostics tests
 - `tests/room_transition_monitor_cli.test.js`: one-command room-transition evidence monitor CLI tests
 - `tests/room_transition_evidence_cli.test.js`: room-transition validator evidence summary CLI tests
 - `tests/room_transition_evidence_snapshot_cli.test.js`: recurring evidence snapshot helper tests
@@ -136,6 +138,7 @@ node runtime/tests/ui_browser_smoke.test.js
 node runtime/tests/room_transition_validator_cli.test.js
 node runtime/tests/room_transition_validation_capture_cli.test.js
 node runtime/tests/room_transition_request_builder_cli.test.js
+node runtime/tests/room_transition_intent_freshness_cli.test.js
 node runtime/tests/room_transition_monitor_cli.test.js
 node runtime/tests/room_transition_evidence_cli.test.js
 node runtime/tests/room_transition_evidence_snapshot_cli.test.js
@@ -373,6 +376,12 @@ Require a fresh intent window (fails fast when no recent transition trigger exis
 
 ```powershell
 node runtime/room_transition_request_builder_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --output-path runtime/output/room_transition_validations/latest.request.json --requested-by owner_operator --fresh-within-minutes 15
+```
+
+Inspect current movement-intent freshness against the validator window:
+
+```powershell
+node runtime/room_transition_intent_freshness_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15 --output-path runtime/output/room_transition_validations/latest.intent-freshness.json
 ```
 
 Run one-command room-transition evidence monitor cycle (capture + checkpoint + trend + brief):
