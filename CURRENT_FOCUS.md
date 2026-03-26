@@ -23,6 +23,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - open gating work before any additional write-surface expansion:
   - complete one full 7-day room-transition evidence window and issue final go/no-go recommendation
   - keep capital movement flows read-only until immutable-ledger runtime implementation exists
+  - current room-transition evidence denials are dominated by `intent_fresh` failures when no recent movement-intent triggers exist within the 15-minute validation window
 
 ## Next actions
 
@@ -66,10 +67,11 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 
 ## Evidence checkpoint
 
-- latest run: `2026-03-26T01:42:40.019Z` (`window-hours=168`)
-- summary: `records_considered=1`, `allowed_rate=0`, `critical_failure_count=2`, `recommendation.state=insufficient_data`, `promotion_decision=no_go`
-- trend: `points_count=5`, latest delta now reflects first timestamped validation record while observed coverage remains `< 168h`
-- next decision checkpoint: `2026-04-02T01:42:40.005Z` (first timestamped validation record now present)
+- latest run: `2026-03-26T01:52:14.868Z` (`window-hours=168`)
+- summary: `records_considered=2`, `allowed_rate=0`, `critical_failure_count=2`, `recommendation.state=insufficient_data`, `promotion_decision=no_go`
+- trend: `points_count=6`, latest delta vs previous is `records=+1`, `observed_hours=+0.1597`, `allowed_rate=0`
+- latest denial profile: `intent_fresh` failed while identity/policy checks passed; trigger timestamp was outside the default `stale_minutes=15` window
+- next decision checkpoint: `2026-04-02T01:42:40.005Z`
 
 ## Out of scope
 
