@@ -312,6 +312,22 @@ Produce a single deterministic checkpoint artifact combining evidence snapshot, 
 - checkpoint writes to configured output path
 - insufficient-data conditions resolve to `recommendation.promotion_decision=no_go`
 
+### Room-transition evidence trend rollup
+
+#### Goal
+Track checkpoint momentum across timestamped evidence summaries to support a deterministic 7-day promotion decision.
+
+#### Inputs
+- `runtime/room_transition_trend_cli.js --max-points 20`
+
+#### Expected contract(s)
+- trend JSON artifact (read-only runtime artifact)
+
+#### Pass checks
+- includes `latest`, `previous`, and `deltas_from_previous` when at least two points exist
+- delta fields include `records_considered`, `allowed_rate`, and `observed_hours`
+- ignores non-timestamped/non-evidence files in the summaries directory
+
 ### Capital read-only boundary guard
 
 #### Goal

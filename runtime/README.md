@@ -389,6 +389,12 @@ Run one-command checkpoint (snapshot + window status + recommendation):
 node runtime/room_transition_checkpoint_cli.js --inputs-dir runtime/output/room_transition_validations --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
 ```
 
+Summarize trend across timestamped evidence summaries:
+
+```powershell
+node runtime/room_transition_trend_cli.js --summaries-dir runtime/output/room_transition_validations --max-points 20 --output-path runtime/output/room_transition_validations/latest.trend.json
+```
+
 ## Scope note
 
 This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.
