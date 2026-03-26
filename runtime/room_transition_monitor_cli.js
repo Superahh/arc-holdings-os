@@ -66,6 +66,8 @@ function parseArgs(argv) {
     minAllowedRate: 0.95,
     maxParseErrors: 0,
     maxCriticalFailures: 0,
+    failOnIncompleteWindow: false,
+    failOnNoGo: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -132,6 +134,10 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--all") {
       args.all = true;
+    } else if (token === "--fail-on-incomplete-window") {
+      args.failOnIncompleteWindow = true;
+    } else if (token === "--fail-on-no-go") {
+      args.failOnNoGo = true;
     } else {
       throw new Error(`Unknown argument: ${token}`);
     }
@@ -211,11 +217,32 @@ function runMonitorAction(options) {
   };
 }
 
+function getMonitorExitCode(result, options) {
+  if (
+    options.failOnIncompleteWindow &&
+    result &&
+    result.gate &&
+    result.gate.full_window_observed !== true
+  ) {
+    return 2;
+  }
+  if (
+    options.failOnNoGo &&
+    result &&
+    result.gate &&
+    result.gate.promotion_decision !== "candidate_for_review"
+  ) {
+    return 2;
+  }
+  return 0;
+}
+
 if (require.main === module) {
   try {
     const args = parseArgs(process.argv.slice(2));
     const result = runMonitorAction(args);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.exitCode = getMonitorExitCode(result, args);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
@@ -225,4 +252,5 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   runMonitorAction,
+  getMonitorExitCode,
 };

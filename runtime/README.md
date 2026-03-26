@@ -366,6 +366,12 @@ Run one-command room-transition evidence monitor cycle (capture + checkpoint + t
 node runtime/room_transition_monitor_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --records-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --trend-path runtime/output/room_transition_validations/latest.trend.json --brief-path runtime/output/room_transition_validations/latest.operator-brief.md
 ```
 
+Use gate flags for automation failure signaling:
+
+```powershell
+node runtime/room_transition_monitor_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --fail-on-incomplete-window --fail-on-no-go
+```
+
 Bootstrap capital state (manual-only account):
 
 ```powershell

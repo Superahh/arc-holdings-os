@@ -6,7 +6,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { parseArgs, runMonitorAction } = require("../room_transition_monitor_cli");
+const {
+  parseArgs,
+  runMonitorAction,
+  getMonitorExitCode,
+} = require("../room_transition_monitor_cli");
 
 test("parseArgs validates required and numeric arguments", () => {
   assert.throws(() => parseArgs([]), /--request-path is required/);
@@ -19,6 +23,8 @@ test("parseArgs validates required and numeric arguments", () => {
     () => parseArgs(["--request-path", "req.json", "--min-allowed-rate", "2"]),
     /--min-allowed-rate/
   );
+  const parsed = parseArgs(["--request-path", "req.json", "--fail-on-no-go"]);
+  assert.equal(parsed.failOnNoGo, true);
 });
 
 test("runMonitorAction runs capture + checkpoint + trend + brief", () => {
@@ -94,4 +100,42 @@ test("runMonitorAction runs capture + checkpoint + trend + brief", () => {
 
   const checkpoint = JSON.parse(fs.readFileSync(checkpointPath, "utf8"));
   assert.equal(checkpoint.snapshot.totals.records_considered, 1);
+});
+
+test("getMonitorExitCode enforces optional gate failures", () => {
+  const failingResult = {
+    gate: {
+      promotion_decision: "no_go",
+      full_window_observed: false,
+    },
+  };
+  assert.equal(
+    getMonitorExitCode(failingResult, {
+      failOnIncompleteWindow: true,
+      failOnNoGo: false,
+    }),
+    2
+  );
+  assert.equal(
+    getMonitorExitCode(failingResult, {
+      failOnIncompleteWindow: false,
+      failOnNoGo: true,
+    }),
+    2
+  );
+  assert.equal(
+    getMonitorExitCode(
+      {
+        gate: {
+          promotion_decision: "candidate_for_review",
+          full_window_observed: true,
+        },
+      },
+      {
+        failOnIncompleteWindow: true,
+        failOnNoGo: true,
+      }
+    ),
+    0
+  );
 });
