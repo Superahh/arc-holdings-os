@@ -395,6 +395,12 @@ Summarize trend across timestamped evidence summaries:
 node runtime/room_transition_trend_cli.js --summaries-dir runtime/output/room_transition_validations --max-points 20 --output-path runtime/output/room_transition_validations/latest.trend.json
 ```
 
+Generate a consolidated operator brief from checkpoint + trend:
+
+```powershell
+node runtime/room_transition_operator_brief_cli.js --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --trend-path runtime/output/room_transition_validations/latest.trend.json --output-path runtime/output/room_transition_validations/latest.operator-brief.md
+```
+
 ## Scope note
 
 This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.

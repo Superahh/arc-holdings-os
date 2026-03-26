@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added room-transition operator brief CLI to produce a consolidated markdown checkpoint summary from latest checkpoint + trend artifacts (`runtime/room_transition_operator_brief_cli.js`, `runtime/tests/room_transition_operator_brief_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).
 - Added room-transition trend rollup CLI to summarize checkpoint momentum across timestamped evidence summaries with latest/previous deltas (`records_considered`, `allowed_rate`, `observed_hours`) for 7-day gate tracking (`runtime/room_transition_trend_cli.js`, `runtime/tests/room_transition_trend_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).
 - Added capital read-only boundary runtime guard test to ensure pipeline/decision flows do not create capital write-state artifacts prior to ledger implementation (`runtime/tests/capital_read_only_guard.test.js`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).
 - Added one-command room-transition checkpoint CLI that generates evidence snapshot, window status, and deterministic promotion recommendation in a single read-only bundle (`runtime/room_transition_checkpoint_cli.js`, `runtime/tests/room_transition_checkpoint_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).

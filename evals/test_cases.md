@@ -328,6 +328,23 @@ Track checkpoint momentum across timestamped evidence summaries to support a det
 - delta fields include `records_considered`, `allowed_rate`, and `observed_hours`
 - ignores non-timestamped/non-evidence files in the summaries directory
 
+### Room-transition operator brief
+
+#### Goal
+Produce a single markdown briefing artifact that combines checkpoint recommendation and trend deltas for operator review.
+
+#### Inputs
+- `runtime/room_transition_operator_brief_cli.js`
+- latest checkpoint and trend artifacts
+
+#### Expected contract(s)
+- operator brief markdown artifact (read-only runtime artifact)
+
+#### Pass checks
+- includes promotion decision, recommendation reason, and remaining window hours
+- includes delta metrics vs previous trend point
+- lists failed threshold checks when present
+
 ### Capital read-only boundary guard
 
 #### Goal

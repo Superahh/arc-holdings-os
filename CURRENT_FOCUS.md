@@ -49,6 +49,7 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] add deterministic recommendation report generation (`go/no-go`) from latest evidence summary to standardize promotion checkpoint communication
 - [x] add one-command read-only checkpoint runner combining snapshot, window status, and recommendation outputs
 - [x] add trend rollup reporting across timestamped evidence summaries to track week-over-week checkpoint deltas
+- [x] add consolidated operator brief generation from checkpoint + trend artifacts for fast checkpoint review
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint
