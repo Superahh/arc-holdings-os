@@ -59,6 +59,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] add trend rollup reporting across timestamped evidence summaries to track week-over-week checkpoint deltas
 - [x] add consolidated operator brief generation from checkpoint + trend artifacts for fast checkpoint review
 - [x] add timestamped room-transition validator record capture flow and separate evidence `records/` input path for checkpoint summarization
+- [x] add one-command room-transition monitoring runner to produce capture + checkpoint + trend + operator brief artifacts in one deterministic pass
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint

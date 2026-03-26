@@ -30,6 +30,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
   - now consumes optional capital state path and surfaces ledger-backed account snapshot in `capital_controls`
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
 - `room_transition_validation_capture_cli.js`: timestamped room-transition validator record capture into evidence `records/`
+- `room_transition_monitor_cli.js`: one-command read-only room-transition evidence monitor runner (capture + checkpoint + trend + brief)
 - `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
 - `room_transition_evidence_snapshot_cli.js`: helper to persist timestamped evidence summaries plus `latest.summary.json` for recurring review
 - `capital_state.js`: immutable ledger-backed capital runtime state (manual-only account model + hash-chain integrity checks)
@@ -81,6 +82,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/ui_browser_smoke.test.js`: headless browser smoke check for live shell rendering (skips when browser binary is unavailable)
 - `tests/room_transition_validator_cli.test.js`: room-transition request boundary validator tests
 - `tests/room_transition_validation_capture_cli.test.js`: room-transition validator capture CLI tests
+- `tests/room_transition_monitor_cli.test.js`: one-command room-transition evidence monitor CLI tests
 - `tests/room_transition_evidence_cli.test.js`: room-transition validator evidence summary CLI tests
 - `tests/room_transition_evidence_snapshot_cli.test.js`: recurring evidence snapshot helper tests
 - `tests/capital_state.test.js`: capital ledger runtime integrity and balance-transition tests
@@ -131,6 +133,7 @@ node runtime/tests/ui_server.test.js
 node runtime/tests/ui_browser_smoke.test.js
 node runtime/tests/room_transition_validator_cli.test.js
 node runtime/tests/room_transition_validation_capture_cli.test.js
+node runtime/tests/room_transition_monitor_cli.test.js
 node runtime/tests/room_transition_evidence_cli.test.js
 node runtime/tests/room_transition_evidence_snapshot_cli.test.js
 node runtime/tests/capital_state.test.js
@@ -355,6 +358,12 @@ Capture a timestamped room-transition validation record for evidence tracking:
 
 ```powershell
 node runtime/room_transition_validation_capture_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15 --output-dir runtime/output/room_transition_validations/records
+```
+
+Run one-command room-transition evidence monitor cycle (capture + checkpoint + trend + brief):
+
+```powershell
+node runtime/room_transition_monitor_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --records-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --trend-path runtime/output/room_transition_validations/latest.trend.json --brief-path runtime/output/room_transition_validations/latest.operator-brief.md
 ```
 
 Bootstrap capital state (manual-only account):
