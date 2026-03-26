@@ -403,6 +403,12 @@ Run aligned room-transition monitoring immediately after the existing ops loop s
 node runtime/room_transition_aligned_monitor_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15
 ```
 
+Run aligned room-transition monitoring immediately after an approval decision so capture anchors to the fresh `approval_resolved` event emitted from queue truth:
+
+```powershell
+node runtime/room_transition_decision_aligned_monitor_cli.js --queue-path runtime/state/approval_queue.json --ticket-id apr-123 --decision approve --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15
+```
+
 Use gate flags for automation failure signaling:
 
 ```powershell
