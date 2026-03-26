@@ -16,6 +16,7 @@ const {
   assertValidOfficeHandoffSignal,
   assertValidOfficeRouteHint,
   assertValidOfficeEvent,
+  assertValidOfficeMovementIntent,
 } = require("./contracts");
 
 const TERMINAL_OPPORTUNITY_STATES = new Set(["closed", "rejected"]);
@@ -1010,6 +1011,120 @@ function buildOfficeEvents(opportunities, queue, handoffSignals, nowIso, limit =
     .slice(0, limit);
 }
 
+function mapMovementKind(eventType) {
+  if (eventType === "approval_waiting" || eventType === "approval_resolved") {
+    return "approval";
+  }
+  if (eventType === "lane_changed") {
+    return "workflow";
+  }
+  return "handoff";
+}
+
+function mapMovementState(eventType) {
+  if (eventType === "handoff_started" || eventType === "approval_waiting") {
+    return "in_flight";
+  }
+  return "arrived";
+}
+
+function estimateMovementDurationMs(waypoints, movementState, blockingCount) {
+  const hops = Math.max(1, Array.isArray(waypoints) ? waypoints.length - 1 : 1);
+  const baseDuration = 650 + hops * 380;
+  const blockingPenalty = Math.max(0, Number(blockingCount) || 0) * 120;
+  const statePenalty = movementState === "in_flight" ? 320 : 0;
+  return baseDuration + blockingPenalty + statePenalty;
+}
+
+function buildRouteHintLookup(routeHints) {
+  const lookup = new Map();
+  for (const hint of routeHints || []) {
+    if (!hint || !hint.opportunity_id || !hint.from_zone_id || !hint.to_zone_id) {
+      continue;
+    }
+    lookup.set(
+      `${hint.opportunity_id}|${hint.from_zone_id}|${hint.to_zone_id}`,
+      hint
+    );
+  }
+  return lookup;
+}
+
+function buildOfficeMovementIntents(officeEvents, officeZoneAnchors, officeRouteHints, limit = 8) {
+  const zoneLookup = buildZoneAnchorLookup(officeZoneAnchors);
+  const routeHintLookup = buildRouteHintLookup(officeRouteHints);
+  const intents = [];
+
+  for (const event of officeEvents || []) {
+    if (!event || !event.event_id || !event.opportunity_id) {
+      continue;
+    }
+    if (!event.from_zone_id || !event.to_zone_id) {
+      continue;
+    }
+    if (!event.from_agent || !event.to_agent) {
+      continue;
+    }
+
+    const routeKey = `${event.opportunity_id}|${event.from_zone_id}|${event.to_zone_id}`;
+    const routeHint =
+      routeHintLookup.get(routeKey) ||
+      (function buildFallbackRouteHint() {
+        const fallbackPath =
+          findZonePath(zoneLookup, event.from_zone_id, event.to_zone_id) ||
+          [event.from_zone_id, event.to_zone_id];
+        return {
+          route_id: `route-${event.opportunity_id}-${event.from_zone_id}-${event.to_zone_id}`,
+          path_zone_ids: fallbackPath,
+          waypoints: buildRouteWaypoints(zoneLookup, fallbackPath),
+        };
+      })();
+
+    const movementState = mapMovementState(event.type);
+    const movementIntent = {
+      intent_id: `intent-${event.event_id}`,
+      opportunity_id: event.opportunity_id,
+      movement_kind: mapMovementKind(event.type),
+      transition_state: movementState,
+      agent: event.agent || event.to_agent,
+      from_agent: event.from_agent,
+      to_agent: event.to_agent,
+      from_zone_id: event.from_zone_id,
+      to_zone_id: event.to_zone_id,
+      route_id: routeHint.route_id,
+      path_zone_ids: routeHint.path_zone_ids,
+      waypoints: routeHint.waypoints,
+      trigger_event_id: event.event_id,
+      trigger_type: event.type,
+      trigger_timestamp: event.timestamp,
+      source: event.source,
+      duration_ms: estimateMovementDurationMs(
+        routeHint.waypoints,
+        movementState,
+        event.blocking_count
+      ),
+      blocking_count: event.blocking_count || 0,
+    };
+    assertValidOfficeMovementIntent(movementIntent);
+    intents.push(movementIntent);
+  }
+
+  const deduped = new Map();
+  for (const intent of intents) {
+    if (!intent || !intent.intent_id) {
+      continue;
+    }
+    deduped.set(intent.intent_id, intent);
+  }
+
+  return [...deduped.values()]
+    .sort(
+      (a, b) =>
+        Date.parse(b.trigger_timestamp || 0) - Date.parse(a.trigger_timestamp || 0)
+    )
+    .slice(0, limit);
+}
+
 function buildPresenceBubble(card, attentionTask) {
   if (card.blocker) {
     return {
@@ -1174,6 +1289,11 @@ function buildUiSnapshot(options = {}) {
     officeHandoffSignals,
     nowIso
   );
+  const officeMovementIntents = buildOfficeMovementIntents(
+    officeEvents,
+    officeZoneAnchors,
+    officeRouteHints
+  );
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
     opportunities,
     statusSnapshot.awaiting_tasks.tasks,
@@ -1223,6 +1343,7 @@ function buildUiSnapshot(options = {}) {
       handoff_signals: officeHandoffSignals,
       zone_anchors: officeZoneAnchors,
       route_hints: officeRouteHints,
+      movement_intents: officeMovementIntents,
       events: officeEvents,
       flow_events: officeFlowEvents,
       company_board_snapshot: companyBoardSnapshot,
@@ -1245,6 +1366,7 @@ module.exports = {
   buildOfficeZoneAnchors,
   buildOfficeRouteHints,
   buildOfficeEvents,
+  buildOfficeMovementIntents,
   buildOfficeFlowEvents,
   buildCompanyBoardSnapshot,
   buildKpis,

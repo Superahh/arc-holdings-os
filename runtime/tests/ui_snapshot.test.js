@@ -16,6 +16,7 @@ const {
   validateOfficeHandoffSignal,
   validateOfficeRouteHint,
   validateOfficeEvent,
+  validateOfficeMovementIntent,
 } = require("../contracts");
 
 function seedFixtureEnvironment() {
@@ -77,6 +78,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.presence.length, 4);
   assert.equal(snapshot.office.zone_anchors.length >= 4, true);
   assert.equal(snapshot.office.route_hints.length, 1);
+  assert.equal(snapshot.office.movement_intents.length >= 1, true);
   assert.equal(snapshot.office.handoff_signals.length, 1);
   assert.equal(snapshot.office.events.length >= 3, true);
   assert.equal(snapshot.office.flow_events.length, 1);
@@ -107,6 +109,8 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.route_hints[0].to_zone_id, "verification-bay");
   assert.equal(snapshot.office.route_hints[0].path_zone_ids.length >= 2, true);
   assert.equal(snapshot.office.route_hints[0].waypoints.length >= 2, true);
+  assert.equal(snapshot.office.movement_intents[0].trigger_type, "approval_waiting");
+  assert.equal(snapshot.office.movement_intents[0].transition_state, "in_flight");
   assert.equal(snapshot.office.events[0].type, "approval_waiting");
   assert.equal(snapshot.office.events[1].type, "handoff_completed");
   assert.equal(snapshot.office.flow_events[0].action, "status_update");
@@ -138,6 +142,13 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
       validateOfficeEvent(event).length,
       0,
       "Expected office.events to conform to OfficeEvent contract."
+    );
+  }
+  for (const intent of snapshot.office.movement_intents) {
+    assert.equal(
+      validateOfficeMovementIntent(intent).length,
+      0,
+      "Expected movement_intents to conform to OfficeMovementIntent contract."
     );
   }
 });

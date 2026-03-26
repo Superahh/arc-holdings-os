@@ -28,6 +28,17 @@ const OFFICE_EVENT_SOURCES = new Set(["handoff_signal", "workflow_state", "appro
 const OFFICE_EVENT_SEVERITIES = new Set(["info", "attention", "alert"]);
 const APPROVAL_DECISIONS = new Set(["pending", "approve", "reject", "request_more_info"]);
 const OFFICE_ROUTE_SOURCES = new Set(["handoff_signal"]);
+const OFFICE_MOVEMENT_KINDS = new Set(["handoff", "approval", "workflow"]);
+const OFFICE_MOVEMENT_STATES = new Set(["in_flight", "arrived"]);
+const OFFICE_MOVEMENT_SOURCES = new Set(["handoff_signal", "workflow_state", "approval_queue"]);
+const OFFICE_MOVEMENT_TRIGGER_TYPES = new Set([
+  "handoff_started",
+  "handoff_completed",
+  "focus_changed",
+  "lane_changed",
+  "approval_waiting",
+  "approval_resolved",
+]);
 
 function isIsoDateTime(value) {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -414,6 +425,84 @@ function validateOfficeEvent(event) {
   return errors;
 }
 
+function validateOfficeMovementIntent(intent) {
+  const errors = [];
+  if (!intent || typeof intent !== "object") {
+    return ["OfficeMovementIntent must be an object."];
+  }
+  if (typeof intent.intent_id !== "string" || !intent.intent_id) {
+    errors.push("intent_id must be a non-empty string.");
+  }
+  if (typeof intent.opportunity_id !== "string" || !intent.opportunity_id) {
+    errors.push("opportunity_id must be a non-empty string.");
+  }
+  if (!OFFICE_MOVEMENT_KINDS.has(intent.movement_kind)) {
+    errors.push("movement_kind contains invalid enum value.");
+  }
+  if (!OFFICE_MOVEMENT_STATES.has(intent.transition_state)) {
+    errors.push("transition_state contains invalid enum value.");
+  }
+  if (typeof intent.agent !== "string" || !intent.agent) {
+    errors.push("agent must be a non-empty string.");
+  }
+  if (typeof intent.from_agent !== "string" || !intent.from_agent) {
+    errors.push("from_agent must be a non-empty string.");
+  }
+  if (typeof intent.to_agent !== "string" || !intent.to_agent) {
+    errors.push("to_agent must be a non-empty string.");
+  }
+  if (typeof intent.from_zone_id !== "string" || !intent.from_zone_id) {
+    errors.push("from_zone_id must be a non-empty string.");
+  }
+  if (typeof intent.to_zone_id !== "string" || !intent.to_zone_id) {
+    errors.push("to_zone_id must be a non-empty string.");
+  }
+  if (typeof intent.route_id !== "string" || !intent.route_id) {
+    errors.push("route_id must be a non-empty string.");
+  }
+  if (
+    !Array.isArray(intent.path_zone_ids) ||
+    intent.path_zone_ids.some((value) => typeof value !== "string")
+  ) {
+    errors.push("path_zone_ids must be an array of strings.");
+  } else {
+    const minimumPathLength = intent.from_zone_id === intent.to_zone_id ? 1 : 2;
+    if (intent.path_zone_ids.length < minimumPathLength) {
+      errors.push(`path_zone_ids must contain at least ${minimumPathLength} zone(s).`);
+    }
+  }
+  if (!Array.isArray(intent.waypoints) || !intent.waypoints.length) {
+    errors.push("waypoints must be a non-empty array.");
+  } else {
+    const minimumWaypointLength = intent.from_zone_id === intent.to_zone_id ? 1 : 2;
+    if (intent.waypoints.length < minimumWaypointLength) {
+      errors.push(`waypoints must contain at least ${minimumWaypointLength} point(s).`);
+    }
+    intent.waypoints.forEach((point, index) => {
+      errors.push(...validateNormalizedPoint(point, `waypoints[${index}]`));
+    });
+  }
+  if (typeof intent.trigger_event_id !== "string" || !intent.trigger_event_id) {
+    errors.push("trigger_event_id must be a non-empty string.");
+  }
+  if (!OFFICE_MOVEMENT_TRIGGER_TYPES.has(intent.trigger_type)) {
+    errors.push("trigger_type contains invalid enum value.");
+  }
+  if (!isIsoDateTime(intent.trigger_timestamp)) {
+    errors.push("trigger_timestamp must be ISO-8601 datetime.");
+  }
+  if (!OFFICE_MOVEMENT_SOURCES.has(intent.source)) {
+    errors.push("source contains invalid enum value.");
+  }
+  if (!Number.isInteger(intent.duration_ms) || intent.duration_ms < 300) {
+    errors.push("duration_ms must be an integer >= 300.");
+  }
+  if (!Number.isInteger(intent.blocking_count) || intent.blocking_count < 0) {
+    errors.push("blocking_count must be a non-negative integer.");
+  }
+  return errors;
+}
+
 function assertValidOpportunityRecord(record) {
   const errors = validateOpportunityRecord(record);
   if (errors.length > 0) {
@@ -477,6 +566,13 @@ function assertValidOfficeEvent(event) {
   }
 }
 
+function assertValidOfficeMovementIntent(intent) {
+  const errors = validateOfficeMovementIntent(intent);
+  if (errors.length > 0) {
+    throw new Error(`Invalid OfficeMovementIntent: ${errors.join(" | ")}`);
+  }
+}
+
 module.exports = {
   validateOpportunityRecord,
   validateApprovalTicket,
@@ -487,6 +583,7 @@ module.exports = {
   validateOfficeHandoffSignal,
   validateOfficeRouteHint,
   validateOfficeEvent,
+  validateOfficeMovementIntent,
   assertValidOpportunityRecord,
   assertValidApprovalTicket,
   assertValidHandoffPacket,
@@ -496,4 +593,5 @@ module.exports = {
   assertValidOfficeHandoffSignal,
   assertValidOfficeRouteHint,
   assertValidOfficeEvent,
+  assertValidOfficeMovementIntent,
 };

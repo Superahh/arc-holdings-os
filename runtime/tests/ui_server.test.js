@@ -120,6 +120,7 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.office.presence[0].lane_stage, "verification");
     assert.equal(snapshot.office.zone_anchors.length >= 4, true);
     assert.equal(snapshot.office.route_hints.length, 1);
+    assert.equal(snapshot.office.movement_intents.length >= 1, true);
     assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
     assert.equal(snapshot.office.handoff_signals[0].to_zone_id, "verification-bay");
     assert.equal(snapshot.office.route_hints[0].to_zone_id, "verification-bay");
@@ -155,6 +156,7 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     const postDecisionSnapshot = JSON.parse(postDecisionSnapshotResponse.body);
     assert.equal(postDecisionSnapshot.kpis.approvals_waiting, 0);
     assert.equal(postDecisionSnapshot.approval_queue.items[0].status, "approve");
+    assert.equal(postDecisionSnapshot.office.movement_intents.length >= 1, true);
     const resolvedEvent = postDecisionSnapshot.office.events.find(
       (event) =>
         event.type === "approval_resolved" && event.ticket_id === "apr-ui-server-001"

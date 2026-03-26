@@ -222,6 +222,12 @@ function buildSignalKey(signal) {
     .join("|");
 }
 
+function buildMovementIntentKey(opportunityId, fromZoneId, toZoneId) {
+  return [opportunityId || "", fromZoneId || "", toZoneId || ""]
+    .map((item) => normalizeToken(item))
+    .join("|");
+}
+
 function computeTransitionState(previousSnapshot, nextSnapshot) {
   const transitions = createEmptyTransitionState();
   if (!previousSnapshot || !nextSnapshot) {
@@ -368,14 +374,85 @@ function getActiveTransitionState() {
   return state.transitions;
 }
 
+function resolveSignalZoneIds(signal) {
+  const fromZoneId =
+    signal.from_zone_id ||
+    (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.from_agent)
+      ?.zone_id ||
+    null;
+  const toZoneId =
+    signal.to_zone_id ||
+    (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.to_agent)
+      ?.zone_id ||
+    null;
+  return { fromZoneId, toZoneId };
+}
+
+function getMovementIntentLookup() {
+  const lookup = new Map();
+  for (const intent of state.snapshot.office.movement_intents || []) {
+    if (!intent || !intent.opportunity_id || !intent.from_zone_id || !intent.to_zone_id) {
+      continue;
+    }
+    lookup.set(
+      buildMovementIntentKey(intent.opportunity_id, intent.from_zone_id, intent.to_zone_id),
+      intent
+    );
+  }
+  return lookup;
+}
+
+function withMovementIntent(signal, isTransitionDefault, movementIntentLookup) {
+  const { fromZoneId, toZoneId } = resolveSignalZoneIds(signal);
+  const intent = movementIntentLookup.get(
+    buildMovementIntentKey(signal.opportunity_id, fromZoneId, toZoneId)
+  );
+  return {
+    ...signal,
+    from_zone_id: fromZoneId,
+    to_zone_id: toZoneId,
+    is_transition: intent
+      ? intent.transition_state === "in_flight"
+      : Boolean(isTransitionDefault),
+    waypoints:
+      intent && Array.isArray(intent.waypoints) ? intent.waypoints : signal.waypoints || null,
+    duration_ms: intent ? intent.duration_ms : null,
+    transition_state: intent
+      ? intent.transition_state
+      : isTransitionDefault
+        ? "in_flight"
+        : "arrived",
+    trigger_type: intent ? intent.trigger_type : null,
+  };
+}
+
 function getRenderableHandoffs(activeTransitions) {
+  const movementIntentLookup = getMovementIntentLookup();
+
   if (activeTransitions.handoffs.length) {
-    return activeTransitions.handoffs;
+    return activeTransitions.handoffs.map((signal) =>
+      withMovementIntent(signal, true, movementIntentLookup)
+    );
+  }
+
+  if ((state.snapshot.office.movement_intents || []).length) {
+    return (state.snapshot.office.movement_intents || []).slice(0, 3).map((intent) => ({
+      opportunity_id: intent.opportunity_id,
+      from_agent: intent.from_agent,
+      to_agent: intent.to_agent,
+      from_zone_id: intent.from_zone_id,
+      to_zone_id: intent.to_zone_id,
+      blocking_count: intent.blocking_count || 0,
+      is_transition: intent.transition_state === "in_flight",
+      waypoints: intent.waypoints,
+      duration_ms: intent.duration_ms,
+      transition_state: intent.transition_state,
+      trigger_type: intent.trigger_type,
+    }));
   }
 
   return (state.snapshot.office.handoff_signals || []).slice(0, 3).map((signal) => ({
-    ...signal,
-    is_transition: false,
+    ...withMovementIntent(signal, false, movementIntentLookup),
   }));
 }
 
@@ -908,8 +985,16 @@ function renderHandoffOverlay(renderableHandoffs) {
     const defaultEnd = toAnchor || toFallback;
     const routeKey = `${signal.opportunity_id}|${fromZoneId || ""}|${toZoneId || ""}`;
     const routeHint = routeHintLookup.get(routeKey) || null;
+    const intentPoints =
+      Array.isArray(signal.waypoints) && signal.waypoints.length >= 2
+        ? signal.waypoints
+            .map((point) => resolveLayoutPoint(layoutRect, point))
+            .filter(Boolean)
+        : [];
     const routePoints =
-      routeHint && Array.isArray(routeHint.waypoints) && routeHint.waypoints.length >= 2
+      intentPoints.length >= 2
+        ? intentPoints
+        : routeHint && Array.isArray(routeHint.waypoints) && routeHint.waypoints.length >= 2
         ? routeHint.waypoints
             .map((point) => resolveLayoutPoint(layoutRect, point))
             .filter(Boolean)
@@ -953,9 +1038,14 @@ function renderHandoffOverlay(renderableHandoffs) {
     chipNode.className = `handoff-chip ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim();
     chipNode.style.left = `${midPoint.x}px`;
     chipNode.style.top = `${midPoint.y - 12}px`;
+    const motionLabel = signal.is_transition ? "in transit" : "arrived";
+    const triggerLabel = signal.trigger_type
+      ? formatOfficeEventType(signal.trigger_type)
+      : "handoff signal";
     chipNode.innerHTML = `
       <strong>${escapeHtml(signal.opportunity_id)}</strong>
       <span>${escapeHtml(shortAgentLabel(signal.from_agent))} -> ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>
+      <span>${escapeHtml(`${triggerLabel} | ${motionLabel}`)}</span>
     `;
     chipLayer.append(chipNode);
   }

@@ -7,6 +7,7 @@ const {
   validateOfficeZoneAnchor,
   validateOfficeRouteHint,
   validateOfficeEvent,
+  validateOfficeMovementIntent,
 } = require("../contracts");
 
 test("validateOfficeZoneAnchor accepts normalized anchor payload", () => {
@@ -66,3 +67,31 @@ test("validateOfficeEvent enforces enum and timestamp constraints", () => {
   assert.match(errors.join(" | "), /severity/);
 });
 
+test("validateOfficeMovementIntent enforces route and trigger constraints", () => {
+  const errors = validateOfficeMovementIntent({
+    intent_id: "intent-1",
+    opportunity_id: "opp-1",
+    movement_kind: "handoff",
+    transition_state: "in_flight",
+    agent: "Risk and Compliance Agent",
+    from_agent: "Valuation Agent",
+    to_agent: "Risk and Compliance Agent",
+    from_zone_id: "company-floor",
+    to_zone_id: "verification-bay",
+    route_id: "route-opp-1-company-floor-verification-bay",
+    path_zone_ids: ["company-floor", "verification-bay"],
+    waypoints: [{ x: 0.4, y: 0.5 }, { x: 0.72, y: 0.24 }],
+    trigger_event_id: "office-handoff-opp-1-handoff_started-2026-03-25T19:00:00.000Z",
+    trigger_type: "handoff_started",
+    trigger_timestamp: "2026-03-25T19:00:00.000Z",
+    source: "handoff_signal",
+    duration_ms: 1420,
+    blocking_count: 0,
+  });
+
+  assert.equal(
+    errors.length,
+    0,
+    `Unexpected OfficeMovementIntent errors: ${errors.join(", ")}`
+  );
+});

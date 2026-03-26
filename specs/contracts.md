@@ -281,6 +281,31 @@ These contracts are planning and interface definitions in the current phase. The
 }
 ```
 
+### OfficeMovementIntent
+
+```json
+{
+  "intent_id": "string",
+  "opportunity_id": "string",
+  "movement_kind": "handoff|approval|workflow",
+  "transition_state": "in_flight|arrived",
+  "agent": "string",
+  "from_agent": "string",
+  "to_agent": "string",
+  "from_zone_id": "string",
+  "to_zone_id": "string",
+  "route_id": "string",
+  "path_zone_ids": ["zone_id"],
+  "waypoints": [{ "x": 0.0, "y": 0.0 }],
+  "trigger_event_id": "string",
+  "trigger_type": "handoff_started|handoff_completed|focus_changed|lane_changed|approval_waiting|approval_resolved",
+  "trigger_timestamp": "ISO-8601 datetime",
+  "source": "handoff_signal|workflow_state|approval_queue",
+  "duration_ms": 0,
+  "blocking_count": 0
+}
+```
+
 ## Usage guidance
 
 - Task prompts should declare a `Contract Target` section and emit one or more contracts.
