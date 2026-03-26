@@ -12,6 +12,9 @@ const {
 } = require("../room_transition_checkpoint_cli");
 
 test("parseArgs validates unknown and numeric arguments", () => {
+  const parsed = parseArgs([]);
+  assert.match(parsed.inputsDir.replaceAll("\\", "/"), /room_transition_validations\/records$/);
+
   assert.throws(() => parseArgs(["--unknown"]), /Unknown argument/);
   assert.throws(() => parseArgs(["--window-hours", "0"]), /--window-hours/);
   assert.throws(() => parseArgs(["--min-allowed-rate", "2"]), /--min-allowed-rate/);

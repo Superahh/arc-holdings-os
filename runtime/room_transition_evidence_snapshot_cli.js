@@ -44,7 +44,7 @@ function parseArgs(argv) {
 
   const defaultDir = path.resolve(__dirname, "output", "room_transition_validations");
   const args = {
-    inputsDir: defaultDir,
+    inputsDir: path.join(defaultDir, "records"),
     summariesDir: defaultDir,
     now: new Date().toISOString(),
     windowHours: 168,

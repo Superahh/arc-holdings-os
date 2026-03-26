@@ -41,7 +41,7 @@ function parseArgs(argv) {
   }
 
   const args = {
-    inputsDir: path.resolve(__dirname, "output", "room_transition_validations"),
+    inputsDir: path.resolve(__dirname, "output", "room_transition_validations", "records"),
     outputPath: null,
     now: new Date().toISOString(),
     windowHours: 168,

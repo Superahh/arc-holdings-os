@@ -2,6 +2,8 @@
 
 ## 2026-03-26
 
+- Added timestamped room-transition validation capture CLI and switched evidence/checkpoint default inputs to `runtime/output/room_transition_validations/records` so readiness summaries consume validator records (not summary artifacts) by default (`runtime/room_transition_validation_capture_cli.js`, `runtime/room_transition_evidence_cli.js`, `runtime/room_transition_evidence_snapshot_cli.js`, `runtime/room_transition_checkpoint_cli.js`, `runtime/tests/room_transition_validation_capture_cli.test.js`).
+- Refreshed `CURRENT_FOCUS.md` checkpoint metrics after first timestamped validation record capture (`records_considered=1`, `next_review_at=2026-04-02T01:42:40.005Z`).
 - Refreshed room-transition checkpoint metadata in `CURRENT_FOCUS.md` from the latest deterministic checkpoint run (`latest run 2026-03-26T01:37:07.672Z`; still `insufficient_data` / `no_go`).
 - Expanded capital read-only guard coverage to include ops-loop flow, proving standard runtime cycles still do not create capital write-state artifacts while capital writes remain manual CLI-only (`runtime/tests/capital_read_only_guard.test.js`, `CURRENT_FOCUS.md`).
 - Added capital audit CLI to emit read-only ledger/account summaries with integrity verdicts for manual capital runtime monitoring (`runtime/capital_audit_cli.js`, `runtime/tests/capital_audit_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).

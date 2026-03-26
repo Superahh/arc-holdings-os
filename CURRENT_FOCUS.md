@@ -58,14 +58,15 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] add one-command read-only checkpoint runner combining snapshot, window status, and recommendation outputs
 - [x] add trend rollup reporting across timestamped evidence summaries to track week-over-week checkpoint deltas
 - [x] add consolidated operator brief generation from checkpoint + trend artifacts for fast checkpoint review
+- [x] add timestamped room-transition validator record capture flow and separate evidence `records/` input path for checkpoint summarization
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint
 
-- latest run: `2026-03-26T01:37:07.672Z` (`window-hours=168`)
-- summary: `records_considered=0`, `allowed_rate=0`, `recommendation.state=insufficient_data`, `promotion_decision=no_go`
-- trend: `points_count=4`, delta vs previous remains `records=0`, `allowed_rate=0`, `observed_hours=0`
-- next decision checkpoint: pending first timestamped validation records (`next_review_at=null` while observed coverage remains zero)
+- latest run: `2026-03-26T01:42:40.019Z` (`window-hours=168`)
+- summary: `records_considered=1`, `allowed_rate=0`, `critical_failure_count=2`, `recommendation.state=insufficient_data`, `promotion_decision=no_go`
+- trend: `points_count=5`, latest delta now reflects first timestamped validation record while observed coverage remains `< 168h`
+- next decision checkpoint: `2026-04-02T01:42:40.005Z` (first timestamped validation record now present)
 
 ## Out of scope
 

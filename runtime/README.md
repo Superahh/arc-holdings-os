@@ -29,6 +29,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `ui_snapshot.js`: read-only snapshot composer for the visible UI shell
   - now consumes optional capital state path and surfaces ledger-backed account snapshot in `capital_controls`
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
+- `room_transition_validation_capture_cli.js`: timestamped room-transition validator record capture into evidence `records/`
 - `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
 - `room_transition_evidence_snapshot_cli.js`: helper to persist timestamped evidence summaries plus `latest.summary.json` for recurring review
 - `capital_state.js`: immutable ledger-backed capital runtime state (manual-only account model + hash-chain integrity checks)
@@ -79,6 +80,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/ui_server.test.js`: UI shell server and snapshot endpoint tests
 - `tests/ui_browser_smoke.test.js`: headless browser smoke check for live shell rendering (skips when browser binary is unavailable)
 - `tests/room_transition_validator_cli.test.js`: room-transition request boundary validator tests
+- `tests/room_transition_validation_capture_cli.test.js`: room-transition validator capture CLI tests
 - `tests/room_transition_evidence_cli.test.js`: room-transition validator evidence summary CLI tests
 - `tests/room_transition_evidence_snapshot_cli.test.js`: recurring evidence snapshot helper tests
 - `tests/capital_state.test.js`: capital ledger runtime integrity and balance-transition tests
@@ -128,6 +130,7 @@ node runtime/tests/ui_snapshot.test.js
 node runtime/tests/ui_server.test.js
 node runtime/tests/ui_browser_smoke.test.js
 node runtime/tests/room_transition_validator_cli.test.js
+node runtime/tests/room_transition_validation_capture_cli.test.js
 node runtime/tests/room_transition_evidence_cli.test.js
 node runtime/tests/room_transition_evidence_snapshot_cli.test.js
 node runtime/tests/capital_state.test.js
@@ -348,6 +351,12 @@ Validate a planned room-transition request against snapshot policy boundary:
 node runtime/room_transition_validator_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15
 ```
 
+Capture a timestamped room-transition validation record for evidence tracking:
+
+```powershell
+node runtime/room_transition_validation_capture_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15 --output-dir runtime/output/room_transition_validations/records
+```
+
 Bootstrap capital state (manual-only account):
 
 ```powershell
@@ -375,7 +384,7 @@ node runtime/capital_audit_cli.js --state-path runtime/state/capital_state.json 
 Summarize room-transition validation evidence (last 7 days by default):
 
 ```powershell
-node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --output-path runtime/output/room_transition_validations/latest.summary.json
+node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations/records --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --output-path runtime/output/room_transition_validations/latest.summary.json
 ```
 
 The summary includes `readiness.recommendation.state`:
@@ -393,13 +402,13 @@ It also includes `coverage` metrics to monitor 7-day readiness:
 Fail CI/automation when readiness thresholds are not met:
 
 ```powershell
-node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --fail-on-not-ready
+node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations/records --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --fail-on-not-ready
 ```
 
 Persist recurring timestamped evidence snapshots:
 
 ```powershell
-node runtime/room_transition_evidence_snapshot_cli.js --inputs-dir runtime/output/room_transition_validations --summaries-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
+node runtime/room_transition_evidence_snapshot_cli.js --inputs-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
 ```
 
 Read deterministic 7-day window progress from the latest summary:
@@ -423,7 +432,7 @@ node runtime/room_transition_recommendation_cli.js --summary-path runtime/output
 Run one-command checkpoint (snapshot + window status + recommendation):
 
 ```powershell
-node runtime/room_transition_checkpoint_cli.js --inputs-dir runtime/output/room_transition_validations --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
+node runtime/room_transition_checkpoint_cli.js --inputs-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
 ```
 
 Summarize trend across timestamped evidence summaries:

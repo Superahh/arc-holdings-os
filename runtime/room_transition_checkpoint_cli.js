@@ -33,8 +33,9 @@ function parseRate(rawValue, optionName) {
 
 function parseArgs(argv) {
   const defaultDir = path.resolve(__dirname, "output", "room_transition_validations");
+  const defaultInputsDir = path.join(defaultDir, "records");
   const args = {
-    inputsDir: defaultDir,
+    inputsDir: defaultInputsDir,
     summariesDir: defaultDir,
     checkpointPath: path.join(defaultDir, "latest.checkpoint.json"),
     now: new Date().toISOString(),

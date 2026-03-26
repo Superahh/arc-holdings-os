@@ -31,6 +31,7 @@ test("parseArgs validates unknown and numeric arguments", () => {
   );
   const parsed = parseArgs(["--fail-on-not-ready"]);
   assert.equal(parsed.failOnNotReady, true);
+  assert.match(parsed.inputsDir.replaceAll("\\", "/"), /room_transition_validations\/records$/);
 });
 
 test("runEvidenceAction summarizes allowed and denied records", () => {

@@ -12,6 +12,9 @@ const {
 } = require("../room_transition_evidence_snapshot_cli");
 
 test("parseArgs validates required formats", () => {
+  const parsed = parseArgs([]);
+  assert.match(parsed.inputsDir.replaceAll("\\", "/"), /room_transition_validations\/records$/);
+
   assert.throws(
     () => parseArgs(["--unknown"]),
     /Unknown argument/
