@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added `runtime/room_transition_aligned_monitor_cli.js` to align room-transition evidence capture immediately after the existing ops loop, preserving real workflow-generated movement intents while avoiding synthetic trigger generation or freshness-policy changes.
 - Added freshest-trigger timestamp and `freshness_gap_minutes` to room-transition freshness diagnostics and operator brief output so stale captures now quantify exactly how far outside the 15-minute window the latest intent has aged.
 - Added explicit freshness root-cause classification to room-transition freshness diagnostics and operator brief output so checkpoint artifacts now state whether intents are missing entirely or simply aging out before capture (`runtime/room_transition_intent_freshness_cli.js`, `runtime/room_transition_operator_brief_cli.js`, associated tests, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Updated `CURRENT_FOCUS.md` and `STATUS.md` to reflect the classified blocker state: movement intents are present and monitor-visible, but currently aging out before capture.

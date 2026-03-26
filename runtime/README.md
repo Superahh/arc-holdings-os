@@ -397,6 +397,12 @@ Run one-command room-transition evidence monitor cycle (freshness + capture + ch
 node runtime/room_transition_monitor_cli.js --request-path runtime/output/room_transition_validations/latest.request.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --records-dir runtime/output/room_transition_validations/records --summaries-dir runtime/output/room_transition_validations --checkpoint-path runtime/output/room_transition_validations/latest.checkpoint.json --trend-path runtime/output/room_transition_validations/latest.trend.json --freshness-path runtime/output/room_transition_validations/latest.intent-freshness.json --brief-path runtime/output/room_transition_validations/latest.operator-brief.md
 ```
 
+Run aligned room-transition monitoring immediately after the existing ops loop so capture happens next to real intent-producing runtime activity:
+
+```powershell
+node runtime/room_transition_aligned_monitor_cli.js --fixture runtime/fixtures/golden-scenario.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15
+```
+
 Use gate flags for automation failure signaling:
 
 ```powershell
