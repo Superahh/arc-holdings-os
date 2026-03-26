@@ -10,6 +10,8 @@ const { runOpportunityPipeline } = require("../pipeline");
 const { buildRunArtifact, writeRunArtifact } = require("../output");
 const { createEmptyQueue, enqueueApprovalTicket, saveQueue } = require("../approval_queue");
 const { createEmptyWorkflowState, upsertFromPipeline, saveWorkflowState } = require("../workflow_state");
+const { runBootstrapAction } = require("../capital_bootstrap_cli");
+const { runMovementAction } = require("../capital_movement_cli");
 const { buildUiSnapshot } = require("../ui_snapshot");
 const {
   validateOfficeZoneAnchor,
@@ -58,6 +60,7 @@ function seedFixtureEnvironment() {
     baseDir,
     queuePath,
     workflowStatePath,
+    capitalStatePath: path.join(tempDir, "capital_state.json"),
   };
 }
 
@@ -151,4 +154,42 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
       "Expected movement_intents to conform to OfficeMovementIntent contract."
     );
   }
+});
+
+test("buildUiSnapshot surfaces capital account snapshot when capital runtime state exists", () => {
+  const env = seedFixtureEnvironment();
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "deposit",
+    amountUsd: 900,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed account for UI snapshot visibility test.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_controls.status, "manual_only");
+  assert.equal(snapshot.capital_controls.account_snapshot.available_usd, 900);
+  assert.equal(snapshot.capital_controls.ledger_integrity.ok, true);
+  assert.equal(snapshot.capital_controls.latest_request.action, "deposit");
 });

@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Wired runtime capital ledger state into the read-only UI snapshot so board rendering can display available/reserved/committed balances and ledger entry count without introducing new UI mutation paths (`runtime/ui_snapshot.js`, `runtime/tests/ui_snapshot.test.js`, `ui/app.js`, `CURRENT_FOCUS.md`).
 - Implemented runtime capital ledger foundation with manual/operator CLI execution and tamper-evident hash-chain integrity checks (`runtime/capital_state.js`, `runtime/capital_bootstrap_cli.js`, `runtime/capital_movement_cli.js`, `runtime/tests/capital_state.test.js`, `runtime/tests/capital_bootstrap_cli.test.js`, `runtime/tests/capital_movement_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `STATUS.md`, `specs/capital_controls.md`).
 - Documented formal exit-criteria check for the first visible shell milestone and set explicit no-creep focus boundaries while remaining gating tasks are completed (`CURRENT_FOCUS.md`, `STATUS.md`).
 - Added room-transition operator brief CLI to produce a consolidated markdown checkpoint summary from latest checkpoint + trend artifacts (`runtime/room_transition_operator_brief_cli.js`, `runtime/tests/room_transition_operator_brief_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).

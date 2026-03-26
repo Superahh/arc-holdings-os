@@ -27,6 +27,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `workflow_replay_cli.js`: CLI to replay workflow lifecycle events into timeline artifacts
 - `workflow_update_cli.js`: CLI for manual, policy-checked workflow status progression
 - `ui_snapshot.js`: read-only snapshot composer for the visible UI shell
+  - now consumes optional capital state path and surfaces ledger-backed account snapshot in `capital_controls`
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
 - `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
 - `room_transition_evidence_snapshot_cli.js`: helper to persist timestamped evidence summaries plus `latest.summary.json` for recurring review

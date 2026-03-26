@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { loadQueue } = require("./approval_queue");
+const { loadCapitalState, verifyLedgerIntegrity } = require("./capital_state");
 const { loadWorkflowState } = require("./workflow_state");
 const { runStatusAction } = require("./ops_status_cli");
 const {
@@ -349,6 +350,50 @@ function buildCapitalNote(queueTotals, opportunities) {
     return `${pendingExposure} USD is awaiting explicit approval. Capital remains user-controlled until deposit, reserve, approval, and withdrawal flows are implemented with auditability.`;
   }
   return "No capital approval is currently pending. Capital remains manually controlled until explicit deposit, reserve, approval, and withdrawal controls are implemented.";
+}
+
+function buildCapitalControls(capitalStatePath) {
+  const absolutePath = path.resolve(capitalStatePath);
+  if (!fs.existsSync(absolutePath)) {
+    return {
+      status: "manual_only",
+      note: "Capital runtime ledger is not initialized yet. Use capital bootstrap/movement CLIs for manual, auditable capital control.",
+      state_path: absolutePath,
+      account_snapshot: null,
+      ledger_integrity: null,
+      latest_request: null,
+    };
+  }
+
+  const state = loadCapitalState(absolutePath);
+  const integrity = verifyLedgerIntegrity(state);
+  const latestRequest = state.requests.length ? state.requests[state.requests.length - 1] : null;
+  return {
+    status: "manual_only",
+    note: "Capital movements are runtime-manual only (CLI/operator), UI write endpoints remain disabled.",
+    state_path: absolutePath,
+    account_snapshot: {
+      account_id: state.account.account_id,
+      as_of: state.account.as_of,
+      currency: state.account.currency,
+      available_usd: state.account.available_usd,
+      reserved_usd: state.account.reserved_usd,
+      committed_usd: state.account.committed_usd,
+      pending_withdrawal_usd: state.account.pending_withdrawal_usd,
+      manual_only: state.account.manual_only,
+    },
+    ledger_integrity: integrity,
+    latest_request: latestRequest
+      ? {
+          request_id: latestRequest.request_id,
+          action: latestRequest.action,
+          amount_usd: latestRequest.amount_usd,
+          status: latestRequest.status,
+          requested_at: latestRequest.requested_at,
+          opportunity_id: latestRequest.opportunity_id,
+        }
+      : null,
+  };
 }
 
 function buildBoardPriorities(awaitingTasks) {
@@ -1245,6 +1290,9 @@ function buildUiSnapshot(options = {}) {
   const workflowStatePath = path.resolve(
     options.workflowStatePath || path.join(__dirname, "state", "workflow_state.json")
   );
+  const capitalStatePath = path.resolve(
+    options.capitalStatePath || path.join(__dirname, "state", "capital_state.json")
+  );
   const baseDir = path.resolve(options.baseDir || path.join(__dirname, "output"));
   const nowIso = toIso(options.now);
 
@@ -1308,6 +1356,7 @@ function buildUiSnapshot(options = {}) {
     source_paths: {
       queue_path: queuePath,
       workflow_state_path: workflowStatePath,
+      capital_state_path: capitalStatePath,
       output_base_dir: baseDir,
     },
     kpis,
@@ -1349,10 +1398,7 @@ function buildUiSnapshot(options = {}) {
       company_board_snapshot: companyBoardSnapshot,
     },
     awaiting_tasks: statusSnapshot.awaiting_tasks,
-    capital_controls: {
-      status: "manual_only",
-      note: "Capital deposit, reserve, approval, and withdrawal flows are not yet implemented. Any capital movement remains explicitly user-controlled and must stay auditable.",
-    },
+    capital_controls: buildCapitalControls(capitalStatePath),
   };
 }
 

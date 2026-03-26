@@ -39,6 +39,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] implement first writable UI action: approval decision submission over existing queue policy checks and audit trail
 - [x] keep capital movement flows read-only until capital contracts are implemented in runtime with immutable ledger support
 - [ ] keep capital movement writes runtime-only and manual (CLI/operator path), with UI capital write endpoints still disabled
+- [x] surface ledger-backed capital account snapshot in read-only UI snapshot/board without adding UI write actions
 - [x] add UI confirmation and recovery behavior for decision failures/timeouts
 - [x] add explicit success/failure event chips for writable approvals in office events feed
 - [x] define deterministic movement intent payloads (route + duration + trigger event) for future room-to-room walking, without enabling free roaming

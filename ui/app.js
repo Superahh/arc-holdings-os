@@ -1714,6 +1714,9 @@ function renderDetailPanel() {
 function renderBoard() {
   const board = state.snapshot.office.company_board_snapshot;
   const attention = state.snapshot.attention.top_task;
+  const capitalControls = state.snapshot.capital_controls;
+  const capitalSnapshot = capitalControls && capitalControls.account_snapshot ? capitalControls.account_snapshot : null;
+  const capitalIntegrity = capitalControls && capitalControls.ledger_integrity ? capitalControls.ledger_integrity : null;
   const priorities = board.priorities.length
     ? board.priorities.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
     : "<li>No active priorities.</li>";
@@ -1729,6 +1732,16 @@ function renderBoard() {
         )
         .join("")
     : "<span class=\"muted\">No active opportunities.</span>";
+  const capitalSummary = capitalSnapshot
+    ? `
+      <ul class="detail-list">
+        <li>Available: ${formatCurrency(capitalSnapshot.available_usd)}</li>
+        <li>Reserved: ${formatCurrency(capitalSnapshot.reserved_usd)}</li>
+        <li>Committed: ${formatCurrency(capitalSnapshot.committed_usd)}</li>
+        <li>Ledger entries: ${capitalIntegrity ? capitalIntegrity.entry_count : "n/a"}</li>
+      </ul>
+    `
+    : `<p class="muted">Capital runtime ledger not initialized in this workspace path.</p>`;
 
   elements.companyBoard.innerHTML = `
     <article class="board-block">
@@ -1761,6 +1774,7 @@ function renderBoard() {
     <article class="board-block">
       <h3>Capital note</h3>
       <p>${escapeHtml(board.capital_note)}</p>
+      ${capitalSummary}
       ${
         attention
           ? `<p class="muted" style="margin-top:12px;">Attention: ${escapeHtml(attention.owner)} on ${escapeHtml(attention.opportunity_id || "company")} before ${escapeHtml(formatTimestamp(attention.due_by))}.</p>`
