@@ -164,6 +164,19 @@ function formatLaneLabel(value) {
   return mapping[value] || "Monitor lane";
 }
 
+function formatMovementKindLabel(value) {
+  const mapping = {
+    handoff: "Handoff movement",
+    approval: "Approval movement",
+    workflow: "Workflow movement",
+  };
+  return mapping[value] || "Movement";
+}
+
+function formatTransitionStateLabel(value) {
+  return value === "in_flight" ? "In transit" : "Arrived";
+}
+
 function shortAgentLabel(agent) {
   const mapping = {
     "CEO Agent": "CEO",
@@ -1235,6 +1248,61 @@ function renderOfficeCanvas() {
   renderHandoffOverlay(renderableHandoffs);
 }
 
+function movementIntentsForOpportunity(opportunityId) {
+  return (state.snapshot.office.movement_intents || [])
+    .filter((intent) => intent && intent.opportunity_id === opportunityId)
+    .slice(0, 4);
+}
+
+function movementIntentsForAgent(agent) {
+  return (state.snapshot.office.movement_intents || [])
+    .filter(
+      (intent) =>
+        intent &&
+        (intent.agent === agent || intent.from_agent === agent || intent.to_agent === agent)
+    )
+    .slice(0, 4);
+}
+
+function renderMovementIntentList(intents, emptyMessage) {
+  if (!intents.length) {
+    return `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`;
+  }
+  return `
+    <div class="movement-intent-list">
+      ${intents
+        .map(
+          (intent) => `
+            <article class="movement-intent-item">
+              <div class="detail-title-row">
+                <strong>${escapeHtml(intent.opportunity_id)}</strong>
+                <span class="status-pill ${formatStatusClass(
+                  intent.transition_state === "in_flight" ? "working" : "idle"
+                )}">${escapeHtml(formatTransitionStateLabel(intent.transition_state))}</span>
+              </div>
+              <p class="muted">${escapeHtml(
+                `${formatMovementKindLabel(intent.movement_kind)} via ${formatOfficeEventType(
+                  intent.trigger_type
+                )}`
+              )}</p>
+              <div class="card-tags">
+                <span class="priority-pill">${escapeHtml(
+                  `${shortAgentLabel(intent.from_agent)} -> ${shortAgentLabel(intent.to_agent)}`
+                )}</span>
+                <span class="priority-pill">${escapeHtml(
+                  `${intent.from_zone_id} -> ${intent.to_zone_id}`
+                )}</span>
+                <span class="priority-pill">${escapeHtml(`${intent.duration_ms} ms`)}</span>
+                <span class="priority-pill">${escapeHtml(formatTimestamp(intent.trigger_timestamp))}</span>
+              </div>
+            </article>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderDetailForOpportunity(entry) {
   const record = entry.contract_bundle.opportunity_record;
   const handoff = entry.contract_bundle.handoff_packet;
@@ -1243,6 +1311,7 @@ function renderDetailForOpportunity(entry) {
   const queue = entry.queue_item;
   const risks = record && Array.isArray(record.risks) ? record.risks : [];
   const history = workflow && Array.isArray(workflow.status_history) ? workflow.status_history : [];
+  const movementIntents = movementIntentsForOpportunity(entry.opportunity_id);
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -1310,6 +1379,14 @@ function renderDetailForOpportunity(entry) {
     </section>
 
     <section class="detail-section">
+      <h3>Movement intents</h3>
+      ${renderMovementIntentList(
+        movementIntents,
+        "No movement intent is currently derived for this opportunity."
+      )}
+    </section>
+
+    <section class="detail-section">
       <h3>Status history</h3>
       ${
         history.length
@@ -1341,6 +1418,7 @@ function renderDetailForAgent(card) {
   const activeOpportunity = card.opportunity_id ? findOpportunityById(card.opportunity_id) : null;
   const presence = findPresenceByAgent(card.agent);
   const zoneAnchor = presence ? findZoneAnchorById(presence.zone_id) : null;
+  const movementIntents = movementIntentsForAgent(card.agent);
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -1402,6 +1480,14 @@ function renderDetailForAgent(card) {
               .join("")}</ul>`
           : `<div class="empty-state">No workflow tasks currently routed to this agent.</div>`
       }
+    </section>
+
+    <section class="detail-section">
+      <h3>Movement intents</h3>
+      ${renderMovementIntentList(
+        movementIntents,
+        "No movement intents currently route through this agent."
+      )}
     </section>
 
     ${
