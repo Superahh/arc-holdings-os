@@ -365,6 +365,18 @@ Persist recurring timestamped evidence snapshots:
 node runtime/room_transition_evidence_snapshot_cli.js --inputs-dir runtime/output/room_transition_validations --summaries-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0
 ```
 
+Read deterministic 7-day window progress from the latest summary:
+
+```powershell
+node runtime/room_transition_window_status_cli.js --summary-path runtime/output/room_transition_validations/latest.summary.json
+```
+
+Fail CI/automation when the evidence window is not yet complete:
+
+```powershell
+node runtime/room_transition_window_status_cli.js --summary-path runtime/output/room_transition_validations/latest.summary.json --fail-on-incomplete-window
+```
+
 ## Scope note
 
 This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.

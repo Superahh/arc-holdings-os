@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added read-only room-transition window status CLI to report deterministic 7-day evidence coverage progress (`observed/remaining hours`, `next_review_at`, `recommendation_state`) from latest summaries (`runtime/room_transition_window_status_cli.js`, `runtime/tests/room_transition_window_status_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added explicit room-transition evidence `coverage` metrics (oldest/newest timestamps, observed hours, full-window flag) to support deterministic 7-day monitoring before writable promotion review (`runtime/room_transition_evidence_cli.js`, `runtime/room_transition_evidence_snapshot_cli.js`, `runtime/tests/room_transition_evidence_cli.test.js`, `runtime/tests/room_transition_evidence_snapshot_cli.test.js`, `runtime/README.md`).
 - Documented room-transition evidence monitoring baseline (`insufficient_data`) and added explicit checkpoint timing for the first full 7-day go/no-go review (`CURRENT_FOCUS.md`, `STATUS.md`, `evals/benchmark_runs.md`).
 - Added explicit readiness recommendation states (`insufficient_data`, `no_go`, `candidate_for_review`) to room-transition evidence summaries for deterministic promotion reporting (`runtime/room_transition_evidence_cli.js`, `runtime/tests/room_transition_evidence_cli.test.js`, `runtime/README.md`).
