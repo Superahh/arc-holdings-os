@@ -209,11 +209,31 @@ function computeReadiness(totals, failedCheckCounts, thresholds) {
     },
   ];
 
+  const eligibleForWritableReview = checks.every((check) => check.pass);
+  let recommendationState = "no_go";
+  if (totals.records_considered < thresholds.min_runs) {
+    recommendationState = "insufficient_data";
+  } else if (eligibleForWritableReview) {
+    recommendationState = "candidate_for_review";
+  }
+
   return {
-    eligible_for_writable_review: checks.every((check) => check.pass),
+    eligible_for_writable_review: eligibleForWritableReview,
     thresholds,
     critical_failure_count: criticalFailureCount,
     checks,
+    recommendation: {
+      state: recommendationState,
+      reason:
+        recommendationState === "candidate_for_review"
+          ? "Thresholds are satisfied for a manual writable-promotion review."
+          : recommendationState === "insufficient_data"
+            ? "Insufficient evidence volume for promotion review."
+            : "Threshold checks failed; keep room-transition controls read-only.",
+      failed_checks: checks
+        .filter((check) => !check.pass)
+        .map((check) => check.name),
+    },
   };
 }
 

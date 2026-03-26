@@ -95,4 +95,5 @@ test("runEvidenceAction summarizes allowed and denied records", () => {
   assert.equal(summary.latest_records.length, 2);
   assert.equal(summary.readiness.eligible_for_writable_review, true);
   assert.equal(summary.readiness.checks.find((check) => check.name === "minimum_runs").pass, true);
+  assert.equal(summary.readiness.recommendation.state, "candidate_for_review");
 });
