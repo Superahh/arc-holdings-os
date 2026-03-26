@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added evaluator scenario coverage for the room-transition boundary validator so read-only evidence can accumulate before any writable promotion (`evals/test_cases.md`).
 - Logged decision to keep room-transition controls read-only through v1 and delay writable endpoint promotion until validator/audit evidence is proven (`DECISIONS.md`, `CURRENT_FOCUS.md`, `specs/automation_policy.md`).
 - Added a read-only room-transition boundary validator CLI with strict request parsing and policy checks against live/read snapshot state, plus fixture and tests (`runtime/room_transition_validator_cli.js`, `runtime/tests/room_transition_validator_cli.test.js`, `runtime/fixtures/room-transition-request.sample.json`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Defined the first safe writable room-transition boundary in specs/contracts/policy docs (manual-only, intent-bound, immutable-audit, no workflow/capital mutation) without implementing a write endpoint yet (`specs/contracts.md`, `specs/automation_policy.md`, `specs/technical_spec.md`, `CURRENT_FOCUS.md`).

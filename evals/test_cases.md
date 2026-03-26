@@ -241,3 +241,22 @@ Verify that a valid acquisition candidate can be rejected while keeping queue st
 - office snapshot includes rejection alert
 - `capital_note` confirms no newly approved spend
 - operations card stays actionable (`working`) without false blocker
+
+### Room-transition boundary validator
+
+#### Goal
+Verify that planned room-transition requests are validated against snapshot truth and policy checks without enabling mutation.
+
+#### Inputs
+- `runtime/fixtures/room-transition-request.sample.json`
+- `runtime/room_transition_validator_cli.js --stale-minutes 15`
+
+#### Expected contract(s)
+- `RoomTransitionRequest` (planned)
+- `RoomTransitionAuditEntry` (planned boundary output expectation)
+- `OfficeMovementIntent`
+
+#### Pass checks
+- validator returns `allowed=true` for intent-aligned manual request with complete policy checks
+- stale or mismatched request returns `allowed=false` with explicit failing checks (`intent_fresh`, identity mismatch, or policy list incomplete)
+- validation run produces no queue/workflow/capital mutation side effects
