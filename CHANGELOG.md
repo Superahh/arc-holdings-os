@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added snapshot-aligned room-transition request builder CLI so monitor/capture runs can target fresh movement intents without hand-editing request JSON (`runtime/room_transition_request_builder_cli.js`, `runtime/tests/room_transition_request_builder_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added optional monitor gate failure flags for automation (`--fail-on-incomplete-window`, `--fail-on-no-go`) in room-transition monitor CLI with explicit exit-code behavior and tests (`runtime/room_transition_monitor_cli.js`, `runtime/tests/room_transition_monitor_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added one-command room-transition monitor CLI that runs validation capture + checkpoint + trend + operator brief in one deterministic read-only pass (`runtime/room_transition_monitor_cli.js`, `runtime/tests/room_transition_monitor_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added timestamped room-transition validation capture CLI and switched evidence/checkpoint default inputs to `runtime/output/room_transition_validations/records` so readiness summaries consume validator records (not summary artifacts) by default (`runtime/room_transition_validation_capture_cli.js`, `runtime/room_transition_evidence_cli.js`, `runtime/room_transition_evidence_snapshot_cli.js`, `runtime/room_transition_checkpoint_cli.js`, `runtime/tests/room_transition_validation_capture_cli.test.js`).
