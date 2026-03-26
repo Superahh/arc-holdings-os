@@ -377,6 +377,12 @@ Fail CI/automation when the evidence window is not yet complete:
 node runtime/room_transition_window_status_cli.js --summary-path runtime/output/room_transition_validations/latest.summary.json --fail-on-incomplete-window
 ```
 
+Generate deterministic go/no-go recommendation report from latest summary:
+
+```powershell
+node runtime/room_transition_recommendation_cli.js --summary-path runtime/output/room_transition_validations/latest.summary.json --format markdown --output-path runtime/output/room_transition_validations/latest.recommendation.md
+```
+
 ## Scope note
 
 This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.

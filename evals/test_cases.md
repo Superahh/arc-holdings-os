@@ -278,3 +278,20 @@ Verify that boundary-validation outcomes are summarized into operator-readable e
 - summary surfaces top failing policy checks for denied requests
 - summary includes parse error accounting for malformed records
 - summary includes readiness verdict against promotion thresholds (`min_runs`, `min_allowed_rate`, `max_parse_errors`, `max_critical_failures`)
+
+### Room-transition promotion recommendation
+
+#### Goal
+Generate a deterministic operator-facing go/no-go recommendation from latest evidence summary and window coverage state.
+
+#### Inputs
+- `runtime/output/room_transition_validations/latest.summary.json`
+- `runtime/room_transition_recommendation_cli.js --format markdown`
+
+#### Expected contract(s)
+- recommendation report JSON/Markdown output (read-only runtime artifact)
+
+#### Pass checks
+- incomplete 7-day window yields `promotion_decision=no_go` with explicit wait reason
+- full window + eligible readiness yields `promotion_decision=candidate_for_review`
+- report lists failed threshold checks when present
