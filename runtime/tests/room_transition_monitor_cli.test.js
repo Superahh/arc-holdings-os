@@ -89,9 +89,11 @@ test("runMonitorAction runs capture + checkpoint + trend + brief", () => {
     minAllowedRate: 0.95,
     maxParseErrors: 0,
     maxCriticalFailures: 0,
+    requireFreshIntent: false,
   });
 
   assert.equal(result.capture.allowed, true);
+  assert.equal(result.preflight.satisfied, true);
   assert.equal(fs.existsSync(result.capture.output_path), true);
   assert.equal(fs.existsSync(checkpointPath), true);
   assert.equal(fs.existsSync(trendPath), true);
@@ -113,6 +115,7 @@ test("getMonitorExitCode enforces optional gate failures", () => {
     getMonitorExitCode(failingResult, {
       failOnIncompleteWindow: true,
       failOnNoGo: false,
+      requireFreshIntent: false,
     }),
     2
   );
@@ -120,6 +123,7 @@ test("getMonitorExitCode enforces optional gate failures", () => {
     getMonitorExitCode(failingResult, {
       failOnIncompleteWindow: false,
       failOnNoGo: true,
+      requireFreshIntent: false,
     }),
     2
   );
@@ -134,8 +138,82 @@ test("getMonitorExitCode enforces optional gate failures", () => {
       {
         failOnIncompleteWindow: true,
         failOnNoGo: true,
+        requireFreshIntent: false,
       }
     ),
     0
+  );
+});
+
+test("runMonitorAction can fail preflight when fresh intent is required", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-room-monitor-preflight-"));
+  const requestPath = path.join(
+    __dirname,
+    "..",
+    "fixtures",
+    "room-transition-request.sample.json"
+  );
+  const snapshotPath = path.join(tempDir, "snapshot.json");
+
+  const snapshot = {
+    workflow: {
+      opportunities: [
+        {
+          opportunity_id: "opp-2026-03-25-001",
+          current_status: "awaiting_approval",
+        },
+      ],
+    },
+    office: {
+      movement_intents: [
+        {
+          intent_id: "intent-office-approval-waiting-apr-001-2026-03-25T19:02:00.000Z",
+          opportunity_id: "opp-2026-03-25-001",
+          agent: "CEO Agent",
+          from_zone_id: "executive-suite",
+          to_zone_id: "executive-suite",
+          trigger_timestamp: "2026-03-26T13:00:00.000Z",
+          trigger_type: "approval_waiting",
+        },
+      ],
+    },
+  };
+  fs.writeFileSync(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+
+  const result = runMonitorAction({
+    requestPath,
+    snapshotPath,
+    queuePath: path.join(tempDir, "approval_queue.json"),
+    workflowStatePath: path.join(tempDir, "workflow_state.json"),
+    baseDir: path.join(tempDir, "output"),
+    staleMinutes: 15,
+    now: "2026-03-26T14:00:00.000Z",
+    recordsDir: path.join(tempDir, "records"),
+    summariesDir: path.join(tempDir, "summaries"),
+    checkpointPath: path.join(tempDir, "latest.checkpoint.json"),
+    trendPath: path.join(tempDir, "latest.trend.json"),
+    briefPath: path.join(tempDir, "latest.operator-brief.md"),
+    windowHours: 168,
+    maxFiles: 500,
+    maxPoints: 20,
+    all: false,
+    minRuns: 30,
+    minAllowedRate: 0.95,
+    maxParseErrors: 0,
+    maxCriticalFailures: 0,
+    requireFreshIntent: true,
+  });
+
+  assert.equal(result.preflight.satisfied, false);
+  assert.equal(result.skipped_capture, true);
+  assert.match(result.reason, /No fresh movement intents/i);
+  assert.equal(result.capture, undefined);
+  assert.equal(
+    getMonitorExitCode(result, {
+      failOnIncompleteWindow: false,
+      failOnNoGo: false,
+      requireFreshIntent: true,
+    }),
+    2
   );
 });

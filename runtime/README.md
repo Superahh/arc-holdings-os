@@ -396,6 +396,12 @@ Use gate flags for automation failure signaling:
 node runtime/room_transition_monitor_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --fail-on-incomplete-window --fail-on-no-go
 ```
 
+Fail monitor preflight when no fresh intent exists (prevents predictable `intent_fresh` denials):
+
+```powershell
+node runtime/room_transition_monitor_cli.js --request-path runtime/output/room_transition_validations/latest.request.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --require-fresh-intent
+```
+
 Bootstrap capital state (manual-only account):
 
 ```powershell

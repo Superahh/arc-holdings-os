@@ -52,6 +52,7 @@ Current posture to avoid focus creep:
 - prioritize completion of open gating tasks before new feature scope
 - capital runtime ledger is now implemented for manual/operator CLI use; UI capital write endpoints remain disabled
 - room-transition evidence tooling now includes request building + intent-freshness diagnostics; current blocker remains low freshness coverage (`intent_fresh` misses)
+- monitor tooling now supports freshness preflight gating to avoid polluting evidence with predictable stale-intent denials
 
 ## Next Likely Phases
 1. Room-transition evidence window completion

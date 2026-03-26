@@ -65,6 +65,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] add snapshot-aligned room-transition request builder so monitor runs can consume fresh intent-linked request payloads
 - [x] add request-builder freshness gating (`--fresh-within-minutes`) to fail fast when no recent movement-intent trigger is available
 - [x] add read-only movement-intent freshness diagnostics CLI to quantify `intent_fresh` blocker before capture/monitor runs
+- [x] add monitor preflight freshness gate (`--require-fresh-intent`) to skip capture when fresh intent coverage is zero
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint

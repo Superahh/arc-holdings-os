@@ -6,6 +6,7 @@ const { runValidationCaptureAction } = require("./room_transition_validation_cap
 const { runCheckpointAction } = require("./room_transition_checkpoint_cli");
 const { runTrendAction } = require("./room_transition_trend_cli");
 const { runOperatorBriefAction } = require("./room_transition_operator_brief_cli");
+const { runIntentFreshnessAction } = require("./room_transition_intent_freshness_cli");
 
 function parsePositiveInteger(rawValue, optionName) {
   const value = Number.parseInt(rawValue, 10);
@@ -68,6 +69,7 @@ function parseArgs(argv) {
     maxCriticalFailures: 0,
     failOnIncompleteWindow: false,
     failOnNoGo: false,
+    requireFreshIntent: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -138,6 +140,8 @@ function parseArgs(argv) {
       args.failOnIncompleteWindow = true;
     } else if (token === "--fail-on-no-go") {
       args.failOnNoGo = true;
+    } else if (token === "--require-fresh-intent") {
+      args.requireFreshIntent = true;
     } else {
       throw new Error(`Unknown argument: ${token}`);
     }
@@ -154,6 +158,36 @@ function parseArgs(argv) {
 }
 
 function runMonitorAction(options) {
+  const freshness = runIntentFreshnessAction({
+    snapshotPath: options.snapshotPath,
+    queuePath: options.queuePath,
+    workflowStatePath: options.workflowStatePath,
+    baseDir: options.baseDir,
+    now: options.now,
+    staleMinutes: options.staleMinutes,
+    outputPath: null,
+  });
+  const preflightSatisfied = freshness.totals.fresh_count > 0;
+
+  if (options.requireFreshIntent && !preflightSatisfied) {
+    return {
+      generated_at: options.now,
+      preflight: {
+        fresh_intent_required: true,
+        satisfied: false,
+        freshness,
+      },
+      skipped_capture: true,
+      reason:
+        "No fresh movement intents found within stale_minutes window; monitor capture skipped.",
+      gate: {
+        promotion_decision: "no_go",
+        recommendation_state: "insufficient_data",
+        full_window_observed: false,
+      },
+    };
+  }
+
   const capture = runValidationCaptureAction({
     requestPath: options.requestPath,
     snapshotPath: options.snapshotPath,
@@ -196,6 +230,11 @@ function runMonitorAction(options) {
 
   return {
     generated_at: options.now,
+    preflight: {
+      fresh_intent_required: options.requireFreshIntent,
+      satisfied: preflightSatisfied,
+      freshness,
+    },
     capture,
     checkpoint_path: options.checkpointPath,
     trend_path: options.trendPath,
@@ -218,6 +257,14 @@ function runMonitorAction(options) {
 }
 
 function getMonitorExitCode(result, options) {
+  if (
+    options.requireFreshIntent &&
+    result &&
+    result.preflight &&
+    result.preflight.satisfied !== true
+  ) {
+    return 2;
+  }
   if (
     options.failOnIncompleteWindow &&
     result &&
