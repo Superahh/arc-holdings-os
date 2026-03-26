@@ -38,7 +38,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] add browser-level smoke coverage before expanding interaction scope
 - [x] implement first writable UI action: approval decision submission over existing queue policy checks and audit trail
 - [x] keep capital movement flows read-only until capital contracts are implemented in runtime with immutable ledger support
-- [ ] keep capital movement writes runtime-only and manual (CLI/operator path), with UI capital write endpoints still disabled
+- [x] keep capital movement writes runtime-only and manual (CLI/operator path), with UI capital write endpoints still disabled
 - [x] surface ledger-backed capital account snapshot in read-only UI snapshot/board without adding UI write actions
 - [x] add capital audit reporting CLI for ledger-integrity and balance checks
 - [x] add UI confirmation and recovery behavior for decision failures/timeouts
