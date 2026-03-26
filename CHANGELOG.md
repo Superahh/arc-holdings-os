@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Refreshed room-transition checkpoint metadata in `CURRENT_FOCUS.md` from the latest deterministic checkpoint run (`latest run 2026-03-26T01:37:07.672Z`; still `insufficient_data` / `no_go`).
 - Expanded capital read-only guard coverage to include ops-loop flow, proving standard runtime cycles still do not create capital write-state artifacts while capital writes remain manual CLI-only (`runtime/tests/capital_read_only_guard.test.js`, `CURRENT_FOCUS.md`).
 - Added capital audit CLI to emit read-only ledger/account summaries with integrity verdicts for manual capital runtime monitoring (`runtime/capital_audit_cli.js`, `runtime/tests/capital_audit_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Wired runtime capital ledger state into the read-only UI snapshot so board rendering can display available/reserved/committed balances and ledger entry count without introducing new UI mutation paths (`runtime/ui_snapshot.js`, `runtime/tests/ui_snapshot.test.js`, `ui/app.js`, `CURRENT_FOCUS.md`).
