@@ -389,6 +389,8 @@ The freshness report classifies the blocker path directly:
 - `fresh_intents_available`
 - `all_intents_stale`
 
+It also records the freshest trigger timestamp and `freshness_gap_minutes`, so you can see exactly how far outside the validation window the latest intent has aged.
+
 Run one-command room-transition evidence monitor cycle (freshness + capture + checkpoint + trend + brief):
 
 ```powershell

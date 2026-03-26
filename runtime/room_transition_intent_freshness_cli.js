@@ -101,6 +101,13 @@ function toAgeMinutes(nowIso, triggerTimestamp) {
   return Number(((nowMs - triggerMs) / (60 * 1000)).toFixed(4));
 }
 
+function toFreshnessGapMinutes(ageMinutes, staleMinutes) {
+  if (typeof ageMinutes !== "number") {
+    return null;
+  }
+  return Number(Math.max(ageMinutes - staleMinutes, 0).toFixed(4));
+}
+
 function classifyFreshness(result) {
   const totals = result.totals || {};
   const freshestIntent = result.freshest_intent || null;
@@ -179,8 +186,10 @@ function runIntentFreshnessAction(options) {
       sortedByAge.length > 0
         ? {
             intent_id: sortedByAge[0].intent_id,
+            trigger_timestamp: sortedByAge[0].trigger_timestamp,
             age_minutes: sortedByAge[0].age_minutes,
             fresh: sortedByAge[0].fresh,
+            freshness_gap_minutes: toFreshnessGapMinutes(sortedByAge[0].age_minutes, threshold),
           }
         : null,
     intents,

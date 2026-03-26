@@ -91,8 +91,10 @@ test("runOperatorBriefAction writes consolidated markdown brief", () => {
         },
         freshest_intent: {
           intent_id: "intent-office-handoff-001",
+          trigger_timestamp: "2026-03-26T13:14:51.078Z",
           age_minutes: 285.1487,
           fresh: false,
+          freshness_gap_minutes: 270.1487,
         },
       },
       null,
@@ -113,7 +115,9 @@ test("runOperatorBriefAction writes consolidated markdown brief", () => {
   assert.match(result.markdown, /remaining_hours: 144/);
   assert.match(result.markdown, /records_considered: \+2/);
   assert.match(result.markdown, /fresh_count: 0/);
+  assert.match(result.markdown, /freshest_intent_trigger_timestamp: 2026-03-26T13:14:51.078Z/);
   assert.match(result.markdown, /freshest_intent_age_minutes: 285.1487/);
+  assert.match(result.markdown, /freshness_gap_minutes: 270.1487/);
   assert.match(result.markdown, /classification_status: all_intents_stale/);
   assert.match(result.markdown, /intents_picked_up_by_monitor: true/);
   assert.match(result.markdown, /aging_out_before_capture: true/);
