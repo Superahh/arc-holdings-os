@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added capital audit CLI to emit read-only ledger/account summaries with integrity verdicts for manual capital runtime monitoring (`runtime/capital_audit_cli.js`, `runtime/tests/capital_audit_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Wired runtime capital ledger state into the read-only UI snapshot so board rendering can display available/reserved/committed balances and ledger entry count without introducing new UI mutation paths (`runtime/ui_snapshot.js`, `runtime/tests/ui_snapshot.test.js`, `ui/app.js`, `CURRENT_FOCUS.md`).
 - Implemented runtime capital ledger foundation with manual/operator CLI execution and tamper-evident hash-chain integrity checks (`runtime/capital_state.js`, `runtime/capital_bootstrap_cli.js`, `runtime/capital_movement_cli.js`, `runtime/tests/capital_state.test.js`, `runtime/tests/capital_bootstrap_cli.test.js`, `runtime/tests/capital_movement_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `STATUS.md`, `specs/capital_controls.md`).
 - Documented formal exit-criteria check for the first visible shell milestone and set explicit no-creep focus boundaries while remaining gating tasks are completed (`CURRENT_FOCUS.md`, `STATUS.md`).

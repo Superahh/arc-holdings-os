@@ -34,6 +34,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `capital_state.js`: immutable ledger-backed capital runtime state (manual-only account model + hash-chain integrity checks)
 - `capital_bootstrap_cli.js`: initialize/reset capital state with manual-only account snapshot
 - `capital_movement_cli.js`: execute manual capital movements with ledger entry emission and integrity validation
+- `capital_audit_cli.js`: read-only ledger/account audit summary with integrity verdict
 - `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
@@ -83,6 +84,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/capital_state.test.js`: capital ledger runtime integrity and balance-transition tests
 - `tests/capital_bootstrap_cli.test.js`: capital bootstrap CLI tests
 - `tests/capital_movement_cli.test.js`: capital movement CLI tests
+- `tests/capital_audit_cli.test.js`: capital audit CLI tests
 - `tests/run_all_tests.js`: helper script to execute all runtime tests in deterministic order
 - `tests/run_all_tests.test.js`: test coverage for the runtime test runner helper
 - `output/`: generated runs and maintained snapshots
@@ -131,6 +133,7 @@ node runtime/tests/room_transition_evidence_snapshot_cli.test.js
 node runtime/tests/capital_state.test.js
 node runtime/tests/capital_bootstrap_cli.test.js
 node runtime/tests/capital_movement_cli.test.js
+node runtime/tests/capital_audit_cli.test.js
 ```
 
 ## Execute pipeline and persist artifacts
@@ -361,6 +364,12 @@ Reserve capital for an approved opportunity:
 
 ```powershell
 node runtime/capital_movement_cli.js --state-path runtime/state/capital_state.json --action reserve --amount-usd 250 --requested-by owner_operator --performed-by owner_operator --authorized-by owner_operator --reason "Reserve for approved opportunity" --opportunity-id opp-2026-03-26-100 --approval-ticket-id apr-2026-03-26-100
+```
+
+Audit capital ledger integrity and balances:
+
+```powershell
+node runtime/capital_audit_cli.js --state-path runtime/state/capital_state.json --output-path runtime/output/capital/latest.audit.json
 ```
 
 Summarize room-transition validation evidence (last 7 days by default):
