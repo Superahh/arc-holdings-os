@@ -41,6 +41,7 @@ function parseArgs(argv) {
     outputPath: path.join(validationsDir, "latest.request.json"),
     intentId: null,
     opportunityId: null,
+    freshWithinMinutes: null,
     requestedBy: "owner_operator",
     reason: "Prepared from current snapshot intent for room-transition evidence monitoring.",
   };
@@ -70,6 +71,12 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--opportunity-id") {
       args.opportunityId = readValue(index, token);
+      index += 1;
+    } else if (token === "--fresh-within-minutes") {
+      args.freshWithinMinutes = Number.parseInt(readValue(index, token), 10);
+      if (!Number.isInteger(args.freshWithinMinutes) || args.freshWithinMinutes <= 0) {
+        throw new Error("--fresh-within-minutes must be a positive integer.");
+      }
       index += 1;
     } else if (token === "--requested-by") {
       args.requestedBy = readValue(index, token);
@@ -111,8 +118,28 @@ function getSnapshot(options) {
 }
 
 function selectIntent(movementIntents, options) {
+  let candidates = movementIntents.slice();
+
+  if (options.freshWithinMinutes != null) {
+    const nowMs = Date.parse(options.now);
+    const freshnessMs = options.freshWithinMinutes * 60 * 1000;
+    candidates = candidates.filter((entry) => {
+      const triggerMs = Date.parse(entry.trigger_timestamp);
+      if (!Number.isFinite(nowMs) || !Number.isFinite(triggerMs)) {
+        return false;
+      }
+      const ageMs = nowMs - triggerMs;
+      return ageMs >= 0 && ageMs <= freshnessMs;
+    });
+    if (candidates.length === 0) {
+      throw new Error(
+        `No movement intent found within --fresh-within-minutes ${options.freshWithinMinutes}.`
+      );
+    }
+  }
+
   if (options.intentId) {
-    const byIntentId = movementIntents.find((entry) => entry.intent_id === options.intentId);
+    const byIntentId = candidates.find((entry) => entry.intent_id === options.intentId);
     if (!byIntentId) {
       throw new Error(`No movement intent found for --intent-id ${options.intentId}.`);
     }
@@ -120,7 +147,7 @@ function selectIntent(movementIntents, options) {
   }
 
   if (options.opportunityId) {
-    const byOpportunity = movementIntents.filter(
+    const byOpportunity = candidates.filter(
       (entry) => entry.opportunity_id === options.opportunityId
     );
     if (byOpportunity.length === 0) {
@@ -133,10 +160,10 @@ function selectIntent(movementIntents, options) {
     )[0];
   }
 
-  if (movementIntents.length === 0) {
+  if (candidates.length === 0) {
     throw new Error("No movement intents available in snapshot.");
   }
-  return movementIntents.sort(
+  return candidates.sort(
     (left, right) => Date.parse(right.trigger_timestamp) - Date.parse(left.trigger_timestamp)
   )[0];
 }

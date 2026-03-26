@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added freshness gating to room-transition request builder (`--fresh-within-minutes`) so monitoring setup can fail fast when no recent movement-intent trigger exists instead of generating stale-denial requests (`runtime/room_transition_request_builder_cli.js`, `runtime/tests/room_transition_request_builder_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Updated `CURRENT_FOCUS.md` evidence checkpoint after a full request-builder + monitor run (`records_considered=2`, `points_count=6`) and documented that current denials are primarily `intent_fresh` misses outside the 15-minute validation window.
 - Added snapshot-aligned room-transition request builder CLI so monitor/capture runs can target fresh movement intents without hand-editing request JSON (`runtime/room_transition_request_builder_cli.js`, `runtime/tests/room_transition_request_builder_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added optional monitor gate failure flags for automation (`--fail-on-incomplete-window`, `--fail-on-no-go`) in room-transition monitor CLI with explicit exit-code behavior and tests (`runtime/room_transition_monitor_cli.js`, `runtime/tests/room_transition_monitor_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).

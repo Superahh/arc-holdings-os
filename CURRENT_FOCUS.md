@@ -63,6 +63,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] add one-command room-transition monitoring runner to produce capture + checkpoint + trend + operator brief artifacts in one deterministic pass
 - [x] add optional monitor gate failure flags (`--fail-on-incomplete-window`, `--fail-on-no-go`) for deterministic automation signaling
 - [x] add snapshot-aligned room-transition request builder so monitor runs can consume fresh intent-linked request payloads
+- [x] add request-builder freshness gating (`--fresh-within-minutes`) to fail fast when no recent movement-intent trigger is available
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint

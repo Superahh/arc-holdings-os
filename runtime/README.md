@@ -369,6 +369,12 @@ Build a snapshot-aligned room-transition request (recommended before monitor run
 node runtime/room_transition_request_builder_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --output-path runtime/output/room_transition_validations/latest.request.json --requested-by owner_operator
 ```
 
+Require a fresh intent window (fails fast when no recent transition trigger exists):
+
+```powershell
+node runtime/room_transition_request_builder_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --output-path runtime/output/room_transition_validations/latest.request.json --requested-by owner_operator --fresh-within-minutes 15
+```
+
 Run one-command room-transition evidence monitor cycle (capture + checkpoint + trend + brief):
 
 ```powershell

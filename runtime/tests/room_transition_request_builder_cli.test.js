@@ -16,6 +16,10 @@ const {
 test("parseArgs validates unknown and datetime values", () => {
   assert.throws(() => parseArgs(["--unknown"]), /Unknown argument/);
   assert.throws(() => parseArgs(["--now", "bad-time"]), /--now must be ISO-8601 datetime/);
+  assert.throws(
+    () => parseArgs(["--fresh-within-minutes", "0"]),
+    /--fresh-within-minutes must be a positive integer/
+  );
 });
 
 test("selectIntent supports explicit filters and latest fallback", () => {
@@ -40,6 +44,25 @@ test("selectIntent supports explicit filters and latest fallback", () => {
 
   const latest = selectIntent(intents, { intentId: null, opportunityId: null });
   assert.equal(latest.intent_id, "intent-new");
+
+  const fresh = selectIntent(intents, {
+    intentId: null,
+    opportunityId: null,
+    freshWithinMinutes: 30,
+    now: "2026-03-26T14:10:00.000Z",
+  });
+  assert.equal(fresh.intent_id, "intent-new");
+
+  assert.throws(
+    () =>
+      selectIntent(intents, {
+        intentId: null,
+        opportunityId: null,
+        freshWithinMinutes: 5,
+        now: "2026-03-26T14:10:00.000Z",
+      }),
+    /No movement intent found within --fresh-within-minutes 5/
+  );
 });
 
 test("buildRequestFromIntent creates contract-shaped request", () => {
@@ -102,6 +125,7 @@ test("runRequestBuilderAction writes request from snapshot movement intent", () 
     outputPath,
     intentId: null,
     opportunityId: null,
+    freshWithinMinutes: null,
     requestedBy: "owner_operator",
     reason: "Prepared from snapshot.",
   });
