@@ -417,6 +417,7 @@ function withMovementIntent(signal, isTransitionDefault, movementIntentLookup) {
     waypoints:
       intent && Array.isArray(intent.waypoints) ? intent.waypoints : signal.waypoints || null,
     duration_ms: intent ? intent.duration_ms : null,
+    trigger_timestamp: intent ? intent.trigger_timestamp : signal.trigger_timestamp || null,
     transition_state: intent
       ? intent.transition_state
       : isTransitionDefault
@@ -446,6 +447,7 @@ function getRenderableHandoffs(activeTransitions) {
       is_transition: intent.transition_state === "in_flight",
       waypoints: intent.waypoints,
       duration_ms: intent.duration_ms,
+      trigger_timestamp: intent.trigger_timestamp,
       transition_state: intent.transition_state,
       trigger_type: intent.trigger_type,
     }));
@@ -454,6 +456,23 @@ function getRenderableHandoffs(activeTransitions) {
   return (state.snapshot.office.handoff_signals || []).slice(0, 3).map((signal) => ({
     ...withMovementIntent(signal, false, movementIntentLookup),
   }));
+}
+
+function isFreshMovementSignal(signal) {
+  if (!signal || !signal.trigger_timestamp || !state.snapshot || !state.snapshot.generated_at) {
+    return false;
+  }
+  const triggerAt = Date.parse(signal.trigger_timestamp);
+  const generatedAt = Date.parse(state.snapshot.generated_at);
+  if (Number.isNaN(triggerAt) || Number.isNaN(generatedAt)) {
+    return false;
+  }
+  const ageMs = Math.max(0, generatedAt - triggerAt);
+  const maxAgeMs = Math.max(
+    TRANSITION_WINDOW_MS,
+    Number.isFinite(signal.duration_ms) ? signal.duration_ms * 3 : 0
+  );
+  return ageMs <= maxAgeMs;
 }
 
 function ensureSelection() {
@@ -1033,6 +1052,26 @@ function renderHandoffOverlay(renderableHandoffs) {
       `handoff-pulse ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim()
     );
     svg.append(pulseNode);
+
+    const shouldRenderTravelDot =
+      signal.is_transition &&
+      typeof signal.duration_ms === "number" &&
+      signal.duration_ms >= 300 &&
+      isFreshMovementSignal(signal);
+    if (shouldRenderTravelDot) {
+      const travelNode = document.createElementNS(namespace, "circle");
+      travelNode.setAttribute("r", "3.4");
+      travelNode.setAttribute(
+        "class",
+        `handoff-travel-dot ${signal.blocking_count > 0 ? "is-blocked" : "is-active"}`
+      );
+      const motionNode = document.createElementNS(namespace, "animateMotion");
+      motionNode.setAttribute("dur", `${Math.max(900, signal.duration_ms)}ms`);
+      motionNode.setAttribute("repeatCount", "indefinite");
+      motionNode.setAttribute("path", pathD);
+      travelNode.append(motionNode);
+      svg.append(travelNode);
+    }
 
     const chipNode = document.createElement("div");
     chipNode.className = `handoff-chip ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim();

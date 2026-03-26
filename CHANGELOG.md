@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added deterministic in-flight travel dots on office handoff routes, driven by fresh `movement_intents` trigger timestamps and durations, with no new write paths or random roaming (`ui/app.js`, `ui/styles.css`, `CURRENT_FOCUS.md`).
 - Added deterministic read-only `office.movement_intents` contracts (route + duration + trigger event) and wired the office overlay to consume them as future walking rails without adding roaming/write paths (`runtime/contracts.js`, `runtime/ui_snapshot.js`, `ui/app.js`, contract/docs/tests).
 - Added explicit approval outcome chips in the office event feed (`Approval success`, `Approval failed`, `Needs more info`) driven from runtime `office.events` decision fields (`ui/app.js`, `ui/styles.css`, `runtime/tests/ui_server.test.js`).
 - Hardened approval-decision reliability with client-side timeout/retry UX and stricter API/CLI argument validation plus tests (`ui/app.js`, `ui/server.js`, `runtime/queue_decision_cli.js`, `runtime/run_pipeline.js`, related tests).

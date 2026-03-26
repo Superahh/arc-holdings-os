@@ -874,6 +874,18 @@ h2 {
   fill: rgba(163, 52, 52, 0.72);
 }
 
+.handoff-travel-dot {
+  opacity: 0.95;
+}
+
+.handoff-travel-dot.is-active {
+  fill: rgba(175, 95, 45, 0.9);
+}
+
+.handoff-travel-dot.is-blocked {
+  fill: rgba(163, 52, 52, 0.88);
+}
+
 .handoff-chip-layer {
   position: absolute;
   inset: 0;

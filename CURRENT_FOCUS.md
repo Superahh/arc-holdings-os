@@ -34,7 +34,8 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] add UI confirmation and recovery behavior for decision failures/timeouts
 - [x] add explicit success/failure event chips for writable approvals in office events feed
 - [x] define deterministic movement intent payloads (route + duration + trigger event) for future room-to-room walking, without enabling free roaming
-- [ ] animate deterministic room-to-room travel progress along `movement_intents` routes when trigger events are fresh, while keeping movement read-only
+- [x] animate deterministic room-to-room travel progress along `movement_intents` routes when trigger events are fresh, while keeping movement read-only
+- [ ] expose `movement_intents` timeline context in the detail panel to support future operator controls before enabling additional writable actions
 
 ## Out of scope
 
