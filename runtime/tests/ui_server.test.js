@@ -193,6 +193,29 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     const invalidDecisionPayload = JSON.parse(invalidDecisionResponse.body);
     assert.equal(invalidDecisionPayload.error, "invalid_decision");
     assert.equal(invalidDecisionPayload.retryable, false);
+
+    const capitalWriteResponse = await request(server, "/api/capital-movement", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "deposit",
+        amount_usd: 1000,
+      }),
+    });
+    assert.equal(capitalWriteResponse.statusCode, 404);
+
+    const roomTransitionWriteResponse = await request(server, "/api/room-transition", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: "rtr-test-001",
+      }),
+    });
+    assert.equal(roomTransitionWriteResponse.statusCode, 404);
   } finally {
     await new Promise((resolve, reject) => {
       server.close((error) => {

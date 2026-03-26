@@ -26,6 +26,7 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] add first visible shell in [ui/](./ui)
 - [x] keep approval queue and workflow state as source of truth
 - [x] add UI shell tests for snapshot composition and HTTP serving
+- [x] add explicit UI server guard tests proving unsupported capital/room-transition write endpoints remain unavailable
 - [x] define capital deposit, reserve, approval-to-use, and withdrawal controls with explicit user control and auditability
 - [x] decide the first safe writable UI action surface
 - [x] add browser-level smoke coverage before expanding interaction scope
