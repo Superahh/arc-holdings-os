@@ -59,8 +59,9 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 
 ## Evidence checkpoint
 
-- baseline run: `2026-03-26T00:53:14Z` (`window-hours=168`)
-- summary: `records_considered=0`, `allowed_rate=0`, `recommendation.state=insufficient_data`
+- latest run: `2026-03-26T01:21:08.993Z` (`window-hours=168`)
+- summary: `records_considered=0`, `allowed_rate=0`, `recommendation.state=insufficient_data`, `promotion_decision=no_go`
+- trend: `points_count=3`, delta vs previous remains `records=0`, `allowed_rate=0`, `observed_hours=0`
 - next decision checkpoint: on/after `2026-04-02` once a full rolling 7-day evidence window is available
 
 ## Out of scope
