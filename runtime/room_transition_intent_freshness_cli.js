@@ -101,6 +101,46 @@ function toAgeMinutes(nowIso, triggerTimestamp) {
   return Number(((nowMs - triggerMs) / (60 * 1000)).toFixed(4));
 }
 
+function classifyFreshness(result) {
+  const totals = result.totals || {};
+  const freshestIntent = result.freshest_intent || null;
+
+  if ((totals.movement_intent_count || 0) === 0) {
+    return {
+      status: "no_movement_intents",
+      generated: false,
+      persisted: false,
+      picked_up_by_monitor: false,
+      aging_out_before_capture: false,
+      reason: "No movement intents exist in the current snapshot.",
+    };
+  }
+
+  if ((totals.fresh_count || 0) > 0) {
+    return {
+      status: "fresh_intents_available",
+      generated: true,
+      persisted: true,
+      picked_up_by_monitor: true,
+      aging_out_before_capture: false,
+      reason: "One or more movement intents are within the stale_minutes window.",
+    };
+  }
+
+  const freshestAge = freshestIntent ? freshestIntent.age_minutes : null;
+  return {
+    status: "all_intents_stale",
+    generated: true,
+    persisted: true,
+    picked_up_by_monitor: true,
+    aging_out_before_capture: true,
+    reason:
+      typeof freshestAge === "number"
+        ? `Movement intents exist and are visible to the monitor, but the freshest intent is ${freshestAge} minutes old.`
+        : "Movement intents exist and are visible to the monitor, but none are fresh enough for the stale_minutes window.",
+  };
+}
+
 function runIntentFreshnessAction(options) {
   const snapshot = getSnapshot(options);
   const movementIntents =
@@ -145,6 +185,7 @@ function runIntentFreshnessAction(options) {
         : null,
     intents,
   };
+  result.classification = classifyFreshness(result);
 
   if (options.outputPath) {
     fs.mkdirSync(path.dirname(options.outputPath), { recursive: true });

@@ -81,6 +81,14 @@ test("runOperatorBriefAction writes consolidated markdown brief", () => {
           fresh_count: 0,
           stale_or_invalid_count: 8,
         },
+        classification: {
+          status: "all_intents_stale",
+          generated: true,
+          persisted: true,
+          picked_up_by_monitor: true,
+          aging_out_before_capture: true,
+          reason: "Movement intents exist and are visible to the monitor, but the freshest intent is 285.1487 minutes old.",
+        },
         freshest_intent: {
           intent_id: "intent-office-handoff-001",
           age_minutes: 285.1487,
@@ -106,4 +114,7 @@ test("runOperatorBriefAction writes consolidated markdown brief", () => {
   assert.match(result.markdown, /records_considered: \+2/);
   assert.match(result.markdown, /fresh_count: 0/);
   assert.match(result.markdown, /freshest_intent_age_minutes: 285.1487/);
+  assert.match(result.markdown, /classification_status: all_intents_stale/);
+  assert.match(result.markdown, /intents_picked_up_by_monitor: true/);
+  assert.match(result.markdown, /aging_out_before_capture: true/);
 });

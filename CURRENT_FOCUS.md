@@ -23,7 +23,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - open gating work before any additional write-surface expansion:
   - complete one full 7-day room-transition evidence window and issue final go/no-go recommendation
   - keep capital movement flows read-only until immutable-ledger runtime implementation exists
-  - current room-transition evidence denials are dominated by `intent_fresh` failures when no recent movement-intent triggers exist within the 15-minute validation window (`fresh_count=0/8`, freshest intent age `~285m` at `2026-03-26T02:00:31.009Z`)
+  - current room-transition evidence denials are dominated by `intent_fresh` failures when no recent movement-intent triggers exist within the 15-minute validation window; diagnostics now classify this as `all_intents_stale` rather than missing persistence (`fresh_count=0/8`, freshest intent age `~299m` at `2026-03-26T02:14:12.314Z`)
 
 ## Next actions
 
@@ -67,6 +67,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - [x] add read-only movement-intent freshness diagnostics CLI to quantify `intent_fresh` blocker before capture/monitor runs
 - [x] add monitor preflight freshness gate (`--require-fresh-intent`) to skip capture when fresh intent coverage is zero
 - [x] surface intent-freshness blocker metrics in the standard operator brief output
+- [x] classify freshness root cause explicitly (`no_movement_intents`, `fresh_intents_available`, `all_intents_stale`) to show whether intents are missing or simply aging out
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
 ## Evidence checkpoint
@@ -74,7 +75,7 @@ Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-mon
 - latest run: `2026-03-26T01:52:14.868Z` (`window-hours=168`)
 - summary: `records_considered=2`, `allowed_rate=0`, `critical_failure_count=2`, `recommendation.state=insufficient_data`, `promotion_decision=no_go`
 - trend: `points_count=6`, latest delta vs previous is `records=+1`, `observed_hours=+0.1597`, `allowed_rate=0`
-- latest denial profile: `intent_fresh` failed while identity/policy checks passed; trigger timestamp was outside the default `stale_minutes=15` window
+- latest denial profile: `intent_fresh` failed while identity/policy checks passed; freshness classification is `all_intents_stale` (`generated=true`, `persisted=true`, `picked_up_by_monitor=true`, `aging_out_before_capture=true`)
 - next decision checkpoint: `2026-04-02T01:42:40.005Z`
 
 ## Out of scope

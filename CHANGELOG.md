@@ -2,6 +2,8 @@
 
 ## 2026-03-26
 
+- Added explicit freshness root-cause classification to room-transition freshness diagnostics and operator brief output so checkpoint artifacts now state whether intents are missing entirely or simply aging out before capture (`runtime/room_transition_intent_freshness_cli.js`, `runtime/room_transition_operator_brief_cli.js`, associated tests, `runtime/README.md`, `CURRENT_FOCUS.md`).
+- Updated `CURRENT_FOCUS.md` and `STATUS.md` to reflect the classified blocker state: movement intents are present and monitor-visible, but currently aging out before capture.
 - Wired intent-freshness artifacts into the standard room-transition monitor + operator brief flow so the main `intent_fresh` blocker appears in the default checkpoint brief (`runtime/room_transition_monitor_cli.js`, `runtime/room_transition_operator_brief_cli.js`, associated tests, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added room-transition monitor freshness preflight gate (`--require-fresh-intent`) so monitor runs can fail fast and skip capture when fresh intent coverage is zero (`runtime/room_transition_monitor_cli.js`, `runtime/tests/room_transition_monitor_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `STATUS.md`).
 - Added read-only movement-intent freshness diagnostics CLI for room-transition evidence gating (`runtime/room_transition_intent_freshness_cli.js`, `runtime/tests/room_transition_intent_freshness_cli.test.js`) and synced focus/status/evals docs with current `intent_fresh` blocker metrics.

@@ -78,6 +78,8 @@ function renderBrief(checkpoint, trend, freshness) {
     : [];
   const freshnessTotals = freshness && freshness.totals ? freshness.totals : {};
   const freshestIntent = freshness ? freshness.freshest_intent || null : null;
+  const freshnessClassification =
+    freshness && freshness.classification ? freshness.classification : {};
 
   return [
     "# Room-Transition Promotion Operator Brief",
@@ -112,6 +114,12 @@ function renderBrief(checkpoint, trend, freshness) {
     `- freshest_intent_id: ${freshestIntent ? freshestIntent.intent_id || "n/a" : "n/a"}`,
     `- freshest_intent_age_minutes: ${freshestIntent ? freshestIntent.age_minutes ?? "n/a" : "n/a"}`,
     `- freshest_intent_is_fresh: ${freshestIntent ? freshestIntent.fresh === true : false}`,
+    `- classification_status: ${freshnessClassification.status || "n/a"}`,
+    `- intents_generated: ${freshnessClassification.generated === true}`,
+    `- intents_persisted: ${freshnessClassification.persisted === true}`,
+    `- intents_picked_up_by_monitor: ${freshnessClassification.picked_up_by_monitor === true}`,
+    `- aging_out_before_capture: ${freshnessClassification.aging_out_before_capture === true}`,
+    `- classification_reason: ${freshnessClassification.reason || "n/a"}`,
     "",
     "## Failed Threshold Checks",
     failedChecks.length > 0 ? `- ${failedChecks.join(", ")}` : "- none",

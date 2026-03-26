@@ -384,6 +384,11 @@ Inspect current movement-intent freshness against the validator window:
 node runtime/room_transition_intent_freshness_cli.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15 --output-path runtime/output/room_transition_validations/latest.intent-freshness.json
 ```
 
+The freshness report classifies the blocker path directly:
+- `no_movement_intents`
+- `fresh_intents_available`
+- `all_intents_stale`
+
 Run one-command room-transition evidence monitor cycle (freshness + capture + checkpoint + trend + brief):
 
 ```powershell
