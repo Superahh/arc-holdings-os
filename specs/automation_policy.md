@@ -57,3 +57,18 @@ When writable UI is introduced:
 
 1. first writable UI surface must be approval decisioning only (`approve|reject|request_more_info`)
 2. capital movement writes remain disabled until capital contracts and audit rails are implemented end-to-end
+
+## Room-transition writable boundary (planned)
+
+Before any writable room-transition control is enabled, all of the following must be true:
+
+1. request is explicitly user-triggered (no autonomous or timer-driven movement writes)
+2. request references an existing read-only `OfficeMovementIntent` by `intent_id`
+3. request is scoped to a single agent + opportunity + route transition
+4. request cannot mutate approvals, workflow lifecycle, or capital state
+5. request is rejected when referenced intent is stale or no longer present in snapshot truth
+6. every decision path (`request|approve|reject|execute|cancel`) emits immutable audit entries
+
+Policy guardrail:
+
+- room-transition writes are operational UX controls only; they must not become an implicit authority path for business-state mutation

@@ -36,6 +36,8 @@ All cross-agent outputs must use contracts in [contracts.md](./contracts.md):
 - `CapitalMovementRequest` (planned)
 - `CapitalReservation` (planned)
 - `CapitalLedgerEntry` (planned)
+- `RoomTransitionRequest` (planned)
+- `RoomTransitionAuditEntry` (planned)
 
 ## Data flow (v1)
 
@@ -99,3 +101,23 @@ Approval requests must emit `ApprovalTicket`.
 - first concrete source feed for opportunity intake
 - KPI subset required at launch
 - exact operator interaction flow for writable approval decisions in the UI
+
+## Planned writable room-transition boundary
+
+Objective:
+
+- allow operator-controlled route transition commits for office simulation only, without enabling autonomous movement or business-state mutation
+
+First safe boundary:
+
+1. request payload must bind to existing `OfficeMovementIntent.intent_id`
+2. request may update only office simulation presentation state
+3. request must never mutate `approval_queue`, workflow lifecycle, or capital contracts
+4. request must write immutable `RoomTransitionAuditEntry` records for every state change
+5. server must reject requests when the referenced intent is stale/missing or opportunity is terminal
+
+Non-goals for this boundary:
+
+- autonomous patrol/walking loops
+- batched multi-agent transitions
+- any hidden or implicit transition execution

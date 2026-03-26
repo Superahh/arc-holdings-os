@@ -306,6 +306,51 @@ These contracts are planning and interface definitions in the current phase. The
 }
 ```
 
+## Planned Office Transition Write Contracts (`v1.2` planned)
+
+Purpose: define the first safe writable boundary for manual route-transition commits without enabling autonomous movement.
+
+### RoomTransitionRequest
+
+```json
+{
+  "request_id": "string",
+  "intent_id": "string",
+  "opportunity_id": "string",
+  "agent": "string",
+  "from_zone_id": "string",
+  "to_zone_id": "string",
+  "requested_by": "string",
+  "requested_at": "ISO-8601 datetime",
+  "reason": "string",
+  "mode": "manual_preview_commit",
+  "status": "requested|approved|rejected|executed|cancelled",
+  "policy_checks": [
+    "intent_exists",
+    "non_terminal_opportunity",
+    "no_capital_side_effects",
+    "no_workflow_mutation",
+    "audit_required"
+  ]
+}
+```
+
+### RoomTransitionAuditEntry
+
+```json
+{
+  "entry_id": "string",
+  "timestamp": "ISO-8601 datetime",
+  "request_id": "string",
+  "intent_id": "string",
+  "opportunity_id": "string",
+  "actor": "string",
+  "action": "request|approve|reject|execute|cancel",
+  "result": "accepted|denied|applied",
+  "notes": "string"
+}
+```
+
 ## Usage guidance
 
 - Task prompts should declare a `Contract Target` section and emit one or more contracts.
