@@ -28,6 +28,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `workflow_update_cli.js`: CLI for manual, policy-checked workflow status progression
 - `ui_snapshot.js`: read-only snapshot composer for the visible UI shell
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
+- `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
 - `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
@@ -72,6 +73,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/ui_server.test.js`: UI shell server and snapshot endpoint tests
 - `tests/ui_browser_smoke.test.js`: headless browser smoke check for live shell rendering (skips when browser binary is unavailable)
 - `tests/room_transition_validator_cli.test.js`: room-transition request boundary validator tests
+- `tests/room_transition_evidence_cli.test.js`: room-transition validator evidence summary CLI tests
 - `tests/run_all_tests.js`: helper script to execute all runtime tests in deterministic order
 - `tests/run_all_tests.test.js`: test coverage for the runtime test runner helper
 - `output/`: generated runs and maintained snapshots
@@ -115,6 +117,7 @@ node runtime/tests/ui_snapshot.test.js
 node runtime/tests/ui_server.test.js
 node runtime/tests/ui_browser_smoke.test.js
 node runtime/tests/room_transition_validator_cli.test.js
+node runtime/tests/room_transition_evidence_cli.test.js
 ```
 
 ## Execute pipeline and persist artifacts
@@ -327,6 +330,12 @@ Validate a planned room-transition request against snapshot policy boundary:
 
 ```powershell
 node runtime/room_transition_validator_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15
+```
+
+Summarize room-transition validation evidence (last 7 days by default):
+
+```powershell
+node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --output-path runtime/output/room_transition_validations/latest.summary.json
 ```
 
 ## Scope note

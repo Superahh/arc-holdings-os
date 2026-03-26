@@ -260,3 +260,20 @@ Verify that planned room-transition requests are validated against snapshot trut
 - validator returns `allowed=true` for intent-aligned manual request with complete policy checks
 - stale or mismatched request returns `allowed=false` with explicit failing checks (`intent_fresh`, identity mismatch, or policy list incomplete)
 - validation run produces no queue/workflow/capital mutation side effects
+
+### Room-transition evidence summary
+
+#### Goal
+Verify that boundary-validation outcomes are summarized into operator-readable evidence trends before any writable promotion discussion.
+
+#### Inputs
+- JSON outputs from `runtime/room_transition_validator_cli.js --output-path ...`
+- `runtime/room_transition_evidence_cli.js --window-hours 168`
+
+#### Expected contract(s)
+- validator output records (read-only)
+
+#### Pass checks
+- summary reports `allowed_count`, `denied_count`, and `allowed_rate`
+- summary surfaces top failing policy checks for denied requests
+- summary includes parse error accounting for malformed records
