@@ -50,6 +50,7 @@ Current posture to avoid focus creep:
 - do not expand UI surface area beyond checkpoint/evidence usability improvements
 - do not add new write endpoints outside the approved decision path
 - prioritize completion of open gating tasks before new feature scope
+- capital runtime ledger is now implemented for manual/operator CLI use; UI capital write endpoints remain disabled
 
 ## Next Likely Phases
 1. Room-transition evidence window completion

@@ -30,6 +30,9 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
 - `room_transition_evidence_cli.js`: read-only evidence summarizer for validator outputs (pass/fail trends + failed check counts)
 - `room_transition_evidence_snapshot_cli.js`: helper to persist timestamped evidence summaries plus `latest.summary.json` for recurring review
+- `capital_state.js`: immutable ledger-backed capital runtime state (manual-only account model + hash-chain integrity checks)
+- `capital_bootstrap_cli.js`: initialize/reset capital state with manual-only account snapshot
+- `capital_movement_cli.js`: execute manual capital movements with ledger entry emission and integrity validation
 - `state_bootstrap_cli.js`: CLI to initialize/reset queue and workflow state files safely
 - `decision_state.js`: post-decision office state generator
 - `queue_decision_cli.js`: CLI entrypoint for applying queue decisions and emitting decision artifacts
@@ -76,6 +79,9 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `tests/room_transition_validator_cli.test.js`: room-transition request boundary validator tests
 - `tests/room_transition_evidence_cli.test.js`: room-transition validator evidence summary CLI tests
 - `tests/room_transition_evidence_snapshot_cli.test.js`: recurring evidence snapshot helper tests
+- `tests/capital_state.test.js`: capital ledger runtime integrity and balance-transition tests
+- `tests/capital_bootstrap_cli.test.js`: capital bootstrap CLI tests
+- `tests/capital_movement_cli.test.js`: capital movement CLI tests
 - `tests/run_all_tests.js`: helper script to execute all runtime tests in deterministic order
 - `tests/run_all_tests.test.js`: test coverage for the runtime test runner helper
 - `output/`: generated runs and maintained snapshots
@@ -121,6 +127,9 @@ node runtime/tests/ui_browser_smoke.test.js
 node runtime/tests/room_transition_validator_cli.test.js
 node runtime/tests/room_transition_evidence_cli.test.js
 node runtime/tests/room_transition_evidence_snapshot_cli.test.js
+node runtime/tests/capital_state.test.js
+node runtime/tests/capital_bootstrap_cli.test.js
+node runtime/tests/capital_movement_cli.test.js
 ```
 
 ## Execute pipeline and persist artifacts
@@ -333,6 +342,24 @@ Validate a planned room-transition request against snapshot policy boundary:
 
 ```powershell
 node runtime/room_transition_validator_cli.js --request-path runtime/fixtures/room-transition-request.sample.json --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --stale-minutes 15
+```
+
+Bootstrap capital state (manual-only account):
+
+```powershell
+node runtime/capital_bootstrap_cli.js --state-path runtime/state/capital_state.json --account-id arc-main-usd
+```
+
+Execute manual capital movement with immutable ledger emission:
+
+```powershell
+node runtime/capital_movement_cli.js --state-path runtime/state/capital_state.json --action deposit --amount-usd 1000 --requested-by owner_operator --performed-by owner_operator --authorized-by owner_operator --reason "Initial operating capital"
+```
+
+Reserve capital for an approved opportunity:
+
+```powershell
+node runtime/capital_movement_cli.js --state-path runtime/state/capital_state.json --action reserve --amount-usd 250 --requested-by owner_operator --performed-by owner_operator --authorized-by owner_operator --reason "Reserve for approved opportunity" --opportunity-id opp-2026-03-26-100 --approval-ticket-id apr-2026-03-26-100
 ```
 
 Summarize room-transition validation evidence (last 7 days by default):

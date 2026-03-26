@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Implemented runtime capital ledger foundation with manual/operator CLI execution and tamper-evident hash-chain integrity checks (`runtime/capital_state.js`, `runtime/capital_bootstrap_cli.js`, `runtime/capital_movement_cli.js`, `runtime/tests/capital_state.test.js`, `runtime/tests/capital_bootstrap_cli.test.js`, `runtime/tests/capital_movement_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `STATUS.md`, `specs/capital_controls.md`).
 - Documented formal exit-criteria check for the first visible shell milestone and set explicit no-creep focus boundaries while remaining gating tasks are completed (`CURRENT_FOCUS.md`, `STATUS.md`).
 - Added room-transition operator brief CLI to produce a consolidated markdown checkpoint summary from latest checkpoint + trend artifacts (`runtime/room_transition_operator_brief_cli.js`, `runtime/tests/room_transition_operator_brief_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).
 - Added room-transition trend rollup CLI to summarize checkpoint momentum across timestamped evidence summaries with latest/previous deltas (`records_considered`, `allowed_rate`, `observed_hours`) for 7-day gate tracking (`runtime/room_transition_trend_cli.js`, `runtime/tests/room_transition_trend_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`, `evals/test_cases.md`).

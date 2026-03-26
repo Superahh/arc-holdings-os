@@ -6,13 +6,14 @@ Define explicit capital lifecycle rules for deposit, reserve, approval-to-use, a
 
 ## Current status
 
-- Contracts are defined in [contracts.md](./contracts.md) under capital extensions (`v1.1` planned).
-- Runtime/UI execution for capital movement remains disabled in this phase (`manual_only`).
+- Contracts are defined in [contracts.md](./contracts.md) under capital extensions (`v1.1`).
+- Runtime capital execution now exists via manual/operator CLI with immutable ledger support.
+- UI capital movement endpoints remain disabled in this phase (`manual_only` at UI surface).
 
 ## Scope boundary (current phase)
 
-- define interfaces and rules only
-- no new capital write-path backend behavior
+- implement runtime ledger-backed capital movement with strict manual/operator control
+- keep UI capital movement endpoints disabled
 - no automatic fund movement
 
 ## Lifecycle model
