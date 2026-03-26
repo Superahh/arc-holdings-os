@@ -80,3 +80,37 @@ v2 wins. Both variants can produce correct business reasoning, but v2 is materia
 - opportunity evaluation prompt v2 vs v3 (`OpportunityRecord` quality)
 - office status summary with and without strict status-card format
 - workflow design with and without explicit `ApprovalTicket` requirement
+
+## 2026-03-26
+
+### Benchmark name
+Room-transition writable-promotion evidence baseline
+
+### Date
+2026-03-26
+
+### Task
+Run readiness summary for room-transition boundary evidence:
+- `node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0`
+
+### Variants compared
+- current runtime evidence set
+
+### Contract target
+- `RoomTransitionRequest`
+- `RoomTransitionAuditEntry`
+
+### Criteria
+- evidence volume (`min_runs`)
+- allowed-rate threshold
+- parse hygiene
+- critical policy-failure count
+- deterministic recommendation state
+
+### Result summary
+No-go for promotion at this checkpoint due to `insufficient_data`.
+
+### Notes
+- Baseline summary (`2026-03-26T00:53:14Z`) reported: `records_considered=0`, `allowed_rate=0`.
+- Recommendation state: `insufficient_data`.
+- Continue recurring snapshot capture and re-evaluate on/after `2026-04-02` after a full 7-day window.

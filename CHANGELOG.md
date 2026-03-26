@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Documented room-transition evidence monitoring baseline (`insufficient_data`) and added explicit checkpoint timing for the first full 7-day go/no-go review (`CURRENT_FOCUS.md`, `STATUS.md`, `evals/benchmark_runs.md`).
 - Added explicit readiness recommendation states (`insufficient_data`, `no_go`, `candidate_for_review`) to room-transition evidence summaries for deterministic promotion reporting (`runtime/room_transition_evidence_cli.js`, `runtime/tests/room_transition_evidence_cli.test.js`, `runtime/README.md`).
 - Added recurring evidence snapshot helper CLI to persist timestamped readiness summaries and `latest.summary.json` for room-transition boundary trend review (`runtime/room_transition_evidence_snapshot_cli.js`, `runtime/tests/room_transition_evidence_snapshot_cli.test.js`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Added `--fail-on-not-ready` to room-transition evidence CLI so recurring checks can gate on readiness thresholds with exit code signaling (`runtime/room_transition_evidence_cli.js`, `runtime/tests/room_transition_evidence_cli.test.js`, `runtime/README.md`).

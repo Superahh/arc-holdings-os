@@ -45,6 +45,12 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] enable recurring evidence snapshot capture and trend review workflow before any writable room-transition proposal
 - [ ] monitor at least one full 7-day evidence window and document go/no-go recommendation for writable room-transition promotion
 
+## Evidence checkpoint
+
+- baseline run: `2026-03-26T00:53:14Z` (`window-hours=168`)
+- summary: `records_considered=0`, `allowed_rate=0`, `recommendation.state=insufficient_data`
+- next decision checkpoint: on/after `2026-04-02` once a full rolling 7-day evidence window is available
+
 ## Out of scope
 
 - autonomous financial commitments

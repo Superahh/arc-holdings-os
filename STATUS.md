@@ -1,13 +1,13 @@
 # STATUS
 
-As of March 25, 2026.
+As of March 26, 2026.
 
 ## Project North Star
 ARC Holdings OS is becoming a contract-driven multi-agent operating system for used-electronics opportunities where the operator can see company state quickly, approve consequential actions explicitly, and keep capital decisions auditable.
 
 ## Current Phase
-### Phase: Read-only operator shell hardening
-This phase turns the runtime into a usable command floor: live state visibility, deterministic office presence, and handoff-aware flow signals, without introducing unsafe UI write paths.
+### Phase: Read-only shell hardening with evidence-gated write discipline
+This phase keeps the shell operational and readable while proving promotion gates for additional write surfaces with deterministic evidence, thresholds, and explicit go/no-go recommendations.
 
 ## Completed Phases
 ### Phase 1: Prompt Lab to ARC OS planning migration
@@ -42,24 +42,26 @@ Current milestone remains the first visible read-only shell, now in hardening mo
   - first safe writable surface is decided (approval decisioning only)
   - writable approval decision submission is now implemented as the only UI write action
   - capital movement remains read-only and contract-only
+  - room-transition write promotion remains read-only and evidence-gated pending a full 7-day window review
 
 ## Next Likely Phases
-1. Capital control contract phase
-   - Define explicit capital lifecycle contracts and audit fields before any money-moving UI writes.
-2. First writable action phase
-   - Add a narrow, policy-checked write surface (most likely approval decisioning only).
-3. Writable action audit phase
-   - Add clear operator confirmations, immutable decision logs, and rollback-safe behavior.
-4. Deterministic movement phase
-   - Extend from anchors/routes to room-to-room motion tied strictly to real handoff events.
+1. Room-transition evidence window completion
+   - Complete a full rolling 7-day evidence window and publish a deterministic go/no-go recommendation.
+2. Capital runtime implementation phase
+   - Implement immutable ledger-backed capital state from already-frozen contracts before any capital writes.
+3. Capital writable controls phase
+   - Add narrow operator-controlled capital actions (deposit/reserve/approve-to-use/withdraw) with policy checks and audit trail.
+4. Movement expansion phase
+   - Extend deterministic office movement from route previews to workflow-tied room-to-room transitions.
 5. Integration phase (optional after stability)
-   - Add carefully scoped external connectors only after write-path and audit discipline is stable.
+   - Add scoped external connectors only after write-path and audit discipline remains stable.
 
 ## Not Yet Built
 - Full room visual system (beyond current zone cards and rails)
 - Custom avatar art pipeline
 - True room-to-room walking animations
 - General writable UI controls
+- Completed 7-day room-transition promotion recommendation package
 - Capital deposit/reserve/approval-to-use/withdraw execution controls
 - External marketplace/API integrations for autonomous actions
 - Unsupervised purchasing or listing behavior
