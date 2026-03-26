@@ -722,6 +722,73 @@ function renderPresenceMeta(presence) {
   return pieces.join(" | ");
 }
 
+function getZoneAtmosphere(presence) {
+  const byZone = {
+    "executive-suite": {
+      mood: "Decision desk",
+      detail: "Approvals, exposure, and escalation signals stay in view.",
+    },
+    "verification-bay": {
+      mood: "Verification bay",
+      detail: "Proof review, risk checks, and blockers are worked here.",
+    },
+    "routing-desk": {
+      mood: "Execution desk",
+      detail: "Approved work is staged for controlled handoff and follow-through.",
+    },
+    "market-lab": {
+      mood: "Market lab",
+      detail: "Routing, listings, and downstream opportunity handling stay organized.",
+    },
+  };
+  return (
+    byZone[presence.zone_id] || {
+      mood: "Operations room",
+      detail: "Live company state is visible here.",
+    }
+  );
+}
+
+function getZoneSignalLabel(presence) {
+  if (presence.status === "blocked" || presence.status === "alert") {
+    return "Attention required";
+  }
+  if (presence.status === "awaiting_approval") {
+    return "Decision waiting";
+  }
+  if (presence.status === "working") {
+    return "In active flow";
+  }
+  return "Standing by";
+}
+
+function getZoneProps(presence) {
+  const byZone = {
+    "executive-suite": {
+      label: "Executive suite",
+      items: ["Approval ledger", "Risk screen", "Capital brief"],
+    },
+    "verification-bay": {
+      label: "Verification bay",
+      items: ["Device tray", "IMEI proof", "Carrier check"],
+    },
+    "routing-desk": {
+      label: "Execution desk",
+      items: ["Route board", "Handoff case", "Ops checklist"],
+    },
+    "market-lab": {
+      label: "Market lab",
+      items: ["Listing board", "Pricing notes", "Outbound rack"],
+    },
+  };
+  return (
+    byZone[presence.zone_id] || {
+      label: "Operations room",
+      items: ["Live board", "Task rail", "Status note"],
+    }
+  );
+}
+
 function renderFlowEvents(activeTransitions) {
   const events =
     ((state.snapshot.office.events && state.snapshot.office.events.length
@@ -1226,53 +1293,71 @@ function renderOfficeCanvas() {
         activeTransitions,
         renderableHandoffs
       );
+      const zoneProps = getZoneProps(presence);
       return `
         <button
           type="button"
-          class="zone-card zone-card-${escapeHtml(presence.accent_token)} ${formatLaneClass(presence.lane_stage)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
+          class="zone-card zone-room zone-card-${escapeHtml(presence.accent_token)} zone-room-${escapeHtml(normalizeToken(presence.zone_id))} ${formatLaneClass(presence.lane_stage)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
           data-type="agent"
           data-id="${escapeHtml(presence.agent)}"
           data-zone-id="${escapeHtml(presence.zone_id)}"
         >
-          <div class="zone-title-row">
+          <div class="room-plaque">
             <div>
               <p class="eyebrow">${escapeHtml(presence.zone_label)}</p>
-              <h3>${escapeHtml(presence.agent)}</h3>
+              <h3>${escapeHtml(presence.department_label)}</h3>
             </div>
             <span class="status-pill ${formatStatusClass(presence.status)}">${escapeHtml(presence.status)}</span>
           </div>
 
-          <div class="zone-lane-ribbon ${formatLaneClass(presence.lane_stage)}">${escapeHtml(formatLaneLabel(presence.lane_stage))}</div>
+          <div class="room-floor">
+            <div class="room-boundary room-boundary-top"></div>
+            <div class="room-boundary room-boundary-right"></div>
+            <div class="room-boundary room-boundary-bottom"></div>
+            <div class="room-boundary room-boundary-left"></div>
 
-          <div class="zone-stage">
-            <div class="presence-strip">
-              <div class="avatar-shell ${formatMotionClass(presence.motion_state)} accent-${escapeHtml(presence.accent_token)}">
-                <div class="avatar-ring"></div>
-                <div class="avatar-glow"></div>
-                <div class="avatar-body">
-                  <div class="avatar-head"></div>
-                  <div class="avatar-torso"></div>
-                </div>
-                <div class="avatar-monogram">${escapeHtml(presence.avatar_monogram)}</div>
-                <div class="activity-dots" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
+            <div class="room-purpose">
+              <p class="zone-atmosphere-label">${escapeHtml(getZoneAtmosphere(presence).mood)}</p>
+              <p class="zone-atmosphere-detail">${escapeHtml(getZoneAtmosphere(presence).detail)}</p>
+              <div class="zone-lane-ribbon ${formatLaneClass(presence.lane_stage)}">${escapeHtml(formatLaneLabel(presence.lane_stage))}</div>
+            </div>
+
+            <div class="room-props" aria-hidden="true">
+              ${zoneProps.items
+                .map(
+                  (item) => `
+                    <span class="room-prop">${escapeHtml(item)}</span>
+                  `
+                )
+                .join("")}
+            </div>
+
+            <div class="workstation ${formatMotionClass(presence.motion_state)} accent-${escapeHtml(presence.accent_token)}">
+              <div class="desk-surface"></div>
+              <div class="desk-screen"></div>
+              <div class="desk-chair"></div>
+              <div class="agent-marker">
+                <div class="agent-marker-ring"></div>
+                <div class="agent-marker-core">${escapeHtml(presence.avatar_monogram)}</div>
               </div>
-
-              <div class="presence-bubble ${formatBubbleClass(presence.bubble_kind)}">
-                <p class="presence-bubble-label">${escapeHtml(presence.bubble_label)}</p>
-                <p class="presence-bubble-text">${escapeHtml(presence.bubble_text)}</p>
+              <div class="agent-callout">
+                <strong>${escapeHtml(presence.agent)}</strong>
+                <span>${escapeHtml(getZoneSignalLabel(presence))}</span>
               </div>
             </div>
 
-            <div class="presence-caption">
-              <strong>${escapeHtml(presence.department_label)}</strong>
-              <p class="muted">${escapeHtml(presence.headline)}</p>
+            <div class="room-bubble ${formatBubbleClass(presence.bubble_kind)}">
+              <p class="presence-bubble-label">${escapeHtml(presence.bubble_label)}</p>
+              <p class="presence-bubble-text">${escapeHtml(presence.bubble_text)}</p>
+            </div>
+
+            <div class="room-footer">
+              <div class="presence-caption">
+                <strong>${escapeHtml(presence.headline)}</strong>
+                <p class="muted">${escapeHtml(renderPresenceMeta(presence))}</p>
+              </div>
               <div class="card-tags">
                 <span class="priority-pill ${formatStatusClass(presence.urgency)}">${escapeHtml(presence.urgency)} urgency</span>
-                <span class="priority-pill">${escapeHtml(renderPresenceMeta(presence))}</span>
               </div>
             </div>
           </div>
@@ -1311,7 +1396,7 @@ function renderOfficeCanvas() {
       <div class="zone-network-overlay" aria-hidden="true">
         <svg class="zone-network-svg"></svg>
       </div>
-      <div class="office-layout">${zonesHtml}</div>
+      <div class="office-layout office-floorplan">${zonesHtml}</div>
       <div class="handoff-overlay hidden" aria-hidden="true">
         <svg class="handoff-svg"></svg>
         <div class="handoff-chip-layer"></div>
