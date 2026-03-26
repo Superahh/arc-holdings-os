@@ -38,7 +38,8 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - [x] expose `movement_intents` timeline context in the detail panel to support future operator controls before enabling additional writable actions
 - [x] add lightweight route playback controls (read-only scrub/select) in detail panel before enabling writable room transitions
 - [x] define first safe writable room-transition action boundary (policy checks + audit constraints) without enabling autonomous movement
-- [ ] add a read-only room-transition request validator (contract + policy checks only, no mutation endpoint) to prove boundary discipline
+- [x] add a read-only room-transition request validator (contract + policy checks only, no mutation endpoint) to prove boundary discipline
+- [ ] decide whether to promote room-transition requests to an approval-gated writable endpoint or keep them read-only through v1
 
 ## Out of scope
 

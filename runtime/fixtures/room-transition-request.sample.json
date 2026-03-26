@@ -1,0 +1,20 @@
+{
+  "request_id": "rtr-sample-001",
+  "intent_id": "intent-office-approval-waiting-apr-001-2026-03-25T19:02:00.000Z",
+  "opportunity_id": "opp-2026-03-25-001",
+  "agent": "CEO Agent",
+  "from_zone_id": "executive-suite",
+  "to_zone_id": "executive-suite",
+  "requested_by": "owner_operator",
+  "requested_at": "2026-03-25T19:10:30.000Z",
+  "reason": "Preview deterministic transition boundary before writable endpoint implementation.",
+  "mode": "manual_preview_commit",
+  "status": "requested",
+  "policy_checks": [
+    "intent_exists",
+    "non_terminal_opportunity",
+    "no_capital_side_effects",
+    "no_workflow_mutation",
+    "audit_required"
+  ]
+}

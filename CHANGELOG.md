@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added a read-only room-transition boundary validator CLI with strict request parsing and policy checks against live/read snapshot state, plus fixture and tests (`runtime/room_transition_validator_cli.js`, `runtime/tests/room_transition_validator_cli.test.js`, `runtime/fixtures/room-transition-request.sample.json`, `runtime/README.md`, `CURRENT_FOCUS.md`).
 - Defined the first safe writable room-transition boundary in specs/contracts/policy docs (manual-only, intent-bound, immutable-audit, no workflow/capital mutation) without implementing a write endpoint yet (`specs/contracts.md`, `specs/automation_policy.md`, `specs/technical_spec.md`, `CURRENT_FOCUS.md`).
 - Added read-only route playback controls in movement-intent detail sections (select intent + scrub route progress) and preview-dot rendering on the office canvas, with no backend mutation paths (`ui/app.js`, `ui/styles.css`, `CURRENT_FOCUS.md`).
 - Added movement-intent timeline context to opportunity/agent detail panels so operators can inspect route, trigger, and duration metadata before future controls are introduced (`ui/app.js`, `ui/styles.css`, `CURRENT_FOCUS.md`).
