@@ -311,3 +311,19 @@ Produce a single deterministic checkpoint artifact combining evidence snapshot, 
 - checkpoint includes `snapshot`, `window_status`, and `recommendation` sections
 - checkpoint writes to configured output path
 - insufficient-data conditions resolve to `recommendation.promotion_decision=no_go`
+
+### Capital read-only boundary guard
+
+#### Goal
+Ensure current runtime write flows do not introduce capital mutation artifacts before immutable-ledger contracts are implemented.
+
+#### Inputs
+- `runtime/run_pipeline.js` on acquisition-eligible fixture
+- `runtime/queue_decision_cli.js` decision submission on resulting ticket
+
+#### Expected contract(s)
+- existing queue/workflow/decision artifacts only
+
+#### Pass checks
+- no capital-named state files are created during pipeline or decision flow
+- decision artifact contains `capital_note` context only (no `capital_ledger` or `capital_movements` sections)
