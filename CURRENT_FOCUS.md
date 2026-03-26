@@ -8,6 +8,8 @@ Ship the first visible desktop UI shell on top of the frozen v1 contracts and cu
 
 Deliver a read-only, contract-driven operator shell with low-clutter visibility into workflow, approvals, blockers, and top attention.
 
+Milestone status: exit criteria met as of 2026-03-26. Remaining work is gate-monitoring and boundary discipline, not shell expansion.
+
 ## This week target
 
 - compose a single UI snapshot from runtime state and latest artifacts
@@ -18,6 +20,9 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 ## Current blockers
 
 - none for shell delivery
+- open gating work before any additional write-surface expansion:
+  - complete one full 7-day room-transition evidence window and issue final go/no-go recommendation
+  - keep capital movement flows read-only until immutable-ledger runtime implementation exists
 
 ## Next actions
 
@@ -64,6 +69,7 @@ Deliver a read-only, contract-driven operator shell with low-clutter visibility 
 - broad external integration work
 - game mechanics detached from operations
 - deep ERP modeling
+- additional UI surface expansion unrelated to the open gating work above
 
 ## Exit criteria
 
@@ -73,3 +79,10 @@ This milestone is done when:
 - board, cards, and detail views stay contract-driven
 - no new backend mutation path is introduced for UI convenience
 - the operator can scan blockers, approvals, and next action in seconds
+
+## Exit Criteria Check (2026-03-26)
+
+- `shell renders all five required regions from runtime truth`: met (`runtime/tests/ui_snapshot.test.js`, `runtime/tests/ui_server.test.js`)
+- `board, cards, and detail views stay contract-driven`: met (`runtime/tests/ui_snapshot.test.js`, contract validators in `runtime/contracts.js`)
+- `no new backend mutation path is introduced for UI convenience`: met for capital/room-transition paths (`runtime/tests/ui_server.test.js`, `runtime/tests/capital_read_only_guard.test.js`)
+- `operator can scan blockers, approvals, and next action in seconds`: met by shell + office state assertions (`runtime/tests/ui_snapshot.test.js`, `runtime/tests/ui_server.test.js`)

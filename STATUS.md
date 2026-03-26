@@ -9,6 +9,8 @@ ARC Holdings OS is becoming a contract-driven multi-agent operating system for u
 ### Phase: Read-only shell hardening with evidence-gated write discipline
 This phase keeps the shell operational and readable while proving promotion gates for additional write surfaces with deterministic evidence, thresholds, and explicit go/no-go recommendations.
 
+Shell milestone note: the first visible shell exit criteria are satisfied; active work is now focused on evidence-window completion and maintaining read-only discipline for non-approved write surfaces.
+
 ## Completed Phases
 ### Phase 1: Prompt Lab to ARC OS planning migration
 - Prompt/spec/eval/context structure consolidated for ARC Holdings OS.
@@ -43,6 +45,11 @@ Current milestone remains the first visible read-only shell, now in hardening mo
   - writable approval decision submission is now implemented as the only UI write action
   - capital movement remains read-only and contract-only
   - room-transition write promotion remains read-only and evidence-gated pending a full 7-day window review
+
+Current posture to avoid focus creep:
+- do not expand UI surface area beyond checkpoint/evidence usability improvements
+- do not add new write endpoints outside the approved decision path
+- prioritize completion of open gating tasks before new feature scope
 
 ## Next Likely Phases
 1. Room-transition evidence window completion
