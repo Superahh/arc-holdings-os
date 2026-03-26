@@ -29,6 +29,8 @@ test("parseArgs validates unknown and numeric arguments", () => {
     () => parseArgs(["--max-parse-errors", "-1"]),
     /--max-parse-errors/
   );
+  const parsed = parseArgs(["--fail-on-not-ready"]);
+  assert.equal(parsed.failOnNotReady, true);
 });
 
 test("runEvidenceAction summarizes allowed and denied records", () => {

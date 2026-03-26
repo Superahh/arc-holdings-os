@@ -2,6 +2,7 @@
 
 ## 2026-03-26
 
+- Added `--fail-on-not-ready` to room-transition evidence CLI so recurring checks can gate on readiness thresholds with exit code signaling (`runtime/room_transition_evidence_cli.js`, `runtime/tests/room_transition_evidence_cli.test.js`, `runtime/README.md`).
 - Added explicit room-transition promotion thresholds and readiness gating (run count, allowed rate, parse errors, critical failures) across policy/decision/focus/runtime docs and evidence CLI output (`specs/automation_policy.md`, `DECISIONS.md`, `CURRENT_FOCUS.md`, `runtime/room_transition_evidence_cli.js`, `runtime/README.md`, `evals/test_cases.md`).
 - Added read-only room-transition evidence summarizer CLI (validator trend rollup with fail-check counts and parse-error accounting), plus tests and runtime/eval docs (`runtime/room_transition_evidence_cli.js`, `runtime/tests/room_transition_evidence_cli.test.js`, `runtime/README.md`, `evals/test_cases.md`, `CURRENT_FOCUS.md`).
 - Added evaluator scenario coverage for the room-transition boundary validator so read-only evidence can accumulate before any writable promotion (`evals/test_cases.md`).

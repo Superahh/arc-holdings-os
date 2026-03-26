@@ -51,6 +51,7 @@ function parseArgs(argv) {
     minAllowedRate: 0.95,
     maxParseErrors: 0,
     maxCriticalFailures: 0,
+    failOnNotReady: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -88,6 +89,8 @@ function parseArgs(argv) {
         "--max-critical-failures"
       );
       index += 1;
+    } else if (token === "--fail-on-not-ready") {
+      args.failOnNotReady = true;
     } else if (token === "--all") {
       args.all = true;
     } else {
@@ -287,6 +290,9 @@ if (require.main === module) {
     const args = parseArgs(process.argv.slice(2));
     const summary = runEvidenceAction(args);
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    if (args.failOnNotReady && !summary.readiness.eligible_for_writable_review) {
+      process.exitCode = 2;
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;

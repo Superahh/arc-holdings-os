@@ -338,6 +338,12 @@ Summarize room-transition validation evidence (last 7 days by default):
 node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --output-path runtime/output/room_transition_validations/latest.summary.json
 ```
 
+Fail CI/automation when readiness thresholds are not met:
+
+```powershell
+node runtime/room_transition_evidence_cli.js --inputs-dir runtime/output/room_transition_validations --window-hours 168 --min-runs 30 --min-allowed-rate 0.95 --max-parse-errors 0 --max-critical-failures 0 --fail-on-not-ready
+```
+
 ## Scope note
 
 This is a minimal v1 skeleton. It intentionally avoids external dependencies and external APIs.
