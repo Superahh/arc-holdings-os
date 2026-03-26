@@ -140,6 +140,7 @@ function runEvidenceSnapshotAction(options) {
     timestamped_path: timestampedPath,
     latest_path: latestPath,
     readiness: summary.readiness,
+    coverage: summary.coverage,
     totals: summary.totals,
   };
 }

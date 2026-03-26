@@ -171,6 +171,46 @@ function countFailedChecks(records) {
     .map(([check_name, count]) => ({ check_name, count }));
 }
 
+function toHours(milliseconds) {
+  return Number((milliseconds / (60 * 60 * 1000)).toFixed(4));
+}
+
+function computeCoverage(records, nowIso, windowHours) {
+  const timestampValues = records
+    .map((record) => record.validated_at)
+    .filter((value) => isIsoDateTime(value))
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right);
+
+  if (timestampValues.length === 0) {
+    return {
+      records_with_timestamp: 0,
+      oldest_validated_at: null,
+      newest_validated_at: null,
+      observed_hours: 0,
+      span_hours: 0,
+      target_window_hours: windowHours,
+      full_window_observed: false,
+    };
+  }
+
+  const oldestMs = timestampValues[0];
+  const newestMs = timestampValues[timestampValues.length - 1];
+  const nowMs = Date.parse(nowIso);
+  const observedMs = Number.isFinite(nowMs) ? Math.max(0, nowMs - oldestMs) : 0;
+
+  return {
+    records_with_timestamp: timestampValues.length,
+    oldest_validated_at: new Date(oldestMs).toISOString(),
+    newest_validated_at: new Date(newestMs).toISOString(),
+    observed_hours: toHours(observedMs),
+    span_hours: toHours(Math.max(0, newestMs - oldestMs)),
+    target_window_hours: windowHours,
+    full_window_observed: observedMs >= windowHours * 60 * 60 * 1000,
+  };
+}
+
 function computeReadiness(totals, failedCheckCounts, thresholds) {
   const criticalChecks = new Set([
     "intent_exists",
@@ -287,6 +327,7 @@ function summarizeEvidence(input) {
       error: entry.parse_error,
     })),
   };
+  summary.coverage = computeCoverage(windowedRecords, input.now, input.windowHours);
   summary.readiness = computeReadiness(summary.totals, summary.failed_check_counts, {
     min_runs: input.minRuns,
     min_allowed_rate: input.minAllowedRate,

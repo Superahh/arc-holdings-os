@@ -64,4 +64,6 @@ test("runEvidenceSnapshotAction writes timestamped and latest summaries", () => 
   assert.equal(fs.existsSync(result.timestamped_path), true);
   assert.equal(fs.existsSync(result.latest_path), true);
   assert.equal(result.readiness.eligible_for_writable_review, true);
+  assert.equal(result.coverage.records_with_timestamp, 1);
+  assert.equal(result.coverage.full_window_observed, false);
 });

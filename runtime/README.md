@@ -347,6 +347,12 @@ The summary includes `readiness.recommendation.state`:
 - `no_go`
 - `candidate_for_review`
 
+It also includes `coverage` metrics to monitor 7-day readiness:
+
+- `coverage.observed_hours`
+- `coverage.target_window_hours`
+- `coverage.full_window_observed`
+
 Fail CI/automation when readiness thresholds are not met:
 
 ```powershell
