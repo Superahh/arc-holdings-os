@@ -874,6 +874,37 @@ h2 {
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04)),
     rgba(255, 252, 245, 0.38);
   overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 14px 18px rgba(255, 255, 255, 0.18),
+    inset 0 -18px 22px rgba(20, 35, 34, 0.05);
+}
+
+.room-floor::before,
+.room-floor::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.room-floor::before {
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 16px 0 0 rgba(20, 35, 34, 0.04),
+    inset -16px 0 0 rgba(20, 35, 34, 0.04),
+    inset 0 16px 0 rgba(20, 35, 34, 0.035),
+    inset 0 -16px 0 rgba(20, 35, 34, 0.035);
+}
+
+.room-floor::after {
+  left: 24px;
+  right: 24px;
+  top: 24px;
+  bottom: 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(20, 35, 34, 0.04);
+  opacity: 0.65;
 }
 
 .zone-room-executive_suite .room-floor {
@@ -936,6 +967,16 @@ h2 {
 .room-door {
   background: rgba(249, 242, 231, 0.96);
   box-shadow: 0 0 0 1px rgba(20, 35, 34, 0.08);
+}
+
+.room-door::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: inherit;
+  background: rgba(20, 35, 34, 0.06);
+  filter: blur(10px);
+  opacity: 0.45;
 }
 
 .room-door-horizontal {
