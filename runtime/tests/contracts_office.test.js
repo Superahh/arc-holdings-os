@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  validateCapitalStrategySnapshot,
   validateOfficeZoneAnchor,
   validateOfficeRouteHint,
   validateOfficeEvent,
@@ -94,4 +95,19 @@ test("validateOfficeMovementIntent enforces route and trigger constraints", () =
     0,
     `Unexpected OfficeMovementIntent errors: ${errors.join(", ")}`
   );
+});
+
+test("validateCapitalStrategySnapshot accepts approved strategy snapshot", () => {
+  const errors = validateCapitalStrategySnapshot({
+    as_of: "2026-03-27T12:00:00.000Z",
+    capital_mode: "constrained",
+    capital_mode_reason: "Pending exposure is crowding available capital.",
+    approved_strategy_priorities: ["resale_only", "arbitrage", "bundle_optimization"],
+    capital_risk_flags: ["460 USD pending approval exposure."],
+    recommended_avoidances: ["Off-policy sourcing."],
+    recommended_actions: ["Favor lower-cost, faster-turn opportunities."],
+    source_capital_account_id: "arc-main-usd",
+  });
+
+  assert.equal(errors.length, 0, `Unexpected CapitalStrategySnapshot errors: ${errors.join(", ")}`);
 });

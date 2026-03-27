@@ -15,6 +15,15 @@ const APPROVAL_OPTIONS = new Set(["approve", "reject", "request_more_info"]);
 const PAYLOAD_TYPES = new Set(["OpportunityRecord", "ApprovalTicket", "other"]);
 const AGENT_STATUSES = new Set(["idle", "working", "blocked", "awaiting_approval", "alert"]);
 const URGENCY_LEVELS = new Set(["low", "medium", "high"]);
+const CAPITAL_MODES = new Set(["normal", "constrained", "recovery"]);
+const APPROVED_STRATEGY_CLASSES = new Set([
+  "repair_resell",
+  "part_out",
+  "resale_only",
+  "arbitrage",
+  "liquidation",
+  "bundle_optimization",
+]);
 const LANE_STAGES = new Set(["verification", "approval", "execution", "market", "monitor"]);
 const OFFICE_EVENT_TYPES = new Set([
   "handoff_started",
@@ -258,6 +267,48 @@ function validateCompanyBoardSnapshot(snapshot) {
   }
   if (typeof snapshot.capital_note !== "string" || !snapshot.capital_note) {
     errors.push("capital_note must be a non-empty string.");
+  }
+  return errors;
+}
+
+function validateCapitalStrategySnapshot(snapshot) {
+  const errors = [];
+  if (snapshot == null) {
+    return errors;
+  }
+  if (!snapshot || typeof snapshot !== "object") {
+    return ["CapitalStrategySnapshot must be an object or null."];
+  }
+  if (!isIsoDateTime(snapshot.as_of)) {
+    errors.push("as_of must be ISO-8601 datetime.");
+  }
+  if (!CAPITAL_MODES.has(snapshot.capital_mode)) {
+    errors.push("capital_mode contains invalid enum value.");
+  }
+  if (typeof snapshot.capital_mode_reason !== "string" || !snapshot.capital_mode_reason) {
+    errors.push("capital_mode_reason must be a non-empty string.");
+  }
+  if (
+    !Array.isArray(snapshot.approved_strategy_priorities) ||
+    !snapshot.approved_strategy_priorities.length
+  ) {
+    errors.push("approved_strategy_priorities must be a non-empty array.");
+  } else if (
+    !snapshot.approved_strategy_priorities.every((item) => APPROVED_STRATEGY_CLASSES.has(item))
+  ) {
+    errors.push("approved_strategy_priorities contains invalid enum value.");
+  }
+  if (!isStringArray(snapshot.capital_risk_flags)) {
+    errors.push("capital_risk_flags must be an array of strings.");
+  }
+  if (!isStringArray(snapshot.recommended_avoidances)) {
+    errors.push("recommended_avoidances must be an array of strings.");
+  }
+  if (!isStringArray(snapshot.recommended_actions)) {
+    errors.push("recommended_actions must be an array of strings.");
+  }
+  if (!isNullableString(snapshot.source_capital_account_id)) {
+    errors.push("source_capital_account_id must be string or null.");
   }
   return errors;
 }
@@ -538,6 +589,13 @@ function assertValidCompanyBoardSnapshot(snapshot) {
   }
 }
 
+function assertValidCapitalStrategySnapshot(snapshot) {
+  const errors = validateCapitalStrategySnapshot(snapshot);
+  if (errors.length > 0) {
+    throw new Error(`Invalid CapitalStrategySnapshot: ${errors.join(" | ")}`);
+  }
+}
+
 function assertValidOfficeZoneAnchor(anchor) {
   const errors = validateOfficeZoneAnchor(anchor);
   if (errors.length > 0) {
@@ -579,6 +637,7 @@ module.exports = {
   validateHandoffPacket,
   validateAgentStatusCard,
   validateCompanyBoardSnapshot,
+  validateCapitalStrategySnapshot,
   validateOfficeZoneAnchor,
   validateOfficeHandoffSignal,
   validateOfficeRouteHint,
@@ -589,6 +648,7 @@ module.exports = {
   assertValidHandoffPacket,
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
+  assertValidCapitalStrategySnapshot,
   assertValidOfficeZoneAnchor,
   assertValidOfficeHandoffSignal,
   assertValidOfficeRouteHint,

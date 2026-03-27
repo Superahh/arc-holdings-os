@@ -87,6 +87,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.flow_events.length, 1);
   assert.equal(snapshot.office.company_board_snapshot.approvals_waiting, 1);
   assert.equal(snapshot.capital_controls.status, "manual_only");
+  assert.equal(snapshot.capital_strategy, null);
   assert.equal(snapshot.workflow.opportunities.length, 1);
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.opportunity_record.opportunity_id,
@@ -192,4 +193,11 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
   assert.equal(snapshot.capital_controls.account_snapshot.available_usd, 900);
   assert.equal(snapshot.capital_controls.ledger_integrity.ok, true);
   assert.equal(snapshot.capital_controls.latest_request.action, "deposit");
+  assert.equal(snapshot.capital_strategy.capital_mode, "constrained");
+  assert.equal(snapshot.capital_strategy.source_capital_account_id, "arc-main-usd");
+  assert.deepEqual(snapshot.capital_strategy.approved_strategy_priorities.slice(0, 2), [
+    "resale_only",
+    "arbitrage",
+  ]);
+  assert.match(snapshot.capital_strategy.capital_mode_reason, /tighter relative to exposure|safe working posture/i);
 });

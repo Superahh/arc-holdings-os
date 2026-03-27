@@ -89,6 +89,13 @@ Approved capital strategy classes:
 - `liquidation`
 - `bundle_optimization`
 
+`arbitrage` is narrow in scope:
+
+- approved marketplaces only
+- approved product classes only
+- no off-policy sourcing
+- no autonomous capital movement
+
 ## Capital Strategy Model
 
 ### Goal
@@ -137,6 +144,11 @@ These should begin as read-only derived fields:
 - `capital_recovery_recommendations`
 
 Derivation should come from capital account state plus approval/workflow exposure, not from manual operator guesses inside the model.
+
+Future anti-flapping note:
+
+- do not switch between `normal`, `constrained`, and `recovery` too aggressively
+- add threshold bands and persistence rules before mode switching is allowed to influence deeper automation
 
 ### Office and board placement
 - no new room in v1

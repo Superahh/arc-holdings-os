@@ -85,6 +85,12 @@ function formatCurrency(value) {
   }).format(value);
 }
 
+function formatStrategyLabel(value) {
+  return String(value || "")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 function formatStatusClass(value) {
   return `status-${normalizeToken(value || "unknown")}`;
 }
@@ -1847,6 +1853,7 @@ function renderBoard() {
   const board = state.snapshot.office.company_board_snapshot;
   const attention = state.snapshot.attention.top_task;
   const capitalControls = state.snapshot.capital_controls;
+  const capitalStrategy = state.snapshot.capital_strategy;
   const capitalSnapshot = capitalControls && capitalControls.account_snapshot ? capitalControls.account_snapshot : null;
   const capitalIntegrity = capitalControls && capitalControls.ledger_integrity ? capitalControls.ledger_integrity : null;
   const priorities = board.priorities.length
@@ -1874,11 +1881,43 @@ function renderBoard() {
       </ul>
     `
     : `<p class="muted">Capital runtime ledger not initialized in this workspace path.</p>`;
+  const capitalStrategySummary = capitalStrategy
+    ? `
+      <article class="board-block capital-strategy-block">
+        <div class="capital-strategy-head">
+          <div>
+            <p class="eyebrow">Capital strategy</p>
+            <strong class="capital-mode-label">${escapeHtml(capitalStrategy.capital_mode)}</strong>
+          </div>
+          <span class="priority-pill">${escapeHtml(
+            formatStrategyLabel(capitalStrategy.approved_strategy_priorities[0] || "monitor")
+          )}</span>
+        </div>
+        <p>${escapeHtml(capitalStrategy.capital_mode_reason)}</p>
+        <div class="card-tags" style="margin-top:12px;">
+          ${capitalStrategy.approved_strategy_priorities
+            .map(
+              (item) =>
+                `<span class="task-chip">${escapeHtml(formatStrategyLabel(item))}</span>`
+            )
+            .join("")}
+        </div>
+        ${
+          capitalStrategy.capital_risk_flags.length
+            ? `<ul class="detail-list">${capitalStrategy.capital_risk_flags
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("")}</ul>`
+            : ""
+        }
+      </article>
+    `
+    : "";
 
   elements.companyBoard.innerHTML = `
     <article class="board-block">
       <p class="board-lead">${escapeHtml(state.snapshot.capital_controls.note)}</p>
     </article>
+    ${capitalStrategySummary}
     <div class="board-columns">
       <article class="board-block">
         <h3>Priorities</h3>

@@ -13,6 +13,7 @@ const {
   assertValidHandoffPacket,
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
+  assertValidCapitalStrategySnapshot,
   assertValidOfficeZoneAnchor,
   assertValidOfficeHandoffSignal,
   assertValidOfficeRouteHint,
@@ -394,6 +395,102 @@ function buildCapitalControls(capitalStatePath) {
         }
       : null,
   };
+}
+
+function buildCapitalStrategySnapshot(capitalControls, queueTotals, opportunities, nowIso) {
+  const account = capitalControls && capitalControls.account_snapshot;
+  if (!account) {
+    return null;
+  }
+
+  const available = account.available_usd || 0;
+  const reserved = account.reserved_usd || 0;
+  const committed = account.committed_usd || 0;
+  const pendingExposure = opportunities
+    .map((entry) => (entry.queue_item && entry.queue_item.status === "pending" ? entry.queue_item.ticket : null))
+    .filter(Boolean)
+    .reduce((sum, ticket) => sum + (ticket.max_exposure_usd || 0), 0);
+  const repairHeavyCount = opportunities.filter((entry) => {
+    const record = entry.contract_bundle && entry.contract_bundle.opportunity_record;
+    return record && record.recommended_path === "repair_and_resale";
+  }).length;
+  const staleLikeCount = opportunities.filter((entry) =>
+    ["routed", "monetizing"].includes(entry.current_status)
+  ).length;
+
+  let capitalMode = "normal";
+  if (available <= 300 || pendingExposure > available || committed > available) {
+    capitalMode = "recovery";
+  } else if (
+    available <= 1000 ||
+    pendingExposure >= available * 0.5 ||
+    reserved + committed >= Math.max(200, available * 0.75)
+  ) {
+    capitalMode = "constrained";
+  }
+
+  const riskFlags = [];
+  if (pendingExposure > 0) {
+    riskFlags.push(`${pendingExposure} USD pending approval exposure.`);
+  }
+  if (reserved > available) {
+    riskFlags.push("Reserved capital is crowding available operating cash.");
+  }
+  if (repairHeavyCount > 0) {
+    riskFlags.push(`${repairHeavyCount} repair-heavy opportunity path(s) are active.`);
+  }
+  if (staleLikeCount > 0) {
+    riskFlags.push(`${staleLikeCount} inventory item(s) are already in routed/market stages.`);
+  }
+
+  let priorities = ["repair_resell", "part_out", "resale_only"];
+  let avoidances = ["Unapproved monetization categories."];
+  let actions = [
+    "Keep regular sourcing/routing behavior within existing approval rules.",
+    "Use capital strategy as advisory context only.",
+  ];
+  let reason = "Available capital supports normal operating posture under current approval exposure.";
+
+  if (capitalMode === "constrained") {
+    priorities = ["resale_only", "arbitrage", "part_out", "bundle_optimization"];
+    avoidances = [
+      "Repair-heavy or long-cycle buys unless margin is unusually strong.",
+      "Capital lock-up from low-confidence opportunities.",
+      "Arbitrage outside approved marketplaces, approved product classes, or policy boundaries.",
+    ];
+    actions = [
+      "Favor lower-cost, faster-turn opportunities.",
+      "Use arbitrage only within approved marketplaces and approved product classes.",
+      "Reduce exposure to repair load until capital posture improves.",
+    ];
+    reason = `Available capital (${available} USD) is tighter relative to exposure/reserve posture (${pendingExposure} USD pending, ${reserved} USD reserved).`;
+  } else if (capitalMode === "recovery") {
+    priorities = ["liquidation", "resale_only", "arbitrage", "bundle_optimization"];
+    avoidances = [
+      "New repair-heavy inventory unless economics are exceptional and approved.",
+      "Any autonomous capital commitment or off-policy sourcing.",
+      "Arbitrage outside approved marketplaces, approved product classes, or policy boundaries.",
+    ];
+    actions = [
+      "Prioritize capital-light recovery paths and stale-stock relief.",
+      "Use arbitrage only within approved marketplaces and approved product classes.",
+      "Keep all capital movement user-controlled and approval-bound.",
+    ];
+    reason = `Available operating capital (${available} USD) is below safe working posture relative to active commitments/exposure.`;
+  }
+
+  const snapshot = {
+    as_of: account.as_of || nowIso,
+    capital_mode: capitalMode,
+    capital_mode_reason: reason,
+    approved_strategy_priorities: priorities,
+    capital_risk_flags: riskFlags,
+    recommended_avoidances: avoidances,
+    recommended_actions: actions,
+    source_capital_account_id: account.account_id || null,
+  };
+  assertValidCapitalStrategySnapshot(snapshot);
+  return snapshot;
 }
 
 function buildBoardPriorities(awaitingTasks) {
@@ -1320,6 +1417,13 @@ function buildUiSnapshot(options = {}) {
   );
   const queueTotals = summarizeQueueTotals(queue);
   const kpis = buildKpis(statusSnapshot, opportunities);
+  const capitalControls = buildCapitalControls(capitalStatePath);
+  const capitalStrategy = buildCapitalStrategySnapshot(
+    capitalControls,
+    queueTotals,
+    opportunities,
+    nowIso
+  );
   const agentStatusCards = buildAgentStatusCards(opportunities, statusSnapshot.attention, queueTotals, nowIso);
   const officePresence = buildOfficePresence(
     agentStatusCards,
@@ -1398,7 +1502,8 @@ function buildUiSnapshot(options = {}) {
       company_board_snapshot: companyBoardSnapshot,
     },
     awaiting_tasks: statusSnapshot.awaiting_tasks,
-    capital_controls: buildCapitalControls(capitalStatePath),
+    capital_controls: capitalControls,
+    capital_strategy: capitalStrategy,
   };
 }
 
@@ -1416,4 +1521,5 @@ module.exports = {
   buildOfficeFlowEvents,
   buildCompanyBoardSnapshot,
   buildKpis,
+  buildCapitalStrategySnapshot,
 };

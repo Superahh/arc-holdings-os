@@ -2054,6 +2054,25 @@ h2 {
   flex: 1;
 }
 
+.capital-strategy-block {
+  background:
+    linear-gradient(135deg, rgba(20, 35, 34, 0.04), rgba(175, 95, 45, 0.08)),
+    var(--panel);
+}
+
+.capital-strategy-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.capital-mode-label {
+  display: block;
+  font-size: 1.2rem;
+  text-transform: capitalize;
+}
+
 .approval-queue {
   margin-top: 18px;
   display: grid;
