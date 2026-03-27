@@ -181,6 +181,17 @@ Purpose: expose read-only capital posture and approved strategy priorities witho
 }
 ```
 
+### CapitalFitAnnotation
+
+Purpose: annotate a single opportunity against the current company capital mode without changing ordering or execution authority.
+
+```json
+{
+  "stance": "favored|neutral|discouraged",
+  "reason": "string"
+}
+```
+
 ### CapitalAccountSnapshot
 
 ```json

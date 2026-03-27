@@ -507,30 +507,52 @@ function buildOpportunityCapitalFit(entry, capitalStrategy) {
   if (capitalStrategy.capital_mode === "normal") {
     return {
       stance: "neutral",
-      reason: "Capital posture is healthy enough that this opportunity is not being narrowed by mode.",
+      reason: "Capital posture is healthy enough that mode does not currently narrow this opportunity.",
+    };
+  }
+
+  const lowLockupShape =
+    recommendedPath === "resale_as_is" ||
+    recommendedPath === "part_out" ||
+    (askPrice != null && askPrice <= 300);
+  const repairHeavyShape =
+    recommendedPath === "repair_and_resale" || (askPrice != null && askPrice >= 600);
+  const fastTurnConfidence = Boolean(
+    verification &&
+      verification.imei_proof_verified &&
+      verification.carrier_status_verified
+  );
+  const priorities = new Set(capitalStrategy.approved_strategy_priorities || []);
+
+  if (
+    lowLockupShape &&
+    (priorities.has("resale_only") ||
+      priorities.has("part_out") ||
+      priorities.has("arbitrage") ||
+      priorities.has("liquidation") ||
+      priorities.has("bundle_optimization"))
+  ) {
+    return {
+      stance: "favored",
+      reason: fastTurnConfidence
+        ? "Current capital mode favors lower-lockup, faster-turn opportunities and this shape fits that posture."
+        : "Current capital mode favors lower-lockup opportunity shapes, and this opportunity fits that posture.",
     };
   }
 
   if (
-    recommendedPath === "resale_as_is" ||
-    (askPrice != null && askPrice <= 300 && verification && verification.imei_proof_verified)
+    repairHeavyShape &&
+    (capitalStrategy.capital_mode === "constrained" || capitalStrategy.capital_mode === "recovery")
   ) {
     return {
-      stance: "favored",
-      reason: "Lower-cost, faster-turn opportunity shape fits the current capital-preservation posture.",
-    };
-  }
-
-  if (recommendedPath === "repair_and_resale" || (askPrice != null && askPrice >= 600)) {
-    return {
       stance: "discouraged",
-      reason: "Repair-heavy or higher-lockup exposure is less attractive under the current capital mode.",
+      reason: "Current capital mode favors capital-light turnover, so repair-heavy or higher-lockup exposure is discouraged.",
     };
   }
 
   return {
     stance: "neutral",
-    reason: "Current capital mode does not create a strong fit signal for this opportunity yet.",
+    reason: "This opportunity remains viable, but current capital mode does not create a strong fit signal either way.",
   };
 }
 

@@ -142,8 +142,40 @@ These should begin as read-only derived fields:
 - `approved_strategy_priorities`
 - `capital_risk_flags`
 - `capital_recovery_recommendations`
+- `capital_fit`
 
 Derivation should come from capital account state plus approval/workflow exposure, not from manual operator guesses inside the model.
+
+### Capital-fit annotation rubric
+`capital_fit` is a read-only explanatory layer for opportunities. It must not change ranking, scoring, or routing in v1.
+
+Allowed outputs:
+
+- `favored`
+- `neutral`
+- `discouraged`
+
+Rule order:
+
+1. if `capital_mode = normal`, output `neutral`
+2. if current opportunity shape aligns with one of the current `approved_strategy_priorities` and implies lower capital lock-up, output `favored`
+3. if current opportunity shape implies higher capital lock-up or repair-heavy exposure while the current mode favors faster-turn or capital-light strategies, output `discouraged`
+4. otherwise output `neutral`
+
+Opportunity-shape signals allowed in v1:
+
+- recommended path from the current opportunity contract
+- current ask price / upfront spend band
+- repair-heavy vs resale-as-is shape
+- basic verification state when it materially affects fast-turn confidence
+
+Interpretation guidance:
+
+- `favored` means the opportunity fits the current capital mode well
+- `neutral` means the opportunity is still viable but capital mode does not currently strengthen the case
+- `discouraged` means the opportunity shape conflicts with the current capital-preservation posture
+
+This rubric must remain deterministic and rule-based in v1. No hidden weighting, opaque scoring, or ranking side effects are allowed.
 
 Future anti-flapping note:
 
