@@ -177,6 +177,17 @@ Interpretation guidance:
 
 This rubric must remain deterministic and rule-based in v1. No hidden weighting, opaque scoring, or ranking side effects are allowed.
 
+Representative audit cases:
+
+| capital_mode | opportunity shape | expected `capital_fit` | rationale |
+| --- | --- | --- | --- |
+| `normal` | healthy capital posture, standard resale or repair opportunity | `neutral` | `normal` mode does not narrow the opportunity set in v1 |
+| `constrained` | low-lockup, lower-cost opportunity; e.g. `resale_as_is`, `part_out`, or low ask-price path aligned to current approved priorities | `favored` | current mode favors faster-turn, capital-light shapes |
+| `constrained` | moderate-cost opportunity with no clear low-lockup or repair-heavy signal | `neutral` | constrained mode exists, but this opportunity does not create a strong fit signal either way |
+| `constrained` | repair-heavy or high-lockup opportunity; e.g. `repair_and_resale` or clearly high ask-price exposure | `discouraged` | current mode favors preserving capital and reducing slow-turn exposure |
+| `recovery` | capital-light recovery opportunity aligned to `liquidation`, `resale_only`, `arbitrage`, or `bundle_optimization` priorities | `favored` | recovery mode prioritizes fastest safe cash-restoration paths |
+| `recovery` | repair-heavy or high-lockup opportunity even if otherwise viable | `discouraged` | recovery mode suppresses capital lock-up unless future policy explicitly changes |
+
 Future anti-flapping note:
 
 - do not switch between `normal`, `constrained`, and `recovery` too aggressively
