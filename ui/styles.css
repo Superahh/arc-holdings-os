@@ -440,10 +440,48 @@ h2 {
       transparent 48px
     ),
     rgba(249, 242, 231, 0.36);
+  position: relative;
+  z-index: 3;
 }
 
 .office-layout-wrap {
   position: relative;
+}
+
+.office-layout-wrap::before,
+.office-layout-wrap::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.office-layout-wrap::before {
+  left: 50%;
+  top: 18px;
+  bottom: 18px;
+  width: 42px;
+  transform: translateX(-50%);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.18)),
+    rgba(20, 35, 34, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(20, 35, 34, 0.08),
+    0 8px 18px rgba(20, 35, 34, 0.05);
+}
+
+.office-layout-wrap::after {
+  left: 18px;
+  right: 18px;
+  top: 50%;
+  height: 34px;
+  transform: translateY(-50%);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.18)),
+    rgba(20, 35, 34, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(20, 35, 34, 0.06);
 }
 
 .zone-card {
@@ -467,6 +505,22 @@ h2 {
   padding: 0;
   border-radius: 28px;
   background: transparent;
+}
+
+.zone-room-executive_suite {
+  transform-origin: top left;
+}
+
+.zone-room-verification_bay {
+  transform-origin: top right;
+}
+
+.zone-room-routing_desk {
+  transform-origin: bottom left;
+}
+
+.zone-room-market_lab {
+  transform-origin: bottom right;
 }
 
 .zone-card:hover,
@@ -764,6 +818,22 @@ h2 {
   overflow: hidden;
 }
 
+.zone-room-executive_suite .room-floor {
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%);
+}
+
+.zone-room-verification_bay .room-floor {
+  clip-path: polygon(0 22px, 22px 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.zone-room-routing_desk .room-floor {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+}
+
+.zone-room-market_lab .room-floor {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
+}
+
 .room-boundary {
   position: absolute;
   background: rgba(20, 35, 34, 0.12);
@@ -831,6 +901,24 @@ h2 {
   min-height: 138px;
   margin: 4px 4px 0;
   border-radius: 24px;
+}
+
+.zone-room-executive_suite .workstation {
+  width: 78%;
+  margin-left: auto;
+}
+
+.zone-room-verification_bay .workstation {
+  width: 74%;
+}
+
+.zone-room-routing_desk .workstation {
+  width: 76%;
+  margin-left: auto;
+}
+
+.zone-room-market_lab .workstation {
+  width: 72%;
 }
 
 .desk-surface {
@@ -917,6 +1005,17 @@ h2 {
   text-align: left;
 }
 
+.zone-room-executive_suite .agent-callout,
+.zone-room-routing_desk .agent-callout {
+  right: 12px;
+}
+
+.zone-room-verification_bay .agent-callout,
+.zone-room-market_lab .agent-callout {
+  left: 10px;
+  right: auto;
+}
+
 .agent-callout strong {
   font-size: 0.8rem;
 }
@@ -938,6 +1037,35 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   align-items: flex-end;
+}
+
+.room-props,
+.room-purpose,
+.room-footer,
+.room-bubble {
+  max-width: 92%;
+}
+
+.zone-room-executive_suite .room-purpose,
+.zone-room-routing_desk .room-purpose,
+.zone-room-executive_suite .room-props,
+.zone-room-routing_desk .room-props,
+.zone-room-executive_suite .room-bubble,
+.zone-room-routing_desk .room-bubble,
+.zone-room-executive_suite .room-footer,
+.zone-room-routing_desk .room-footer {
+  margin-right: auto;
+}
+
+.zone-room-verification_bay .room-purpose,
+.zone-room-market_lab .room-purpose,
+.zone-room-verification_bay .room-props,
+.zone-room-market_lab .room-props,
+.zone-room-verification_bay .room-bubble,
+.zone-room-market_lab .room-bubble,
+.zone-room-verification_bay .room-footer,
+.zone-room-market_lab .room-footer {
+  margin-left: auto;
 }
 
 .zone-stage {
