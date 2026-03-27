@@ -2073,6 +2073,18 @@ h2 {
   text-transform: capitalize;
 }
 
+.capital-strategy-columns {
+  margin-top: 14px;
+}
+
+.compact-list {
+  margin-top: 8px;
+}
+
+.compact-list li {
+  margin-bottom: 6px;
+}
+
 .approval-queue {
   margin-top: 18px;
   display: grid;

@@ -696,6 +696,15 @@ function renderKpis() {
       meta: "lifecycle signal",
     },
   ];
+  if (state.snapshot.capital_strategy) {
+    cards.push({
+      label: "Capital mode",
+      value: formatStrategyLabel(state.snapshot.capital_strategy.capital_mode),
+      meta: formatStrategyLabel(
+        state.snapshot.capital_strategy.approved_strategy_priorities[0] || "monitor"
+      ),
+    });
+  }
 
   elements.kpiStrip.replaceChildren();
   for (const card of cards) {
@@ -1931,6 +1940,24 @@ function renderBoard() {
                 .join("")}</ul>`
             : ""
         }
+        <div class="board-columns capital-strategy-columns">
+          <div>
+            <h3>Favor</h3>
+            <div class="card-tags">
+              ${capitalStrategy.recommended_actions
+                .map((item) => `<span class="task-chip">${escapeHtml(item)}</span>`)
+                .join("")}
+            </div>
+          </div>
+          <div>
+            <h3>Avoid</h3>
+            <ul class="detail-list compact-list">
+              ${capitalStrategy.recommended_avoidances
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("")}
+            </ul>
+          </div>
+        </div>
       </article>
     `
     : "";
