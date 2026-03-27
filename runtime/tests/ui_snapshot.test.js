@@ -19,6 +19,7 @@ const {
   validateOfficeRouteHint,
   validateOfficeEvent,
   validateOfficeMovementIntent,
+  validateCapitalFitAnnotation,
 } = require("../contracts");
 
 function seedFixtureEnvironment() {
@@ -206,5 +207,10 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
   assert.match(
     snapshot.workflow.opportunities[0].capital_fit.reason,
     /remains viable, but current capital mode does not create a strong fit signal/i
+  );
+  assert.equal(
+    validateCapitalFitAnnotation(snapshot.workflow.opportunities[0].capital_fit).length,
+    0,
+    "Expected capital_fit to conform to CapitalFitAnnotation contract."
   );
 });

@@ -16,6 +16,7 @@ const PAYLOAD_TYPES = new Set(["OpportunityRecord", "ApprovalTicket", "other"]);
 const AGENT_STATUSES = new Set(["idle", "working", "blocked", "awaiting_approval", "alert"]);
 const URGENCY_LEVELS = new Set(["low", "medium", "high"]);
 const CAPITAL_MODES = new Set(["normal", "constrained", "recovery"]);
+const CAPITAL_FIT_STANCES = new Set(["favored", "neutral", "discouraged"]);
 const APPROVED_STRATEGY_CLASSES = new Set([
   "repair_resell",
   "part_out",
@@ -313,6 +314,23 @@ function validateCapitalStrategySnapshot(snapshot) {
   return errors;
 }
 
+function validateCapitalFitAnnotation(annotation) {
+  const errors = [];
+  if (annotation == null) {
+    return errors;
+  }
+  if (!annotation || typeof annotation !== "object") {
+    return ["CapitalFitAnnotation must be an object or null."];
+  }
+  if (!CAPITAL_FIT_STANCES.has(annotation.stance)) {
+    errors.push("stance contains invalid enum value.");
+  }
+  if (typeof annotation.reason !== "string" || !annotation.reason) {
+    errors.push("reason must be a non-empty string.");
+  }
+  return errors;
+}
+
 function validateOfficeZoneAnchor(anchor) {
   const errors = [];
   if (!anchor || typeof anchor !== "object") {
@@ -596,6 +614,13 @@ function assertValidCapitalStrategySnapshot(snapshot) {
   }
 }
 
+function assertValidCapitalFitAnnotation(annotation) {
+  const errors = validateCapitalFitAnnotation(annotation);
+  if (errors.length > 0) {
+    throw new Error(`Invalid CapitalFitAnnotation: ${errors.join(" | ")}`);
+  }
+}
+
 function assertValidOfficeZoneAnchor(anchor) {
   const errors = validateOfficeZoneAnchor(anchor);
   if (errors.length > 0) {
@@ -638,6 +663,7 @@ module.exports = {
   validateAgentStatusCard,
   validateCompanyBoardSnapshot,
   validateCapitalStrategySnapshot,
+  validateCapitalFitAnnotation,
   validateOfficeZoneAnchor,
   validateOfficeHandoffSignal,
   validateOfficeRouteHint,
@@ -649,6 +675,7 @@ module.exports = {
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
   assertValidCapitalStrategySnapshot,
+  assertValidCapitalFitAnnotation,
   assertValidOfficeZoneAnchor,
   assertValidOfficeHandoffSignal,
   assertValidOfficeRouteHint,

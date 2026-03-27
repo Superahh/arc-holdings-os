@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   validateCapitalStrategySnapshot,
+  validateCapitalFitAnnotation,
   validateOfficeZoneAnchor,
   validateOfficeRouteHint,
   validateOfficeEvent,
@@ -110,4 +111,13 @@ test("validateCapitalStrategySnapshot accepts approved strategy snapshot", () =>
   });
 
   assert.equal(errors.length, 0, `Unexpected CapitalStrategySnapshot errors: ${errors.join(", ")}`);
+});
+
+test("validateCapitalFitAnnotation accepts approved advisory annotation", () => {
+  const errors = validateCapitalFitAnnotation({
+    stance: "favored",
+    reason: "Current capital mode favors lower-lockup opportunity shapes.",
+  });
+
+  assert.equal(errors.length, 0, `Unexpected CapitalFitAnnotation errors: ${errors.join(", ")}`);
 });

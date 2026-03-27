@@ -14,6 +14,7 @@ const {
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
   assertValidCapitalStrategySnapshot,
+  assertValidCapitalFitAnnotation,
   assertValidOfficeZoneAnchor,
   assertValidOfficeHandoffSignal,
   assertValidOfficeRouteHint,
@@ -505,10 +506,12 @@ function buildOpportunityCapitalFit(entry, capitalStrategy) {
   const verification = workflow && workflow.seller_verification ? workflow.seller_verification : null;
 
   if (capitalStrategy.capital_mode === "normal") {
-    return {
+    const annotation = {
       stance: "neutral",
       reason: "Capital posture is healthy enough that mode does not currently narrow this opportunity.",
     };
+    assertValidCapitalFitAnnotation(annotation);
+    return annotation;
   }
 
   const lowLockupShape =
@@ -532,28 +535,34 @@ function buildOpportunityCapitalFit(entry, capitalStrategy) {
       priorities.has("liquidation") ||
       priorities.has("bundle_optimization"))
   ) {
-    return {
+    const annotation = {
       stance: "favored",
       reason: fastTurnConfidence
         ? "Current capital mode favors lower-lockup, faster-turn opportunities and this shape fits that posture."
         : "Current capital mode favors lower-lockup opportunity shapes, and this opportunity fits that posture.",
     };
+    assertValidCapitalFitAnnotation(annotation);
+    return annotation;
   }
 
   if (
     repairHeavyShape &&
     (capitalStrategy.capital_mode === "constrained" || capitalStrategy.capital_mode === "recovery")
   ) {
-    return {
+    const annotation = {
       stance: "discouraged",
       reason: "Current capital mode favors capital-light turnover, so repair-heavy or higher-lockup exposure is discouraged.",
     };
+    assertValidCapitalFitAnnotation(annotation);
+    return annotation;
   }
 
-  return {
+  const annotation = {
     stance: "neutral",
     reason: "This opportunity remains viable, but current capital mode does not create a strong fit signal either way.",
   };
+  assertValidCapitalFitAnnotation(annotation);
+  return annotation;
 }
 
 function buildBoardPriorities(awaitingTasks) {
