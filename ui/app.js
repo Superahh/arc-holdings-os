@@ -789,6 +789,32 @@ function getZoneProps(presence) {
   );
 }
 
+function getZoneFixtures(presence) {
+  const byZone = {
+    "executive-suite": [
+      { kind: "table", label: "decision table" },
+      { kind: "cabinet", label: "approval wall" },
+      { kind: "plant", label: "corner plant" },
+    ],
+    "verification-bay": [
+      { kind: "bench", label: "inspection bench" },
+      { kind: "rack", label: "device rack" },
+      { kind: "light", label: "task lamp" },
+    ],
+    "routing-desk": [
+      { kind: "console", label: "routing console" },
+      { kind: "slots", label: "handoff slots" },
+      { kind: "phone", label: "dispatch phone" },
+    ],
+    "market-lab": [
+      { kind: "display", label: "listing wall" },
+      { kind: "table", label: "pricing table" },
+      { kind: "shelf", label: "market shelf" },
+    ],
+  };
+  return byZone[presence.zone_id] || [{ kind: "table", label: "shared station" }];
+}
+
 function renderFlowEvents(activeTransitions) {
   const events =
     ((state.snapshot.office.events && state.snapshot.office.events.length
@@ -1294,6 +1320,7 @@ function renderOfficeCanvas() {
         renderableHandoffs
       );
       const zoneProps = getZoneProps(presence);
+      const zoneFixtures = getZoneFixtures(presence);
       return `
         <button
           type="button"
@@ -1330,6 +1357,16 @@ function renderOfficeCanvas() {
                 .map(
                   (item) => `
                     <span class="room-prop">${escapeHtml(item)}</span>
+                  `
+                )
+                .join("")}
+            </div>
+
+            <div class="room-fixtures" aria-hidden="true">
+              ${zoneFixtures
+                .map(
+                  (fixture) => `
+                    <div class="room-fixture room-fixture-${escapeHtml(fixture.kind)}" title="${escapeHtml(fixture.label)}"></div>
                   `
                 )
                 .join("")}
