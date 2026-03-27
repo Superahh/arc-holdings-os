@@ -22,40 +22,48 @@ const {
   validateCapitalFitAnnotation,
 } = require("../contracts");
 
-function seedFixtureEnvironment() {
+function loadGoldenFixture() {
+  const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
+  return JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+}
+
+function seedFixtureEnvironment(options = {}) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "arc-ui-snapshot-"));
   const baseDir = path.join(tempDir, "output");
   const queuePath = path.join(tempDir, "approval_queue.json");
   const workflowStatePath = path.join(tempDir, "workflow_state.json");
-  const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
-  const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
-  const output = runOpportunityPipeline(fixture, "2026-03-25T19:00:00.000Z");
+  const now = options.now || "2026-03-25T19:00:00.000Z";
+  const enqueueApproval = options.enqueueApproval !== false;
+  const fixture = options.fixture || loadGoldenFixture();
+  const output = runOpportunityPipeline(fixture, now);
 
-  const queue = createEmptyQueue("2026-03-25T19:00:00.000Z");
-  enqueueApprovalTicket(
-    queue,
-    {
-      ticket_id: "apr-ui-001",
-      opportunity_id: output.opportunity_record.opportunity_id,
-      action_type: "acquisition",
-      requested_by: "CEO Agent",
-      recommended_option: "request_more_info",
-      decision_options: ["approve", "reject", "request_more_info"],
-      max_exposure_usd: 460,
-      reasoning_summary: "Hold capital until verification clears.",
-      risk_summary: "IMEI and carrier verification remain open.",
-      required_by: "2026-03-25T21:00:00.000Z",
-    },
-    "pipeline_runner",
-    "2026-03-25T19:02:00.000Z"
-  );
+  const queue = createEmptyQueue(now);
+  if (enqueueApproval) {
+    enqueueApprovalTicket(
+      queue,
+      {
+        ticket_id: "apr-ui-001",
+        opportunity_id: output.opportunity_record.opportunity_id,
+        action_type: "acquisition",
+        requested_by: "CEO Agent",
+        recommended_option: "request_more_info",
+        decision_options: ["approve", "reject", "request_more_info"],
+        max_exposure_usd: 460,
+        reasoning_summary: "Hold capital until verification clears.",
+        risk_summary: "IMEI and carrier verification remain open.",
+        required_by: "2026-03-25T21:00:00.000Z",
+      },
+      "pipeline_runner",
+      "2026-03-25T19:02:00.000Z"
+    );
+  }
   saveQueue(queuePath, queue, "2026-03-25T19:02:00.000Z");
 
-  const workflowState = createEmptyWorkflowState("2026-03-25T19:00:00.000Z");
-  upsertFromPipeline(workflowState, output, "pipeline_runner", "2026-03-25T19:00:00.000Z");
-  saveWorkflowState(workflowStatePath, workflowState, "2026-03-25T19:00:00.000Z");
+  const workflowState = createEmptyWorkflowState(now);
+  upsertFromPipeline(workflowState, output, "pipeline_runner", now);
+  saveWorkflowState(workflowStatePath, workflowState, now);
 
-  writeRunArtifact(baseDir, buildRunArtifact(fixture, output, "2026-03-25T19:00:00.000Z"));
+  writeRunArtifact(baseDir, buildRunArtifact(fixture, output, now));
 
   return {
     baseDir,
@@ -213,4 +221,124 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
     0,
     "Expected capital_fit to conform to CapitalFitAnnotation contract."
   );
+});
+
+test("buildUiSnapshot covers favored, neutral, and discouraged capital_fit stances", () => {
+  const normalEnv = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: normalEnv.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: normalEnv.capitalStatePath,
+    action: "deposit",
+    amountUsd: 2500,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed healthy capital posture for neutral capital-fit coverage.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+  const normalSnapshot = buildUiSnapshot({
+    queuePath: normalEnv.queuePath,
+    workflowStatePath: normalEnv.workflowStatePath,
+    capitalStatePath: normalEnv.capitalStatePath,
+    baseDir: normalEnv.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  const favoredFixture = loadGoldenFixture();
+  favoredFixture.opportunity_id = "opp-capital-fit-favored";
+  favoredFixture.ask_price_usd = 220;
+  favoredFixture.device.carrier_status = "verified";
+  favoredFixture.device.imei_proof_verified = true;
+  const favoredEnv = seedFixtureEnvironment({ fixture: favoredFixture, enqueueApproval: false });
+  runBootstrapAction({
+    statePath: favoredEnv.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: favoredEnv.capitalStatePath,
+    action: "deposit",
+    amountUsd: 900,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed constrained posture for favored capital-fit coverage.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+  const favoredSnapshot = buildUiSnapshot({
+    queuePath: favoredEnv.queuePath,
+    workflowStatePath: favoredEnv.workflowStatePath,
+    capitalStatePath: favoredEnv.capitalStatePath,
+    baseDir: favoredEnv.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  const discouragedFixture = loadGoldenFixture();
+  discouragedFixture.opportunity_id = "opp-capital-fit-discouraged";
+  discouragedFixture.ask_price_usd = 750;
+  discouragedFixture.device.carrier_status = "verified";
+  discouragedFixture.device.imei_proof_verified = true;
+  const discouragedEnv = seedFixtureEnvironment({
+    fixture: discouragedFixture,
+    enqueueApproval: false,
+  });
+  runBootstrapAction({
+    statePath: discouragedEnv.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: discouragedEnv.capitalStatePath,
+    action: "deposit",
+    amountUsd: 900,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed constrained posture for discouraged capital-fit coverage.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+  const discouragedSnapshot = buildUiSnapshot({
+    queuePath: discouragedEnv.queuePath,
+    workflowStatePath: discouragedEnv.workflowStatePath,
+    capitalStatePath: discouragedEnv.capitalStatePath,
+    baseDir: discouragedEnv.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(normalSnapshot.capital_strategy.capital_mode, "normal");
+  assert.equal(normalSnapshot.workflow.opportunities[0].capital_fit.stance, "neutral");
+  assert.equal(favoredSnapshot.capital_strategy.capital_mode, "constrained");
+  assert.equal(favoredSnapshot.workflow.opportunities[0].capital_fit.stance, "favored");
+  assert.equal(discouragedSnapshot.capital_strategy.capital_mode, "constrained");
+  assert.equal(discouragedSnapshot.workflow.opportunities[0].capital_fit.stance, "discouraged");
+
+  for (const snapshot of [normalSnapshot, favoredSnapshot, discouragedSnapshot]) {
+    assert.equal(
+      validateCapitalFitAnnotation(snapshot.workflow.opportunities[0].capital_fit).length,
+      0,
+      "Expected capital_fit to conform to CapitalFitAnnotation contract."
+    );
+  }
 });
