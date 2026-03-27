@@ -91,6 +91,15 @@ function formatStrategyLabel(value) {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
+function formatCapitalFitLabel(value) {
+  const labels = {
+    favored: "Favored",
+    neutral: "Neutral",
+    discouraged: "Discouraged",
+  };
+  return labels[value] || "Neutral";
+}
+
 function formatStatusClass(value) {
   return `status-${normalizeToken(value || "unknown")}`;
 }
@@ -1438,6 +1447,13 @@ function renderOfficeCanvas() {
               <strong>${escapeHtml(entry.opportunity_id)}</strong>
               <span class="status-pill ${formatStatusClass(entry.current_status)}">${escapeHtml(entry.current_status)}</span>
               <p class="muted">${escapeHtml(record ? record.device_summary : entry.source)}</p>
+              ${
+                entry.capital_fit
+                  ? `<small class="opportunity-capital-fit capital-fit-${escapeHtml(entry.capital_fit.stance)}">${escapeHtml(
+                      `Capital: ${formatCapitalFitLabel(entry.capital_fit.stance)}`
+                    )}</small>`
+                  : ""
+              }
             </button>
           `;
         })
@@ -1632,6 +1648,7 @@ function renderDetailForOpportunity(entry) {
   const history = workflow && Array.isArray(workflow.status_history) ? workflow.status_history : [];
   const movementIntents = movementIntentsForOpportunity(entry.opportunity_id);
   const capitalStrategy = state.snapshot.capital_strategy;
+  const capitalFit = entry.capital_fit;
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -1705,7 +1722,11 @@ function renderDetailForOpportunity(entry) {
             <h3>Capital strategy context</h3>
             <ul class="detail-list">
               <li>Company mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
+              <li>Opportunity fit: ${escapeHtml(
+                capitalFit ? formatCapitalFitLabel(capitalFit.stance) : "N/A"
+              )}</li>
               <li>Capital rationale: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
+              <li>Fit rationale: ${escapeHtml(capitalFit ? capitalFit.reason : "No fit note available.")}</li>
               <li>Priority fit: ${escapeHtml(
                 capitalStrategy.approved_strategy_priorities
                   .slice(0, 3)

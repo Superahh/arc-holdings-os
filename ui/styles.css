@@ -2085,6 +2085,25 @@ h2 {
   margin-bottom: 6px;
 }
 
+.opportunity-capital-fit {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.capital-fit-favored {
+  color: var(--ok);
+}
+
+.capital-fit-neutral {
+  color: var(--muted);
+}
+
+.capital-fit-discouraged {
+  color: var(--warn);
+}
+
 .approval-queue {
   margin-top: 18px;
   display: grid;

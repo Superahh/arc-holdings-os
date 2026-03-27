@@ -202,4 +202,6 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
   assert.match(snapshot.capital_strategy.capital_mode_reason, /tighter relative to exposure|safe working posture/i);
   assert.equal(snapshot.office.presence[0].capital_mode, "constrained");
   assert.match(snapshot.office.presence[0].headline, /constrained mode/i);
+  assert.equal(snapshot.workflow.opportunities[0].capital_fit.stance, "neutral");
+  assert.match(snapshot.workflow.opportunities[0].capital_fit.reason, /does not create a strong fit signal|faster-turn|repair-heavy/i);
 });

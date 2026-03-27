@@ -493,6 +493,47 @@ function buildCapitalStrategySnapshot(capitalControls, queueTotals, opportunitie
   return snapshot;
 }
 
+function buildOpportunityCapitalFit(entry, capitalStrategy) {
+  if (!capitalStrategy || !entry) {
+    return null;
+  }
+
+  const record = entry.contract_bundle && entry.contract_bundle.opportunity_record;
+  const workflow = entry.workflow_record || null;
+  const askPrice = record && typeof record.ask_price_usd === "number" ? record.ask_price_usd : null;
+  const recommendedPath = record ? record.recommended_path : null;
+  const verification = workflow && workflow.seller_verification ? workflow.seller_verification : null;
+
+  if (capitalStrategy.capital_mode === "normal") {
+    return {
+      stance: "neutral",
+      reason: "Capital posture is healthy enough that this opportunity is not being narrowed by mode.",
+    };
+  }
+
+  if (
+    recommendedPath === "resale_as_is" ||
+    (askPrice != null && askPrice <= 300 && verification && verification.imei_proof_verified)
+  ) {
+    return {
+      stance: "favored",
+      reason: "Lower-cost, faster-turn opportunity shape fits the current capital-preservation posture.",
+    };
+  }
+
+  if (recommendedPath === "repair_and_resale" || (askPrice != null && askPrice >= 600)) {
+    return {
+      stance: "discouraged",
+      reason: "Repair-heavy or higher-lockup exposure is less attractive under the current capital mode.",
+    };
+  }
+
+  return {
+    stance: "neutral",
+    reason: "Current capital mode does not create a strong fit signal for this opportunity yet.",
+  };
+}
+
 function buildBoardPriorities(awaitingTasks) {
   if (!awaitingTasks.length) {
     return ["Monitor company state and wait for the next qualified opportunity."];
@@ -1440,20 +1481,29 @@ function buildUiSnapshot(options = {}) {
     opportunities,
     nowIso
   );
-  const agentStatusCards = buildAgentStatusCards(opportunities, statusSnapshot.attention, queueTotals, nowIso);
+  const annotatedOpportunities = opportunities.map((entry) => ({
+    ...entry,
+    capital_fit: buildOpportunityCapitalFit(entry, capitalStrategy),
+  }));
+  const agentStatusCards = buildAgentStatusCards(
+    annotatedOpportunities,
+    statusSnapshot.attention,
+    queueTotals,
+    nowIso
+  );
   const officePresence = buildOfficePresence(
     agentStatusCards,
-    opportunities,
+    annotatedOpportunities,
     statusSnapshot.attention,
     nowIso,
     capitalStrategy
   );
-  const officeHandoffSignals = buildOfficeHandoffSignals(opportunities);
-  const officeFlowEvents = buildOfficeFlowEvents(workflowState, opportunities);
+  const officeHandoffSignals = buildOfficeHandoffSignals(annotatedOpportunities);
+  const officeFlowEvents = buildOfficeFlowEvents(workflowState, annotatedOpportunities);
   const officeZoneAnchors = buildOfficeZoneAnchors(officePresence);
   const officeRouteHints = buildOfficeRouteHints(officeZoneAnchors, officeHandoffSignals);
   const officeEvents = buildOfficeEvents(
-    opportunities,
+    annotatedOpportunities,
     queue,
     officeHandoffSignals,
     nowIso
@@ -1464,7 +1514,7 @@ function buildUiSnapshot(options = {}) {
     officeRouteHints
   );
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
-    opportunities,
+    annotatedOpportunities,
     statusSnapshot.awaiting_tasks.tasks,
     queueTotals,
     kpis,
@@ -1505,7 +1555,7 @@ function buildUiSnapshot(options = {}) {
         statusSnapshot.workflow && statusSnapshot.workflow.stale_opportunities
           ? statusSnapshot.workflow.stale_opportunities
           : [],
-      opportunities,
+      opportunities: annotatedOpportunities,
     },
     office: {
       agent_status_cards: agentStatusCards,
