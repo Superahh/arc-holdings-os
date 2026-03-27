@@ -1267,7 +1267,7 @@ function buildOfficeMovementIntents(officeEvents, officeZoneAnchors, officeRoute
     .slice(0, limit);
 }
 
-function buildPresenceBubble(card, attentionTask) {
+function buildPresenceBubble(card, attentionTask, capitalStrategy) {
   if (card.blocker) {
     return {
       bubble_kind: "blocker",
@@ -1289,6 +1289,13 @@ function buildPresenceBubble(card, attentionTask) {
       bubble_label: "Approval queue",
     };
   }
+  if (card.agent === "CEO Agent" && capitalStrategy) {
+    return {
+      bubble_kind: capitalStrategy.capital_mode === "normal" ? "task" : "attention",
+      bubble_text: capitalStrategy.capital_mode_reason,
+      bubble_label: `Capital mode: ${capitalStrategy.capital_mode}`,
+    };
+  }
   return {
     bubble_kind: "task",
     bubble_text: card.active_task,
@@ -1296,17 +1303,23 @@ function buildPresenceBubble(card, attentionTask) {
   };
 }
 
-function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso) {
+function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso, capitalStrategy = null) {
   return agentStatusCards.map((card) => {
     const blueprint = getPresenceBlueprint(card.agent);
     const attentionTask =
       attention && attention.top_task && attention.top_task.owner === card.agent
         ? attention.top_task
         : null;
-    const bubble = buildPresenceBubble(card, attentionTask);
+    const bubble = buildPresenceBubble(card, attentionTask, capitalStrategy);
     const focusedOpportunity = card.opportunity_id
       ? opportunities.find((entry) => entry.opportunity_id === card.opportunity_id) || null
       : null;
+    const strategyNote =
+      card.agent === "CEO Agent" && capitalStrategy
+        ? `${capitalStrategy.capital_mode} mode | ${capitalStrategy.approved_strategy_priorities
+            .slice(0, 2)
+            .join(" -> ")}`
+        : null;
 
     return {
       agent: card.agent,
@@ -1324,10 +1337,13 @@ function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso)
           : "idle"
       ),
       opportunity_id: card.opportunity_id,
-      headline: card.active_task,
+      headline: strategyNote ? `${card.active_task} | ${strategyNote}` : card.active_task,
       bubble_kind: bubble.bubble_kind,
       bubble_label: bubble.bubble_label,
       bubble_text: bubble.bubble_text,
+      capital_mode: card.agent === "CEO Agent" && capitalStrategy ? capitalStrategy.capital_mode : null,
+      capital_mode_reason:
+        card.agent === "CEO Agent" && capitalStrategy ? capitalStrategy.capital_mode_reason : null,
       focus_note:
         (focusedOpportunity &&
           focusedOpportunity.contract_bundle &&
@@ -1429,7 +1445,8 @@ function buildUiSnapshot(options = {}) {
     agentStatusCards,
     opportunities,
     statusSnapshot.attention,
-    nowIso
+    nowIso,
+    capitalStrategy
   );
   const officeHandoffSignals = buildOfficeHandoffSignals(opportunities);
   const officeFlowEvents = buildOfficeFlowEvents(workflowState, opportunities);

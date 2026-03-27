@@ -200,4 +200,6 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
     "arbitrage",
   ]);
   assert.match(snapshot.capital_strategy.capital_mode_reason, /tighter relative to exposure|safe working posture/i);
+  assert.equal(snapshot.office.presence[0].capital_mode, "constrained");
+  assert.match(snapshot.office.presence[0].headline, /constrained mode/i);
 });

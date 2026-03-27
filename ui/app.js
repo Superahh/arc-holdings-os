@@ -1731,6 +1731,8 @@ function renderDetailForAgent(card) {
   const presence = findPresenceByAgent(card.agent);
   const zoneAnchor = presence ? findZoneAnchorById(presence.zone_id) : null;
   const movementIntents = movementIntentsForAgent(card.agent);
+  const capitalStrategy =
+    card.agent === "CEO Agent" ? state.snapshot.capital_strategy : null;
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -1774,6 +1776,26 @@ function renderDetailForAgent(card) {
         <li>Focused opportunity: ${escapeHtml(card.opportunity_id || "None")}</li>
       </ul>
     </section>
+
+    ${
+      capitalStrategy
+        ? `
+          <section class="detail-section">
+            <h3>Capital strategy</h3>
+            <ul class="detail-list">
+              <li>Mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
+              <li>Reason: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
+              <li>Top priorities: ${escapeHtml(
+                capitalStrategy.approved_strategy_priorities
+                  .slice(0, 3)
+                  .map((item) => formatStrategyLabel(item))
+                  .join(", ")
+              )}</li>
+            </ul>
+          </section>
+        `
+        : ""
+    }
 
     <section class="detail-section">
       <h3>Related opportunities</h3>
