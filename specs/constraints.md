@@ -27,6 +27,7 @@
 - Human approval is required for risky actions in version 1.
 - Do not assume unsupervised purchasing or listing.
 - Automation must be tightly constrained, auditable, and justified.
+- Low-capital behavior must remain within approved strategy classes and must not trigger unbounded autonomous monetization behavior.
 
 ## Integration constraints
 

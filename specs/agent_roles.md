@@ -4,6 +4,7 @@
 
 - CEO Agent
 - CFO Agent
+- Capital Strategy Agent
 - Sourcing Agent
 - Valuation Agent
 - Risk and Compliance Agent
@@ -46,6 +47,52 @@ Capital control and exposure monitoring.
 ### Contract outputs
 - `HandoffPacket`
 - `ApprovalTicket` (when financial exposure requires decision)
+
+## Capital Strategy Agent
+
+### Job
+Classify capital posture and recommend approved strategy priorities under current capital conditions.
+
+### Role boundary
+- advisory only; not a capital executor
+- may classify `capital_mode`
+- may recommend approved strategy classes
+- may emit `HandoffPacket`
+- may request `ApprovalTicket` only when escalating capital-risk decisions already subject to existing approval rules
+- may not move money, invent monetization categories, or bypass approval/policy controls
+
+### Capital modes
+- `normal`
+- `constrained`
+- `recovery`
+
+### Approved strategy classes
+- `repair_resell`
+- `part_out`
+- `resale_only`
+- `arbitrage`
+- `liquidation`
+- `bundle_optimization`
+
+### Inputs
+- available operating capital
+- reserve posture and shortfall
+- pending approval exposure
+- open opportunities and expected spend
+- stale inventory and liquidation candidates
+- repair backlog and workload load
+- realized and projected time-to-cash, margin, and confidence signals
+
+### Outputs
+- capital mode classification
+- approved strategy priorities
+- rationale for strategy shifts
+- capital-risk warnings
+- exposure-reduction recommendations
+
+### Contract outputs
+- `HandoffPacket`
+- `ApprovalTicket` (only for existing approval-gated escalations)
 
 ## Sourcing Agent
 
@@ -117,7 +164,8 @@ Find repeatable process improvements and experiment opportunities.
 1. Sourcing -> Valuation
 2. Valuation -> Risk
 3. Risk -> CEO
-4. CEO -> Approval (if needed)
-5. CEO -> Operations/Listing/Repair route
-6. Operations -> Board/Status updates
-7. Outcomes -> Growth and eval logs
+4. CEO/CFO -> Capital Strategy (when capital posture should influence routing)
+5. CEO -> Approval (if needed)
+6. CEO -> Operations/Listing/Repair route
+7. Operations -> Board/Status updates
+8. Outcomes -> Growth and eval logs

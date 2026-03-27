@@ -162,6 +162,25 @@ Purpose: define explicit capital lifecycle contracts before writable UI actions 
 
 These contracts are planning and interface definitions in the current phase. They do not imply active write-path support yet.
 
+### CapitalStrategySnapshot
+
+Purpose: expose read-only capital posture and approved strategy priorities without implying capital execution authority.
+
+```json
+{
+  "as_of": "ISO-8601 datetime",
+  "capital_mode": "normal|constrained|recovery",
+  "capital_mode_reason": "string",
+  "approved_strategy_priorities": [
+    "repair_resell|part_out|resale_only|arbitrage|liquidation|bundle_optimization"
+  ],
+  "capital_risk_flags": ["string"],
+  "recommended_avoidances": ["string"],
+  "recommended_actions": ["string"],
+  "source_capital_account_id": "string|null"
+}
+```
+
 ### CapitalAccountSnapshot
 
 ```json

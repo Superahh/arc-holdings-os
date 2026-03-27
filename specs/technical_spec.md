@@ -18,6 +18,7 @@ ARC Holdings OS is a layered system:
 - approval queue
 - approval decision write endpoint (narrow writable surface)
 - workflow/state tracker
+- capital strategy classifier (read-only, planned)
 - read-only UI snapshot composer
 - office status composer
 - desktop UI shell
@@ -32,6 +33,7 @@ All cross-agent outputs must use contracts in [contracts.md](./contracts.md):
 - `ApprovalTicket`
 - `AgentStatusCard`
 - `CompanyBoardSnapshot`
+- `CapitalStrategySnapshot` (planned)
 - `CapitalAccountSnapshot` (planned)
 - `CapitalMovementRequest` (planned)
 - `CapitalReservation` (planned)
@@ -72,6 +74,75 @@ Agent states:
 - awaiting_approval
 - alert
 
+Capital mode states:
+
+- normal
+- constrained
+- recovery
+
+Approved capital strategy classes:
+
+- `repair_resell`
+- `part_out`
+- `resale_only`
+- `arbitrage`
+- `liquidation`
+- `bundle_optimization`
+
+## Capital Strategy Model
+
+### Goal
+Add a formal capital-awareness layer so the company can shift strategy when available operating capital is low, without introducing unbounded or unsafe behavior.
+
+### Design intent
+This is not a treasury or bank-integration feature.
+This is a decision and prioritization feature.
+
+The system should become capital-aware before it becomes capital-autonomous.
+
+### Decision rules
+Capital strategy should evaluate:
+
+- available capital relative to operating thresholds
+- reserve shortfall
+- pending approval exposure
+- repair backlog and labor load
+- expected time-to-cash by strategy class
+- estimated upfront cost per opportunity
+- risk-adjusted confidence
+
+### Behavior by capital mode
+
+#### Normal
+- standard routing remains allowed
+- `repair_resell` and `part_out` remain normal primary strategies
+
+#### Constrained
+- reduce appetite for repair-heavy or long-cycle opportunities
+- prioritize `resale_only`, `arbitrage`, and selected low-cost opportunities
+- favor faster-turn inventory decisions
+
+#### Recovery
+- prioritize `liquidation`, `resale_only`, `arbitrage`, and `bundle_optimization`
+- minimize capital lock-up
+- surface capital-restoration recommendations before expansion behavior
+
+### Future runtime/state additions
+These should begin as read-only derived fields:
+
+- `capital_mode`
+- `capital_mode_reason`
+- `approved_strategy_priorities`
+- `capital_risk_flags`
+- `capital_recovery_recommendations`
+
+Derivation should come from capital account state plus approval/workflow exposure, not from manual operator guesses inside the model.
+
+### Office and board placement
+- no new room in v1
+- Capital Strategy Agent should initially share the executive/finance zone
+- future board state may expose capital mode, strategy priorities, and rationale as read-only company context
+
 ## Approval model
 
 Human approval required for:
@@ -82,6 +153,10 @@ Human approval required for:
 - any monetary or compliance consequence
 
 Approval requests must emit `ApprovalTicket`.
+
+Capital-strategy guardrail:
+
+- capital strategy recommendations must not imply capital movement execution and must not create autonomous financial commitments
 
 ## Integration strategy
 
