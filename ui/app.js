@@ -1631,6 +1631,7 @@ function renderDetailForOpportunity(entry) {
   const risks = record && Array.isArray(record.risks) ? record.risks : [];
   const history = workflow && Array.isArray(workflow.status_history) ? workflow.status_history : [];
   const movementIntents = movementIntentsForOpportunity(entry.opportunity_id);
+  const capitalStrategy = state.snapshot.capital_strategy;
 
   elements.detailPanel.innerHTML = `
     <section class="detail-section">
@@ -1696,6 +1697,32 @@ function renderDetailForOpportunity(entry) {
           : ""
       }
     </section>
+
+    ${
+      capitalStrategy
+        ? `
+          <section class="detail-section">
+            <h3>Capital strategy context</h3>
+            <ul class="detail-list">
+              <li>Company mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
+              <li>Capital rationale: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
+              <li>Priority fit: ${escapeHtml(
+                capitalStrategy.approved_strategy_priorities
+                  .slice(0, 3)
+                  .map((item) => formatStrategyLabel(item))
+                  .join(", ")
+              )}</li>
+            </ul>
+            <div class="card-tags" style="margin-top:12px;">
+              ${capitalStrategy.recommended_avoidances
+                .slice(0, 2)
+                .map((item) => `<span class="task-chip">${escapeHtml(item)}</span>`)
+                .join("")}
+            </div>
+          </section>
+        `
+        : ""
+    }
 
     <section class="detail-section">
       <h3>Movement intents</h3>
