@@ -1315,6 +1315,9 @@ function renderOfficeCanvas() {
             <div class="room-boundary room-boundary-right"></div>
             <div class="room-boundary room-boundary-bottom"></div>
             <div class="room-boundary room-boundary-left"></div>
+            <div class="room-door room-door-horizontal"></div>
+            <div class="room-door room-door-vertical"></div>
+            <div class="room-floor-label" aria-hidden="true">${escapeHtml(presence.zone_label)}</div>
 
             <div class="room-purpose">
               <p class="zone-atmosphere-label">${escapeHtml(getZoneAtmosphere(presence).mood)}</p>

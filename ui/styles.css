@@ -869,6 +869,63 @@ h2 {
   right: 10px;
 }
 
+.room-door,
+.room-floor-label {
+  position: absolute;
+  z-index: 1;
+}
+
+.room-door {
+  background: rgba(249, 242, 231, 0.96);
+  box-shadow: 0 0 0 1px rgba(20, 35, 34, 0.08);
+}
+
+.room-door-horizontal {
+  left: 50%;
+  top: 8px;
+  width: 44px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+}
+
+.room-door-vertical {
+  top: 50%;
+  right: 8px;
+  width: 8px;
+  height: 44px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.zone-room-verification_bay .room-door-horizontal,
+.zone-room-market_lab .room-door-horizontal {
+  left: 30%;
+}
+
+.zone-room-routing_desk .room-door-horizontal,
+.zone-room-market_lab .room-door-vertical {
+  left: auto;
+  right: 24%;
+  transform: none;
+}
+
+.zone-room-routing_desk .room-door-vertical,
+.zone-room-executive_suite .room-door-vertical {
+  right: auto;
+  left: 8px;
+}
+
+.room-floor-label {
+  left: 18px;
+  bottom: 16px;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(20, 35, 34, 0.28);
+}
+
 .room-purpose,
 .room-footer {
   position: relative;
