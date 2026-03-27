@@ -448,6 +448,64 @@ h2 {
   position: relative;
 }
 
+.office-wayfinding {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.office-wayfinding-plaque {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(249, 242, 231, 0.94);
+  border: 1px solid rgba(20, 35, 34, 0.1);
+  box-shadow: 0 8px 16px rgba(20, 35, 34, 0.06);
+  color: rgba(20, 35, 34, 0.62);
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.office-wayfinding-node {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(249, 242, 231, 0.96);
+  border: 1px solid rgba(20, 35, 34, 0.12);
+  box-shadow: 0 4px 10px rgba(20, 35, 34, 0.08);
+}
+
+.office-wayfinding-node-north {
+  left: 50%;
+  top: 52px;
+  transform: translateX(-50%);
+}
+
+.office-wayfinding-node-south {
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+}
+
+.office-wayfinding-node-east {
+  right: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.office-wayfinding-node-west {
+  left: 52px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .office-layout-wrap::before,
 .office-layout-wrap::after {
   content: "";

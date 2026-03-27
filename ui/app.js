@@ -1433,6 +1433,13 @@ function renderOfficeCanvas() {
     ${floorBanner}
     ${flowEventsHtml}
     <div class="office-layout-wrap">
+      <div class="office-wayfinding" aria-hidden="true">
+        <div class="office-wayfinding-plaque">ARC floor</div>
+        <div class="office-wayfinding-node office-wayfinding-node-north"></div>
+        <div class="office-wayfinding-node office-wayfinding-node-east"></div>
+        <div class="office-wayfinding-node office-wayfinding-node-south"></div>
+        <div class="office-wayfinding-node office-wayfinding-node-west"></div>
+      </div>
       <div class="zone-network-overlay" aria-hidden="true">
         <svg class="zone-network-svg"></svg>
       </div>
