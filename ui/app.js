@@ -3,6 +3,17 @@
 const TRANSITION_WINDOW_MS = 14000;
 const DECISION_REQUEST_TIMEOUT_MS = 12000;
 const DECISION_SUCCESS_MESSAGE_MS = 9000;
+const V1_BOARD_CONTRACT = {
+  maxVisibleHandoffs: 3,
+  maxOpportunityMetadataChips: 2,
+  laneCardKeys: [
+    "avatar",
+    "lane_label",
+    "active_count",
+    "top_live_item",
+    "blocker_or_next_action",
+  ],
+};
 
 function createEmptyTransitionState() {
   return {
@@ -112,6 +123,21 @@ function formatBubbleClass(value) {
   return `bubble-${normalizeToken(value || "task")}`;
 }
 
+function formatVisualStateClass(value) {
+  return `visual-state-${normalizeToken(value || "idle")}`;
+}
+
+function formatVisualStateFamilyClass(value) {
+  const normalized = normalizeToken(value || "idle");
+  if (normalized === "blocked") {
+    return "state-family-interrupt";
+  }
+  if (normalized === "waiting" || normalized === "needs_approval") {
+    return "state-family-hold";
+  }
+  return "state-family-neutral";
+}
+
 function formatLaneClass(value) {
   return `lane-${normalizeToken(value || "monitor")}`;
 }
@@ -124,6 +150,18 @@ function formatOfficeEventType(value) {
   return String(value || "event")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function formatVisualStateLabel(value) {
+  const labels = {
+    idle: "Idle",
+    active: "Active",
+    reviewing: "Reviewing",
+    waiting: "Waiting",
+    blocked: "Blocked",
+    needs_approval: "Needs approval",
+  };
+  return labels[normalizeToken(value || "idle")] || "Idle";
 }
 
 function formatApprovalOutcomeChip(event) {
@@ -198,12 +236,243 @@ function formatTransitionStateLabel(value) {
 
 function shortAgentLabel(agent) {
   const mapping = {
-    "CEO Agent": "CEO",
-    "Risk and Compliance Agent": "Risk",
+    "CEO Agent": "Desk",
+    "Risk and Compliance Agent": "Source",
     "Operations Coordinator Agent": "Ops",
-    "Department Operator Agent": "Market",
+    "Department Operator Agent": "Sales",
   };
   return mapping[agent] || String(agent || "Agent");
+}
+
+function describeRole(agent) {
+  const mapping = {
+    "CEO Agent": {
+      responsibility: "Owns approvals, priority setting, and final operating direction.",
+      avatar: "Appears watchful when approvals stack up and steadier when the lanes are flowing.",
+      flow: "Sits at the approval and escalation hinge between sourcing decisions and execution.",
+    },
+    "Risk and Compliance Agent": {
+      responsibility: "Owns seller checks, evidence review, and verification blockers.",
+      avatar: "Appears cautious when verification is incomplete and active when evidence is moving.",
+      flow: "Catches weak listings early and hands cleared opportunities toward approval.",
+    },
+    "Operations Coordinator Agent": {
+      responsibility: "Owns acquisition readiness, routing, and execution handoff.",
+      avatar: "Appears busy when acquisitions are cleared and tense when blocked upstream.",
+      flow: "Bridges approved opportunities into execution and downstream market work.",
+    },
+    "Department Operator Agent": {
+      responsibility: "Owns listing, monetization, and active market-facing follow-through.",
+      avatar: "Appears active when inventory is routed and quieter when no sellable units are ready.",
+      flow: "Carries routed opportunities through listing and monetization.",
+    },
+  };
+  return (
+    mapping[agent] || {
+      responsibility: "Owns a shared operating responsibility.",
+      avatar: "Appears according to current task load and blockers.",
+      flow: "Supports the live company flow.",
+    }
+  );
+}
+
+function getLaneStageForAgent(agent) {
+  const mapping = {
+    "CEO Agent": "approval",
+    "Risk and Compliance Agent": "verification",
+    "Operations Coordinator Agent": "execution",
+    "Department Operator Agent": "market",
+  };
+  return mapping[agent] || "monitor";
+}
+
+function getTopLaneOpportunity(agent) {
+  const laneStage = getLaneStageForAgent(agent);
+  return (
+    (state.snapshot.workflow.opportunities || []).find(
+      (entry) => mapStatusToLaneStage(entry.current_status) === laneStage
+    ) || null
+  );
+}
+
+function getLaneActiveCount(agent) {
+  const laneStage = getLaneStageForAgent(agent);
+  return (state.snapshot.workflow.opportunities || []).filter(
+    (entry) => mapStatusToLaneStage(entry.current_status) === laneStage
+  ).length;
+}
+
+function getLaneEmptyCopy(agent) {
+  const mapping = {
+    "CEO Agent": "Waiting on qualified opportunities that need approval.",
+    "Risk and Compliance Agent": "Waiting on new sourcing and verification tasks.",
+    "Operations Coordinator Agent": "Waiting on approved opportunities from Decision Desk.",
+    "Department Operator Agent": "Waiting on routed opportunities from Ops and Diagnostics.",
+  };
+  return mapping[agent] || "Waiting on lane-owned work.";
+}
+
+function normalizeCurrentFocusNextStep(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "Reviewing owned queue.";
+  }
+  const lower = raw.toLowerCase();
+  if (
+    lower.startsWith("blocked by") ||
+    lower.startsWith("waiting on") ||
+    lower.startsWith("needs approval") ||
+    lower.startsWith("reviewing")
+  ) {
+    return raw;
+  }
+  return `Reviewing: ${raw.charAt(0).toLowerCase()}${raw.slice(1)}`;
+}
+
+function buildCurrentFocusModel({
+  ownedBy,
+  opportunityId,
+  visualState,
+  nextStep,
+}) {
+  return {
+    ownedBy: ownedBy || "Unassigned",
+    opportunityId: opportunityId || "None",
+    visualState: visualState || "idle",
+    nextStep: normalizeCurrentFocusNextStep(nextStep),
+  };
+}
+
+function renderCurrentFocusStrip(focus) {
+  return `
+    <section class="detail-section current-focus-strip">
+      <div class="current-focus-item">
+        <p class="eyebrow">Currently owned by</p>
+        <strong>${escapeHtml(focus.ownedBy)}</strong>
+      </div>
+      <div class="current-focus-item">
+        <p class="eyebrow">Opportunity</p>
+        <strong>${escapeHtml(focus.opportunityId)}</strong>
+      </div>
+      <div class="current-focus-item">
+        <p class="eyebrow">Visual state</p>
+        <span class="status-pill ${formatStatusClass(focus.visualState)}">${escapeHtml(
+    formatVisualStateLabel(focus.visualState)
+  )}</span>
+      </div>
+      <div class="current-focus-item">
+        <p class="eyebrow">Next step or blocker</p>
+        <strong>${escapeHtml(focus.nextStep)}</strong>
+      </div>
+    </section>
+  `;
+}
+
+function getLaneDominantMessage(card, presence, opportunity) {
+  const normalizeAction = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return "Reviewing owned queue.";
+    }
+    const lower = raw.toLowerCase();
+    if (lower.startsWith("blocked by")) {
+      return raw;
+    }
+    if (lower.startsWith("waiting on")) {
+      return raw;
+    }
+    if (lower.startsWith("needs approval")) {
+      return raw;
+    }
+    if (lower.startsWith("reviewing")) {
+      return raw;
+    }
+    return `Reviewing: ${raw.charAt(0).toLowerCase()}${raw.slice(1)}`;
+  };
+  if (card.blocker) {
+    return { label: "Top blocker", text: `Blocked by: ${card.blocker}`, tone: "blocked" };
+  }
+  if (
+    opportunity &&
+    opportunity.workflow_record &&
+    opportunity.workflow_record.purchase_recommendation_blocked
+  ) {
+    return {
+      label: "Top blocker",
+      text: "Blocked by: purchase recommendation remains blocked.",
+      tone: "blocked",
+    };
+  }
+  if (card.status === "awaiting_approval") {
+    return {
+      label: "Needs approval",
+      text: `Needs approval: ${String(card.active_task || "Decision required.").replace(/\.$/, "")}.`,
+      tone: "approval",
+    };
+  }
+  if (opportunity && opportunity.latest_task && opportunity.latest_task.next_action) {
+    return {
+      label: "Next action",
+      text: normalizeAction(opportunity.latest_task.next_action),
+      tone: "active",
+    };
+  }
+  if (presence && presence.bubble_text) {
+    return {
+      label: presence.bubble_label || "Next action",
+      text: normalizeAction(presence.bubble_text),
+      tone: "active",
+    };
+  }
+  return { label: "Next action", text: normalizeAction(card.active_task), tone: "active" };
+}
+
+function summarizeOperationalFlow() {
+  const opportunities = state.snapshot.workflow.opportunities || [];
+  const lanes = [
+    {
+      key: "verification",
+      label: "Verification",
+      statuses: new Set(["awaiting_seller_verification", "researching"]),
+    },
+    {
+      key: "approval",
+      label: "Approval",
+      statuses: new Set(["awaiting_approval"]),
+    },
+    {
+      key: "execution",
+      label: "Execution",
+      statuses: new Set(["approved", "acquired"]),
+    },
+    {
+      key: "market",
+      label: "Market",
+      statuses: new Set(["routed", "monetizing"]),
+    },
+  ];
+
+  return lanes.map((lane) => {
+    const entries = opportunities.filter((entry) => lane.statuses.has(entry.current_status));
+    const owners = [...new Set(entries.map((entry) => opportunityTaskOwner(entry)).filter(Boolean))];
+    return {
+      ...lane,
+      count: entries.length,
+      lead: owners.length ? owners.map((item) => shortAgentLabel(item)).join(" | ") : "Idle",
+      opportunities: entries.slice(0, 3).map((entry) => entry.opportunity_id),
+    };
+  });
+}
+
+function getRecentOperatingEvents(limit = 4) {
+  const events = state.snapshot.office.events || [];
+  return events
+    .filter((event) =>
+      ["handoff_started", "handoff_completed", "lane_changed", "approval_waiting", "approval_resolved"].includes(
+        event.type
+      )
+    )
+    .slice(0, limit);
 }
 
 function findAgentByName(name) {
@@ -268,6 +537,24 @@ function buildMovementIntentKey(opportunityId, fromZoneId, toZoneId) {
   return [opportunityId || "", fromZoneId || "", toZoneId || ""]
     .map((item) => normalizeToken(item))
     .join("|");
+}
+
+function sortHandoffSignalsDeterministic(items) {
+  return [...(items || [])].sort((a, b) => {
+    const aDue = Date.parse((a && a.due_by) || 0);
+    const bDue = Date.parse((b && b.due_by) || 0);
+    if (aDue !== bDue) {
+      return aDue - bDue;
+    }
+    const aTime = Date.parse((a && a.trigger_timestamp) || 0);
+    const bTime = Date.parse((b && b.trigger_timestamp) || 0);
+    if (aTime !== bTime) {
+      return bTime - aTime;
+    }
+    const aKey = `${(a && a.opportunity_id) || ""}|${(a && a.from_agent) || ""}|${(a && a.to_agent) || ""}`;
+    const bKey = `${(b && b.opportunity_id) || ""}|${(b && b.from_agent) || ""}|${(b && b.to_agent) || ""}`;
+    return aKey.localeCompare(bKey);
+  });
 }
 
 function computeTransitionState(previousSnapshot, nextSnapshot) {
@@ -474,13 +761,18 @@ function getRenderableHandoffs(activeTransitions) {
   const movementIntentLookup = getMovementIntentLookup();
 
   if (activeTransitions.handoffs.length) {
-    return activeTransitions.handoffs.map((signal) =>
+    return sortHandoffSignalsDeterministic(
+      activeTransitions.handoffs.map((signal) =>
       withMovementIntent(signal, true, movementIntentLookup)
-    );
+      )
+    ).slice(0, V1_BOARD_CONTRACT.maxVisibleHandoffs);
   }
 
   if ((state.snapshot.office.movement_intents || []).length) {
-    return (state.snapshot.office.movement_intents || []).slice(0, 3).map((intent) => ({
+    return sortHandoffSignalsDeterministic((state.snapshot.office.movement_intents || [])).slice(
+      0,
+      V1_BOARD_CONTRACT.maxVisibleHandoffs
+    ).map((intent) => ({
       intent_id: intent.intent_id,
       opportunity_id: intent.opportunity_id,
       from_agent: intent.from_agent,
@@ -497,9 +789,83 @@ function getRenderableHandoffs(activeTransitions) {
     }));
   }
 
-  return (state.snapshot.office.handoff_signals || []).slice(0, 3).map((signal) => ({
-    ...withMovementIntent(signal, false, movementIntentLookup),
-  }));
+  return sortHandoffSignalsDeterministic(state.snapshot.office.handoff_signals || [])
+    .slice(0, V1_BOARD_CONTRACT.maxVisibleHandoffs)
+    .map((signal) => ({
+      ...withMovementIntent(signal, false, movementIntentLookup),
+    }));
+}
+
+function buildLaneCardV1Model(presence, card, topOpportunity) {
+  const dominantMessage = getLaneDominantMessage(card, presence, topOpportunity);
+  const activeCount = getLaneActiveCount(presence.agent);
+  const laneCard = {
+    avatar: {
+      agent: presence.agent,
+      monogram: presence.avatar_monogram,
+      visual_state: presence.visual_state || "idle",
+    },
+    lane_label: presence.zone_label,
+    active_count: activeCount,
+    top_live_item: {
+      id: topOpportunity ? topOpportunity.opportunity_id : "No active owned item",
+      summary:
+        topOpportunity &&
+        topOpportunity.contract_bundle &&
+        topOpportunity.contract_bundle.opportunity_record &&
+        topOpportunity.contract_bundle.opportunity_record.device_summary
+          ? topOpportunity.contract_bundle.opportunity_record.device_summary
+          : topOpportunity
+            ? topOpportunity.current_status
+            : "This lane is clear right now.",
+      status: topOpportunity ? topOpportunity.current_status : null,
+    },
+    blocker_or_next_action: {
+      label: dominantMessage.label,
+      text: dominantMessage.text,
+      tone: dominantMessage.tone,
+    },
+  };
+  const keys = Object.keys(laneCard);
+  const allowedKeys = V1_BOARD_CONTRACT.laneCardKeys;
+  if (
+    keys.length !== allowedKeys.length ||
+    !allowedKeys.every((key) => Object.prototype.hasOwnProperty.call(laneCard, key))
+  ) {
+    throw new Error("laneCardV1 shape drift detected");
+  }
+  return laneCard;
+}
+
+function buildOpportunityCardV1Model(entry) {
+  const record = entry.contract_bundle && entry.contract_bundle.opportunity_record;
+  const handoff = entry.contract_bundle && entry.contract_bundle.handoff_packet;
+  const workflow = entry.workflow_record || null;
+  const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
+  const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
+  const isBlocked = Boolean(
+    (workflow && workflow.purchase_recommendation_blocked) || normalizeToken(entry.current_status) === "blocked"
+  );
+  const nextAction =
+    (entry.latest_task && entry.latest_task.next_action) ||
+    (handoff && handoff.next_action) ||
+    "Awaiting workflow update.";
+
+  return {
+    primary_id: entry.opportunity_id,
+    summary_line: (record && record.device_summary) || entry.source || "No summary available.",
+    action_line: isBlocked
+      ? "Blocked by: purchase recommendation remains blocked."
+      : `Next: ${nextAction}`,
+    owner_lane_label: ownerPresence
+      ? ownerPresence.zone_label
+      : formatLaneLabel(mapStatusToLaneStage(entry.current_status)),
+    is_selected: Boolean(
+      state.selected &&
+        state.selected.type === "opportunity" &&
+        state.selected.id === entry.opportunity_id
+    ),
+  };
 }
 
 function isFreshMovementSignal(signal) {
@@ -764,6 +1130,10 @@ function getZoneAtmosphere(presence) {
       mood: "Market lab",
       detail: "Routing, listings, and downstream opportunity handling stay organized.",
     },
+    "market-floor": {
+      mood: "Sales and market",
+      detail: "Listings, pricing follow-through, and monetization movement happen here.",
+    },
   };
   return (
     byZone[presence.zone_id] || {
@@ -774,14 +1144,18 @@ function getZoneAtmosphere(presence) {
 }
 
 function getZoneSignalLabel(presence) {
-  if (presence.status === "blocked" || presence.status === "alert") {
+  const visualState = normalizeToken(presence.visual_state || presence.status || "idle");
+  if (visualState === "blocked") {
     return "Attention required";
   }
-  if (presence.status === "awaiting_approval") {
+  if (visualState === "needs_approval") {
     return "Decision waiting";
   }
-  if (presence.status === "working") {
+  if (visualState === "active" || visualState === "reviewing") {
     return "In active flow";
+  }
+  if (visualState === "waiting") {
+    return "Waiting on input";
   }
   return "Standing by";
 }
@@ -1230,11 +1604,13 @@ function renderHandoffOverlay(renderableHandoffs) {
       y: (defaultStart.y + defaultEnd.y) / 2,
     };
 
+    const isApprovalSignal =
+      signal.to_agent === "CEO Agent" || signal.trigger_type === "approval_waiting";
     const pathNode = document.createElementNS(namespace, "path");
     pathNode.setAttribute("d", pathD);
     pathNode.setAttribute(
       "class",
-      `handoff-path ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim()
+      `handoff-path ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""} ${isApprovalSignal ? "is-approval" : ""}`.trim()
     );
     svg.append(pathNode);
 
@@ -1244,7 +1620,7 @@ function renderHandoffOverlay(renderableHandoffs) {
     pulseNode.setAttribute("r", signal.is_transition ? "6" : "4");
     pulseNode.setAttribute(
       "class",
-      `handoff-pulse ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim()
+      `handoff-pulse ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""} ${isApprovalSignal ? "is-approval" : ""}`.trim()
     );
     svg.append(pulseNode);
 
@@ -1289,14 +1665,16 @@ function renderHandoffOverlay(renderableHandoffs) {
     chipNode.className = `handoff-chip ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim();
     chipNode.style.left = `${midPoint.x}px`;
     chipNode.style.top = `${midPoint.y - 12}px`;
-    const motionLabel = signal.is_transition ? "in transit" : "arrived";
-    const triggerLabel = signal.trigger_type
-      ? formatOfficeEventType(signal.trigger_type)
-      : "handoff signal";
+    const summaryLabel =
+      signal.blocking_count > 0
+        ? "Blocked return"
+        : isApprovalSignal
+          ? "Needs approval"
+          : signal.next_action || "Ownership transfer";
     chipNode.innerHTML = `
       <strong>${escapeHtml(signal.opportunity_id)}</strong>
       <span>${escapeHtml(shortAgentLabel(signal.from_agent))} -> ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>
-      <span>${escapeHtml(`${triggerLabel} | ${motionLabel}`)}</span>
+      <span>${escapeHtml(summaryLabel)}</span>
     `;
     chipLayer.append(chipNode);
   }
@@ -1306,7 +1684,6 @@ function renderHandoffOverlay(renderableHandoffs) {
 
 function renderOfficeCanvas() {
   const presenceEntries = state.snapshot.office.presence || [];
-  const opportunities = state.snapshot.workflow.opportunities;
   const topTask = state.snapshot.attention.top_task;
   const activeTransitions = getActiveTransitionState();
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
@@ -1336,29 +1713,39 @@ function renderOfficeCanvas() {
 
   const zonesHtml = presenceEntries
     .map((presence) => {
-      const isSelected =
-        state.selected && state.selected.type === "agent" && state.selected.id === presence.agent;
       const signalClasses = buildZoneSignalClasses(
         presence.agent,
         activeTransitions,
         renderableHandoffs
       );
-      const zoneProps = getZoneProps(presence);
-      const zoneFixtures = getZoneFixtures(presence);
+      const laneStage = getLaneStageForAgent(presence.agent);
+      const card = findAgentByName(presence.agent);
+      const topOpportunity = getTopLaneOpportunity(presence.agent);
+      const laneCardV1 = buildLaneCardV1Model(presence, card, topOpportunity);
+      const visualState = laneCardV1.avatar.visual_state;
+      const isSelected =
+        (state.selected &&
+          state.selected.type === "agent" &&
+          state.selected.id === presence.agent) ||
+        (state.selected &&
+          state.selected.type === "opportunity" &&
+          topOpportunity &&
+          state.selected.id === topOpportunity.opportunity_id);
       return `
         <button
           type="button"
-          class="zone-card zone-room zone-card-${escapeHtml(presence.accent_token)} zone-room-${escapeHtml(normalizeToken(presence.zone_id))} ${formatLaneClass(presence.lane_stage)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
+          class="zone-card zone-room zone-card-${escapeHtml(presence.accent_token)} zone-room-${escapeHtml(normalizeToken(presence.zone_id))} ${formatLaneClass(laneStage)} ${formatVisualStateFamilyClass(visualState)} ${formatVisualStateClass(visualState)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
           data-type="agent"
           data-id="${escapeHtml(presence.agent)}"
           data-zone-id="${escapeHtml(presence.zone_id)}"
+          data-dominant-opportunity-id="${escapeHtml(topOpportunity ? topOpportunity.opportunity_id : "")}"
         >
           <div class="room-plaque">
             <div>
               <p class="eyebrow">${escapeHtml(presence.zone_label)}</p>
-              <h3>${escapeHtml(presence.department_label)}</h3>
+              <h3>${escapeHtml(presence.agent === "CEO Agent" ? "Decision owner" : presence.department_label)}</h3>
             </div>
-            <span class="status-pill ${formatStatusClass(presence.status)}">${escapeHtml(presence.status)}</span>
+            <span class="status-pill ${formatStatusClass(visualState)}">${escapeHtml(formatVisualStateLabel(visualState))}</span>
           </div>
 
           <div class="room-floor">
@@ -1371,29 +1758,15 @@ function renderOfficeCanvas() {
             <div class="room-floor-label" aria-hidden="true">${escapeHtml(presence.zone_label)}</div>
 
             <div class="room-purpose">
-              <p class="zone-atmosphere-label">${escapeHtml(getZoneAtmosphere(presence).mood)}</p>
-              <p class="zone-atmosphere-detail">${escapeHtml(getZoneAtmosphere(presence).detail)}</p>
-              <div class="zone-lane-ribbon ${formatLaneClass(presence.lane_stage)}">${escapeHtml(formatLaneLabel(presence.lane_stage))}</div>
-            </div>
-
-            <div class="room-props" aria-hidden="true">
-              ${zoneProps.items
-                .map(
-                  (item) => `
-                    <span class="room-prop">${escapeHtml(item)}</span>
-                  `
-                )
-                .join("")}
-            </div>
-
-            <div class="room-fixtures" aria-hidden="true">
-              ${zoneFixtures
-                .map(
-                  (fixture) => `
-                    <div class="room-fixture room-fixture-${escapeHtml(fixture.kind)}" title="${escapeHtml(fixture.label)}"></div>
-                  `
-                )
-                .join("")}
+              <p class="zone-atmosphere-label">Active count</p>
+              <p class="zone-atmosphere-detail">${escapeHtml(
+                laneCardV1.active_count === 0
+                  ? "No live item currently owned in this lane."
+                  : `${laneCardV1.active_count} live item${laneCardV1.active_count === 1 ? "" : "s"} currently owned here.`
+              )}</p>
+              <div class="zone-lane-ribbon ${formatLaneClass(laneStage)}">${escapeHtml(
+                formatLaneLabel(laneStage)
+              )}</div>
             </div>
 
             <div class="workstation ${formatMotionClass(presence.motion_state)} accent-${escapeHtml(presence.accent_token)}">
@@ -1406,22 +1779,35 @@ function renderOfficeCanvas() {
               </div>
               <div class="agent-callout">
                 <strong>${escapeHtml(presence.agent)}</strong>
+                <span>${escapeHtml(`State: ${formatVisualStateLabel(visualState)}`)}</span>
                 <span>${escapeHtml(getZoneSignalLabel(presence))}</span>
               </div>
             </div>
 
-            <div class="room-bubble ${formatBubbleClass(presence.bubble_kind)}">
-              <p class="presence-bubble-label">${escapeHtml(presence.bubble_label)}</p>
-              <p class="presence-bubble-text">${escapeHtml(presence.bubble_text)}</p>
+            <div class="room-bubble ${formatBubbleClass(
+              laneCardV1.blocker_or_next_action.tone === "blocked"
+                ? "blocker"
+                : laneCardV1.blocker_or_next_action.tone === "approval"
+                  ? "approval"
+                  : "task"
+            )}">
+              <p class="presence-bubble-label">${escapeHtml(laneCardV1.blocker_or_next_action.label)}</p>
+              <p class="presence-bubble-text">${escapeHtml(laneCardV1.blocker_or_next_action.text)}</p>
             </div>
 
             <div class="room-footer">
               <div class="presence-caption">
-                <strong>${escapeHtml(presence.headline)}</strong>
-                <p class="muted">${escapeHtml(renderPresenceMeta(presence))}</p>
+                <p class="presence-owner-label">Owned by this lane</p>
+                <strong>${escapeHtml(laneCardV1.top_live_item.id)}</strong>
+                <p class="muted">${escapeHtml(laneCardV1.top_live_item.summary)}</p>
               </div>
               <div class="card-tags">
-                <span class="priority-pill ${formatStatusClass(presence.urgency)}">${escapeHtml(presence.urgency)} urgency</span>
+                <span class="priority-pill">${escapeHtml(`${laneCardV1.active_count} active`)}</span>
+                ${
+                  laneCardV1.top_live_item.status
+                    ? `<span class="priority-pill ${formatStatusClass(laneCardV1.top_live_item.status)}">${escapeHtml(laneCardV1.top_live_item.status)}</span>`
+                    : ""
+                }
               </div>
             </div>
           </div>
@@ -1430,30 +1816,40 @@ function renderOfficeCanvas() {
     })
     .join("");
 
+  const opportunities = state.snapshot.workflow.opportunities;
   const opportunityRailHtml = opportunities.length
     ? opportunities
         .map((entry) => {
-          const record = entry.contract_bundle.opportunity_record;
-          const isSelected =
-            state.selected &&
-            state.selected.type === "opportunity" &&
-            state.selected.id === entry.opportunity_id;
+          const cardVm = buildOpportunityCardV1Model(entry);
           const laneStage = mapStatusToLaneStage(entry.current_status);
           const laneShiftClass = activeTransitions.laneShiftOpportunities.has(entry.opportunity_id)
             ? "has-lane-shift"
             : "";
+          const metadataChips = [
+            `<span class="priority-pill opportunity-meta-chip opportunity-owner-chip">${escapeHtml(
+              `Owner lane: ${cardVm.owner_lane_label}`
+            )}</span>`,
+          ];
+          if (cardVm.is_selected) {
+            metadataChips.push(
+              '<span class="priority-pill opportunity-meta-chip opportunity-selected-chip">Selected</span>'
+            );
+          } else if (entry.capital_fit) {
+            metadataChips.push(
+              `<small class="opportunity-capital-fit capital-fit-${escapeHtml(entry.capital_fit.stance)}">${escapeHtml(
+                `Capital: ${formatCapitalFitLabel(entry.capital_fit.stance)}`
+              )}</small>`
+            );
+          }
           return `
-            <button type="button" class="opportunity-chip ${formatLaneClass(laneStage)} ${laneShiftClass} ${isSelected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(entry.opportunity_id)}">
-              <strong>${escapeHtml(entry.opportunity_id)}</strong>
+            <button type="button" class="opportunity-chip ${formatLaneClass(laneStage)} ${laneShiftClass} ${cardVm.is_selected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(entry.opportunity_id)}">
+              <strong>${escapeHtml(cardVm.primary_id)}</strong>
               <span class="status-pill ${formatStatusClass(entry.current_status)}">${escapeHtml(entry.current_status)}</span>
-              <p class="muted">${escapeHtml(record ? record.device_summary : entry.source)}</p>
-              ${
-                entry.capital_fit
-                  ? `<small class="opportunity-capital-fit capital-fit-${escapeHtml(entry.capital_fit.stance)}">${escapeHtml(
-                      `Capital: ${formatCapitalFitLabel(entry.capital_fit.stance)}`
-                    )}</small>`
-                  : ""
-              }
+              <p class="muted opportunity-line-clamp opportunity-summary-line">${escapeHtml(cardVm.summary_line)}</p>
+              <p class="opportunity-line-clamp opportunity-action-line">${escapeHtml(cardVm.action_line)}</p>
+              <div class="card-tags opportunity-chip-meta">${metadataChips
+                .slice(0, V1_BOARD_CONTRACT.maxOpportunityMetadataChips)
+                .join("")}</div>
             </button>
           `;
         })
@@ -1485,6 +1881,14 @@ function renderOfficeCanvas() {
 
   elements.officeCanvas.querySelectorAll("[data-type][data-id]").forEach((node) => {
     node.addEventListener("click", () => {
+      if (
+        node.dataset.type === "agent" &&
+        typeof node.dataset.dominantOpportunityId === "string" &&
+        node.dataset.dominantOpportunityId
+      ) {
+        setSelection("opportunity", node.dataset.dominantOpportunityId);
+        return;
+      }
       setSelection(node.dataset.type, node.dataset.id);
     });
   });
@@ -1649,8 +2053,25 @@ function renderDetailForOpportunity(entry) {
   const movementIntents = movementIntentsForOpportunity(entry.opportunity_id);
   const capitalStrategy = state.snapshot.capital_strategy;
   const capitalFit = entry.capital_fit;
+  const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
+  const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
+  const nextStep =
+    workflow && workflow.purchase_recommendation_blocked
+      ? "Blocked by: purchase recommendation remains blocked."
+      : entry.latest_task
+        ? entry.latest_task.next_action
+        : handoff
+          ? handoff.next_action
+          : "Reviewing owned queue.";
+  const currentFocus = buildCurrentFocusModel({
+    ownedBy: ownerPresence ? ownerPresence.zone_label : ownerAgent || "Unassigned",
+    opportunityId: entry.opportunity_id,
+    visualState: ownerPresence ? ownerPresence.visual_state : "idle",
+    nextStep,
+  });
 
   elements.detailPanel.innerHTML = `
+    ${renderCurrentFocusStrip(currentFocus)}
     <section class="detail-section">
       <div class="detail-hero">
         <div class="detail-title-row">
@@ -1780,6 +2201,33 @@ function renderDetailForOpportunity(entry) {
   bindMovementIntentControls();
 }
 
+function renderDetailForLaneEmpty(card) {
+  const presence = findPresenceByAgent(card.agent);
+  const currentFocus = buildCurrentFocusModel({
+    ownedBy: presence ? presence.zone_label : card.agent,
+    opportunityId: "None",
+    visualState: presence ? presence.visual_state : "idle",
+    nextStep: getLaneEmptyCopy(card.agent),
+  });
+  elements.detailPanel.innerHTML = `
+    ${renderCurrentFocusStrip(currentFocus)}
+    <section class="detail-section">
+      <div class="detail-hero">
+        <div class="detail-title-row">
+          <div>
+            <p class="eyebrow">Lane status</p>
+            <strong>${escapeHtml(presence ? presence.zone_label : card.agent)}</strong>
+          </div>
+          <span class="status-pill ${formatStatusClass(currentFocus.visualState)}">${escapeHtml(
+    formatVisualStateLabel(currentFocus.visualState)
+  )}</span>
+        </div>
+        <p>${escapeHtml(getLaneEmptyCopy(card.agent))}</p>
+      </div>
+    </section>
+  `;
+}
+
 function renderDetailForAgent(card) {
   const opportunities = state.snapshot.workflow.opportunities.filter(
     (entry) => entry.latest_task && entry.latest_task.owner === card.agent
@@ -1790,8 +2238,18 @@ function renderDetailForAgent(card) {
   const movementIntents = movementIntentsForAgent(card.agent);
   const capitalStrategy =
     card.agent === "CEO Agent" ? state.snapshot.capital_strategy : null;
+  const role = describeRole(card.agent);
+  const topOpportunity = getTopLaneOpportunity(card.agent);
+  const dominantMessage = getLaneDominantMessage(card, presence, topOpportunity);
+  const currentFocus = buildCurrentFocusModel({
+    ownedBy: presence ? presence.zone_label : card.agent,
+    opportunityId: topOpportunity ? topOpportunity.opportunity_id : "None",
+    visualState: presence ? presence.visual_state : "idle",
+    nextStep: dominantMessage.text,
+  });
 
   elements.detailPanel.innerHTML = `
+    ${renderCurrentFocusStrip(currentFocus)}
     <section class="detail-section">
       <div class="detail-hero">
         <div class="detail-title-row">
@@ -1807,6 +2265,15 @@ function renderDetailForAgent(card) {
           <span class="priority-pill">${escapeHtml(card.opportunity_id || "company-wide")}</span>
         </div>
       </div>
+    </section>
+
+    <section class="detail-section">
+      <h3>Role ownership</h3>
+      <ul class="detail-list">
+        <li>Responsibility: ${escapeHtml(role.responsibility)}</li>
+        <li>Avatar behavior: ${escapeHtml(role.avatar)}</li>
+        <li>Operational position: ${escapeHtml(role.flow)}</li>
+      </ul>
     </section>
 
     <section class="detail-section">
@@ -1838,10 +2305,10 @@ function renderDetailForAgent(card) {
       capitalStrategy
         ? `
           <section class="detail-section">
-            <h3>Capital strategy</h3>
+            <h3>Support posture</h3>
             <ul class="detail-list">
-              <li>Mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
-              <li>Reason: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
+              <li>Capital mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
+              <li>Why support is tightening or loosening: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
               <li>Top priorities: ${escapeHtml(
                 capitalStrategy.approved_strategy_priorities
                   .slice(0, 3)
@@ -1849,7 +2316,7 @@ function renderDetailForAgent(card) {
                   .join(", ")
               )}</li>
             </ul>
-            <h3 style="margin-top:16px;">Recent posture</h3>
+            <h3 style="margin-top:16px;">Recent support shifts</h3>
             ${
               capitalStrategy.board_history.length
                 ? `<ul class="history-list">${capitalStrategy.board_history
@@ -1932,7 +2399,12 @@ function renderDetailPanel() {
   if (state.selected.type === "agent") {
     const card = findAgentByName(state.selected.id);
     if (card) {
-      renderDetailForAgent(card);
+      const dominantOpportunity = getTopLaneOpportunity(card.agent);
+      if (dominantOpportunity) {
+        renderDetailForOpportunity(dominantOpportunity);
+        return;
+      }
+      renderDetailForLaneEmpty(card);
       return;
     }
   }
@@ -1949,6 +2421,10 @@ function renderDetailPanel() {
 function renderBoard() {
   const board = state.snapshot.office.company_board_snapshot;
   const attention = state.snapshot.attention.top_task;
+  const recentEvents = getRecentOperatingEvents();
+  const handoffSignals = sortHandoffSignalsDeterministic(
+    state.snapshot.office.handoff_signals || []
+  ).slice(0, V1_BOARD_CONTRACT.maxVisibleHandoffs);
   const capitalControls = state.snapshot.capital_controls;
   const capitalStrategy = state.snapshot.capital_strategy;
   const capitalSnapshot = capitalControls && capitalControls.account_snapshot ? capitalControls.account_snapshot : null;
@@ -1968,9 +2444,24 @@ function renderBoard() {
         )
         .join("")
     : "<span class=\"muted\">No active opportunities.</span>";
+  const recentEventsHtml = recentEvents.length
+    ? `<ul class="history-list">${recentEvents
+        .map(
+          (event) => `
+            <li class="status-history-item">
+              <div class="detail-meta">
+                <strong>${escapeHtml(formatOfficeEventType(event.type))}</strong>
+                <time>${escapeHtml(formatTimestamp(event.timestamp))}</time>
+              </div>
+              <p>${escapeHtml(event.summary || "Company activity updated.")}</p>
+            </li>
+          `
+        )
+        .join("")}</ul>`
+    : `<div class="empty-state">No recent operating events recorded.</div>`;
   const capitalSummary = capitalSnapshot
     ? `
-      <ul class="detail-list">
+      <ul class="detail-list compact-list">
         <li>Available: ${formatCurrency(capitalSnapshot.available_usd)}</li>
         <li>Reserved: ${formatCurrency(capitalSnapshot.reserved_usd)}</li>
         <li>Committed: ${formatCurrency(capitalSnapshot.committed_usd)}</li>
@@ -1983,7 +2474,7 @@ function renderBoard() {
       <article class="board-block capital-strategy-block">
         <div class="capital-strategy-head">
           <div>
-            <p class="eyebrow">Capital strategy</p>
+            <p class="eyebrow">Support system</p>
             <strong class="capital-mode-label">${escapeHtml(capitalStrategy.capital_mode)}</strong>
           </div>
           <span class="priority-pill">${escapeHtml(
@@ -1992,100 +2483,68 @@ function renderBoard() {
         </div>
         <p>${escapeHtml(capitalStrategy.capital_mode_reason)}</p>
         <div class="card-tags" style="margin-top:12px;">
-          ${capitalStrategy.approved_strategy_priorities
-            .map(
-              (item) =>
-                `<span class="task-chip">${escapeHtml(formatStrategyLabel(item))}</span>`
-            )
-            .join("")}
+          <span class="task-chip">${escapeHtml(
+            formatStrategyLabel(capitalStrategy.approved_strategy_priorities[0] || "monitor")
+          )}</span>
         </div>
         ${
           capitalStrategy.capital_risk_flags.length
-            ? `<ul class="detail-list">${capitalStrategy.capital_risk_flags
-                .map((item) => `<li>${escapeHtml(item)}</li>`)
-                .join("")}</ul>`
+            ? `<p class="muted">${escapeHtml(capitalStrategy.capital_risk_flags[0])}</p>`
             : ""
         }
-        <div class="board-columns capital-strategy-columns">
-          <div>
-            <h3>Favor</h3>
-            <div class="card-tags">
-              ${capitalStrategy.recommended_actions
-                .map((item) => `<span class="task-chip">${escapeHtml(item)}</span>`)
-                .join("")}
-            </div>
-          </div>
-          <div>
-            <h3>Avoid</h3>
-            <ul class="detail-list compact-list">
-              ${capitalStrategy.recommended_avoidances
-                .map((item) => `<li>${escapeHtml(item)}</li>`)
-                .join("")}
-            </ul>
-          </div>
-        </div>
-        <div>
-          <h3>Recent posture</h3>
-          ${
-            capitalStrategy.board_history.length
-              ? `<ul class="history-list">${capitalStrategy.board_history
-                  .map(
-                    (entry) => `
-                      <li class="status-history-item">
-                        <div class="detail-meta">
-                          <strong>${escapeHtml(formatStrategyLabel(entry.capital_mode))}</strong>
-                          <time>${escapeHtml(formatTimestamp(entry.timestamp))}</time>
-                        </div>
-                        <p>${escapeHtml(entry.rationale_snapshot)}</p>
-                      </li>
-                    `
-                  )
-                  .join("")}</ul>`
-              : `<div class="empty-state">No recent capital posture snapshots recorded.</div>`
-          }
-        </div>
+        <p class="muted">Finance stays advisory here unless you enter a dedicated finance workflow.</p>
       </article>
     `
     : "";
 
   elements.companyBoard.innerHTML = `
     <article class="board-block">
-      <p class="board-lead">${escapeHtml(state.snapshot.capital_controls.note)}</p>
+      <p class="eyebrow">Company pulse</p>
+      <p class="board-lead">${
+        attention
+          ? escapeHtml(`${attention.owner} is driving ${attention.opportunity_id || "company-wide work"} toward ${attention.next_action}.`)
+          : "No single attention item is dominating the floor right now."
+      }</p>
+      <p class="muted">Each opportunity has one current owner lane at a time, and the floor should read as active company work rather than passive monitoring.</p>
     </article>
-    ${capitalStrategySummary}
     <div class="board-columns">
       <article class="board-block">
-        <h3>Priorities</h3>
-        <ul class="board-list">${priorities}</ul>
-      </article>
-      <article class="board-block">
-        <h3>Alerts</h3>
-        <ul class="board-list">${alerts}</ul>
-      </article>
-    </div>
-    <div class="board-columns">
-      <article class="board-block">
-        <h3>Board counts</h3>
-        <ul class="detail-list">
-          <li>Approvals waiting: ${board.approvals_waiting}</li>
-          <li>Blocked count: ${board.blocked_count}</li>
-          <li>Active opportunities: ${board.active_opportunities.length}</li>
+        <h3>Live handoffs</h3>
+        <ul class="board-list">
+          ${
+            handoffSignals.length
+              ? handoffSignals
+                  .slice(0, 4)
+                  .map(
+                    (signal) => `
+                      <li>${escapeHtml(shortAgentLabel(signal.from_agent))} -> ${escapeHtml(shortAgentLabel(signal.to_agent))} on ${escapeHtml(signal.opportunity_id)}</li>
+                    `
+                  )
+                  .join("")
+              : "<li>No active handoffs are waiting right now.</li>"
+          }
         </ul>
       </article>
       <article class="board-block">
-        <h3>Active opportunities</h3>
-        <div class="card-tags">${activeOpportunities}</div>
+        <h3>Board counts</h3>
+        <div class="board-metric-row">
+          <span class="priority-pill">approvals ${escapeHtml(String(board.approvals_waiting))}</span>
+          <span class="priority-pill">blocked ${escapeHtml(String(board.blocked_count))}</span>
+          <span class="priority-pill">active ${escapeHtml(String(board.active_opportunities.length))}</span>
+        </div>
+        <p class="muted">The lane cards on the floor hold the dominant item, next action, and blocker context. This board panel stays lightweight for orientation.</p>
       </article>
     </div>
     <article class="board-block">
-      <h3>Capital note</h3>
+      <h3>Recent company activity</h3>
+      ${recentEventsHtml}
+    </article>
+    ${capitalStrategySummary}
+    <article class="board-block board-support-block">
+      <h3>Support systems</h3>
       <p>${escapeHtml(board.capital_note)}</p>
+      <p class="muted">Finance may shape approval and pacing, but it is not a primary board lane in v1.</p>
       ${capitalSummary}
-      ${
-        attention
-          ? `<p class="muted" style="margin-top:12px;">Attention: ${escapeHtml(attention.owner)} on ${escapeHtml(attention.opportunity_id || "company")} before ${escapeHtml(formatTimestamp(attention.due_by))}.</p>`
-          : ""
-      }
     </article>
   `;
 

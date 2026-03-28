@@ -595,6 +595,23 @@ h2 {
   background: linear-gradient(180deg, rgba(175, 95, 45, 0.16), rgba(255, 255, 255, 0.66));
 }
 
+.opportunity-chip.is-selected {
+  border-color: rgba(175, 95, 45, 0.78);
+  background: linear-gradient(180deg, rgba(175, 95, 45, 0.22), rgba(255, 255, 255, 0.86));
+}
+
+.state-family-neutral.zone-card {
+  border-color: rgba(20, 35, 34, 0.14);
+}
+
+.state-family-hold.zone-card {
+  border-color: rgba(124, 99, 30, 0.24);
+}
+
+.state-family-interrupt.zone-card {
+  border-color: rgba(163, 52, 52, 0.3);
+}
+
 .zone-card-copper {
   background:
     linear-gradient(180deg, rgba(175, 95, 45, 0.16), rgba(255, 255, 255, 0.76)),
@@ -1726,6 +1743,15 @@ h2 {
   gap: 8px;
 }
 
+.presence-owner-label {
+  margin: 0;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .status-pill,
 .priority-pill,
 .alert-pill,
@@ -1737,6 +1763,8 @@ h2 {
 }
 
 .status-working,
+.status-active,
+.status-reviewing,
 .status-approve,
 .status-approved,
 .status-acquired,
@@ -1748,7 +1776,8 @@ h2 {
   color: var(--ok);
 }
 
-.status-blocked,
+.status-needs_approval,
+.status-waiting,
 .status-awaiting_approval,
 .status-awaiting_seller_verification,
 .status-request_more_info,
@@ -1758,6 +1787,7 @@ h2 {
   color: var(--warn);
 }
 
+.status-blocked,
 .status-alert,
 .status-reject,
 .status-overdue,
@@ -1860,6 +1890,10 @@ h2 {
   stroke: rgba(163, 52, 52, 0.55);
 }
 
+.handoff-path.is-approval {
+  stroke: rgba(124, 99, 30, 0.48);
+}
+
 .handoff-pulse {
   opacity: 0.88;
 }
@@ -1875,6 +1909,10 @@ h2 {
 
 .handoff-pulse.is-blocked {
   fill: rgba(163, 52, 52, 0.72);
+}
+
+.handoff-pulse.is-approval {
+  fill: rgba(124, 99, 30, 0.8);
 }
 
 .handoff-travel-dot {
@@ -1941,6 +1979,34 @@ h2 {
   transition: transform 160ms ease, border-color 160ms ease;
 }
 
+.opportunity-line-clamp {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opportunity-summary-line {
+  margin-top: 8px;
+}
+
+.opportunity-action-line {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.opportunity-chip-meta {
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.opportunity-meta-chip,
+.opportunity-capital-fit {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+}
+
 .opportunity-chip strong,
 .queue-item strong,
 .board-lead,
@@ -1953,6 +2019,24 @@ h2 {
   margin-top: 18px;
   display: grid;
   gap: 16px;
+}
+
+.current-focus-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.current-focus-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 35, 34, 0.12);
+  background: rgba(255, 252, 245, 0.9);
+}
+
+.current-focus-item strong {
+  display: block;
+  margin-top: 4px;
 }
 
 .detail-section {
@@ -2041,9 +2125,68 @@ h2 {
   gap: 16px;
 }
 
+.board-role-grid,
+.flow-stage-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.board-role-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.flow-stage-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .board-block {
   padding: 18px;
   border-radius: 18px;
+}
+
+.board-role-card,
+.flow-stage-card {
+  border: 1px solid rgba(20, 35, 34, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 252, 245, 0.82);
+  padding: 14px;
+}
+
+.board-role-card {
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+
+.board-role-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(20, 35, 34, 0.22);
+}
+
+.board-role-head,
+.flow-stage-head,
+.board-role-meta,
+.board-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.board-role-head,
+.flow-stage-head {
+  margin-bottom: 10px;
+}
+
+.board-role-meta {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.board-metric-row {
+  margin: 16px 0 14px;
+  flex-wrap: wrap;
 }
 
 .board-columns {
@@ -2057,6 +2200,12 @@ h2 {
 .capital-strategy-block {
   background:
     linear-gradient(135deg, rgba(20, 35, 34, 0.04), rgba(175, 95, 45, 0.08)),
+    var(--panel);
+}
+
+.board-support-block {
+  background:
+    linear-gradient(135deg, rgba(20, 35, 34, 0.03), rgba(20, 35, 34, 0.01)),
     var(--panel);
 }
 
@@ -2143,28 +2292,53 @@ h2 {
   animation: avatarBreathe 3.8s ease-in-out infinite;
 }
 
+.motion-active .avatar-body,
 .motion-working .avatar-body {
   animation: avatarBob 1.8s ease-in-out infinite;
 }
 
+.motion-active .agent-marker,
 .motion-working .agent-marker {
   animation: avatarBob 1.8s ease-in-out infinite;
 }
 
+.motion-active .activity-dots span,
 .motion-working .activity-dots span {
   animation: workDots 1.2s ease-in-out infinite;
 }
 
+.motion-active .desk-screen,
 .motion-working .desk-screen {
   animation: workScreenPulse 1.6s ease-in-out infinite;
 }
 
+.motion-active .activity-dots span:nth-child(2),
 .motion-working .activity-dots span:nth-child(2) {
   animation-delay: 0.15s;
 }
 
+.motion-active .activity-dots span:nth-child(3),
 .motion-working .activity-dots span:nth-child(3) {
   animation-delay: 0.3s;
+}
+
+.motion-reviewing .avatar-body,
+.motion-reviewing .agent-marker {
+  animation: avatarReview 2.3s ease-in-out infinite;
+}
+
+.motion-reviewing .desk-screen {
+  animation: workScreenPulse 2.1s ease-in-out infinite;
+}
+
+.motion-waiting .avatar-body,
+.motion-waiting .agent-marker {
+  animation: avatarHold 3.4s ease-in-out infinite;
+}
+
+.motion-waiting .avatar-ring,
+.motion-waiting .agent-marker-ring {
+  animation: approvalHold 3s ease-in-out infinite;
 }
 
 .motion-blocked .avatar-body {
@@ -2199,18 +2373,22 @@ h2 {
   animation: avatarBob 1.5s ease-in-out infinite;
 }
 
+.motion-needs_approval .avatar-ring,
 .motion-awaiting_approval .avatar-ring {
   animation: approvalHold 2.2s ease-in-out infinite;
 }
 
+.motion-needs_approval .agent-marker-ring,
 .motion-awaiting_approval .agent-marker-ring {
   animation: approvalHold 2.2s ease-in-out infinite;
 }
 
+.motion-needs_approval .avatar-body,
 .motion-awaiting_approval .avatar-body {
   animation: avatarBreathe 2.8s ease-in-out infinite;
 }
 
+.motion-needs_approval .agent-marker,
 .motion-awaiting_approval .agent-marker {
   animation: avatarBreathe 2.8s ease-in-out infinite;
 }
@@ -2232,6 +2410,28 @@ h2 {
   }
   50% {
     transform: translateY(-5px);
+  }
+}
+
+@keyframes avatarReview {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes avatarHold {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.92;
+  }
+  50% {
+    transform: translateY(-1px);
+    opacity: 1;
   }
 }
 
@@ -2376,6 +2576,9 @@ h2 {
 
 @media (prefers-reduced-motion: reduce) {
   .motion-idle .avatar-body,
+  .motion-active .avatar-body,
+  .motion-reviewing .avatar-body,
+  .motion-waiting .avatar-body,
   .motion-working .avatar-body,
   .motion-working .activity-dots span,
   .motion-blocked .avatar-body,
@@ -2403,6 +2606,11 @@ h2 {
   .flow-feed {
     grid-template-columns: 1fr 1fr;
   }
+
+  .board-role-grid,
+  .flow-stage-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -2429,6 +2637,10 @@ h2 {
   }
 
   .flow-feed {
+    grid-template-columns: 1fr;
+  }
+
+  .current-focus-strip {
     grid-template-columns: 1fr;
   }
 }
