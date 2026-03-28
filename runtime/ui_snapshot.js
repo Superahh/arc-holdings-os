@@ -779,6 +779,137 @@ function deriveOperationalMarket(entry) {
   };
 }
 
+function deriveOperatorRouteSummary(entry) {
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const handoff = entry && entry.operational_handoff ? entry.operational_handoff : null;
+  const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+  const market = entry && entry.operational_market ? entry.operational_market : null;
+  const currentStatus = entry && typeof entry.current_status === "string" ? entry.current_status : "";
+
+  const isStop = Boolean(
+    (recommendation && recommendation.recommendation_state === "reject_now") ||
+      (handoff && handoff.handoff_state === "handoff_return_required") ||
+      (execution && execution.execution_state === "execution_not_applicable") ||
+      (market && market.market_state === "market_not_applicable")
+  );
+  const isHold = Boolean(
+    (handoff && handoff.handoff_state === "handoff_blocked") ||
+      (execution && execution.execution_state === "execution_blocked") ||
+      (market && market.market_state === "market_blocked")
+  );
+  const isPursueAfterVerification = Boolean(
+    recommendation && recommendation.recommendation_state === "buy_after_verification"
+  );
+  const isPursueNow = Boolean(
+    currentStatus === "researching" ||
+      (
+        recommendation &&
+        recommendation.recommendation_state === "approve_now" &&
+        execution &&
+        execution.execution_state === "execution_waiting_intake" &&
+        !new Set(["approved", "acquired"]).has(currentStatus)
+      )
+  );
+  const isPrepareExecution = Boolean(
+    execution &&
+      (execution.execution_state === "execution_waiting_intake" ||
+        execution.execution_state === "execution_waiting_parts")
+  );
+  const isPrepareMarket = Boolean(
+    market &&
+      (market.market_state === "market_ready" ||
+        market.market_state === "market_waiting_listing" ||
+        market.market_state === "market_waiting_pricing")
+  );
+
+  let operatorRouteState = "hold";
+  if (isStop) {
+    operatorRouteState = "stop";
+  } else if (isHold) {
+    operatorRouteState = "hold";
+  } else if (isPursueNow) {
+    operatorRouteState = "pursue_now";
+  } else if (isPursueAfterVerification) {
+    operatorRouteState = "pursue_after_verification";
+  } else if (isPrepareExecution) {
+    operatorRouteState = "prepare_execution";
+  } else if (isPrepareMarket) {
+    operatorRouteState = "prepare_market";
+  }
+
+  const routeLabels = {
+    pursue_now: "Pursue now",
+    pursue_after_verification: "Pursue after verification",
+    prepare_execution: "Prepare execution",
+    prepare_market: "Prepare market",
+    hold: "Hold",
+    stop: "Stop",
+  };
+
+  let reason = "Hold current route until the next prerequisite is clear.";
+  let nextStep = "Review blockers and publish one explicit owner action.";
+  if (operatorRouteState === "stop") {
+    reason =
+      (market && market.market_reason) ||
+      (execution && execution.execution_reason) ||
+      (recommendation && recommendation.recommendation_reason) ||
+      "Current path should not continue.";
+    nextStep =
+      (market && market.market_next_step) ||
+      (execution && execution.execution_next_step) ||
+      "Stop pursuit and close this route.";
+  } else if (operatorRouteState === "hold") {
+    reason =
+      (market && market.market_reason) ||
+      (execution && execution.execution_reason) ||
+      (handoff && handoff.handoff_reason) ||
+      (recommendation && recommendation.recommendation_reason) ||
+      "Route is blocked or waiting on missing input.";
+    nextStep =
+      (market && market.market_next_step) ||
+      (execution && execution.execution_next_step) ||
+      (handoff && handoff.current_owner_action) ||
+      (recommendation && recommendation.next_action) ||
+      "Resolve the current blocker before advancing.";
+  } else if (operatorRouteState === "pursue_after_verification") {
+    reason =
+      (recommendation && recommendation.recommendation_reason) ||
+      "Verification must clear before pursuit continues.";
+    nextStep =
+      (recommendation && recommendation.next_action) ||
+      "Collect required verification evidence.";
+  } else if (operatorRouteState === "prepare_market") {
+    reason =
+      (market && market.market_reason) ||
+      "Market path is active and should be prepared now.";
+    nextStep =
+      (market && market.market_next_step) ||
+      "Prepare listing and pricing package.";
+  } else if (operatorRouteState === "prepare_execution") {
+    reason =
+      (execution && execution.execution_reason) ||
+      "Execution path is active and should be prepared now.";
+    nextStep =
+      (execution && execution.execution_next_step) ||
+      "Prepare execution intake.";
+  } else if (operatorRouteState === "pursue_now") {
+    reason =
+      (recommendation && recommendation.recommendation_reason) ||
+      "Core prerequisites are clear for immediate pursuit.";
+    nextStep =
+      (handoff && handoff.current_owner_action) ||
+      (recommendation && recommendation.next_action) ||
+      "Advance the current pursuit step now.";
+  }
+
+  return {
+    operator_route_state: operatorRouteState,
+    operator_route_label: routeLabels[operatorRouteState],
+    operator_route_reason: reason,
+    operator_route_next_step: nextStep,
+  };
+}
+
 function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaitingTasks) {
   const ids = new Set([
     ...Object.keys(workflowState.opportunities || {}),
@@ -889,6 +1020,12 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
     entry.market_next_step = market.market_next_step;
     entry.market_clear_condition = market.market_clear_condition;
     entry.operational_market = market;
+    const route = deriveOperatorRouteSummary(entry);
+    entry.operator_route_state = route.operator_route_state;
+    entry.operator_route_label = route.operator_route_label;
+    entry.operator_route_reason = route.operator_route_reason;
+    entry.operator_route_next_step = route.operator_route_next_step;
+    entry.operational_route = route;
     if (entry.contract_bundle && entry.contract_bundle.approval_ticket) {
       entry.contract_bundle.approval_ticket = {
         ...entry.contract_bundle.approval_ticket,

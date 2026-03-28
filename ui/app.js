@@ -896,6 +896,7 @@ function buildOpportunityCardV1Model(entry) {
   const handoff = entry.operational_handoff || null;
   const execution = entry.operational_execution || null;
   const market = entry.operational_market || null;
+  const route = entry.operational_route || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoffPacket && handoffPacket.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const isBlocked = Boolean(
@@ -917,7 +918,9 @@ function buildOpportunityCardV1Model(entry) {
             : "purchase recommendation remains blocked."
         }`
       : `Next: ${
-          market && market.market_next_step
+          route && route.operator_route_next_step
+            ? route.operator_route_next_step
+            : market && market.market_next_step
             ? market.market_next_step
             : execution && execution.execution_next_step
             ? execution.execution_next_step
@@ -2452,10 +2455,13 @@ function renderDetailForOpportunity(entry) {
   const handoffState = entry.operational_handoff || null;
   const executionState = entry.operational_execution || null;
   const marketState = entry.operational_market || null;
+  const routeState = entry.operational_route || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    marketState && marketState.market_next_step
+    routeState && routeState.operator_route_next_step
+      ? routeState.operator_route_next_step
+      : marketState && marketState.market_next_step
       ? marketState.market_next_step
       : executionState && executionState.execution_next_step
       ? executionState.execution_next_step
@@ -2547,6 +2553,11 @@ function renderDetailForOpportunity(entry) {
         )}</li>
         <li>Recommendation reasoning: ${escapeHtml(
           recommendation ? recommendation.recommendation_reason : "No recommendation reason available."
+        )}</li>
+        <li>Route: ${escapeHtml(
+          routeState
+            ? `${routeState.operator_route_label}: ${routeState.operator_route_reason}`
+            : "Operator route summary is not derived."
         )}</li>
         <li>Execution: ${escapeHtml(
           executionState

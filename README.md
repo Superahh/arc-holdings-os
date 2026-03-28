@@ -18,6 +18,7 @@ The current UI/runtime slice is an operator-facing workflow shell that derives d
 - handoff actionability
 - execution readiness
 - monetization readiness
+- compact operator route summary
 
 No new lanes or visual systems are introduced in this slice. Existing UI locations are reused for clearer operator actions.
 
@@ -35,7 +36,7 @@ Use this repo to:
 
 1. Runtime ingests workflow state, approval queue items, and latest run artifacts.
 2. Runtime builds a UI snapshot in `runtime/ui_snapshot.js`.
-3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, and monetization.
+3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, and operator route summary.
 4. UI reads those fields and renders text only in existing cards/panels.
 5. Approval/verification/handoff/execution/market wording remains deterministic and blocker-aware.
 
@@ -45,6 +46,7 @@ Use this repo to:
 - `operational_handoff`: whether ownership transfer is ready, blocked, waiting, or must return.
 - `operational_execution`: whether execution can start now, is waiting on intake/parts, is blocked, or is not applicable.
 - `operational_market`: whether market action can start now, is waiting on pricing/listing, is blocked, or is not applicable.
+- `operational_route`: compact operator-facing route that synthesizes recommendation + handoff + execution + market.
 
 ### Current execution readiness model (v1)
 
@@ -83,6 +85,15 @@ Per opportunity, snapshot also includes:
 - `market_clear_condition`
 
 Market fields are also grouped under `operational_market` for direct UI consumption.
+
+Per opportunity, snapshot also includes route summary fields:
+
+- `operator_route_state`
+- `operator_route_label`
+- `operator_route_reason`
+- `operator_route_next_step`
+
+Route fields are also grouped under `operational_route` for direct UI consumption.
 
 ## Operating loop
 
