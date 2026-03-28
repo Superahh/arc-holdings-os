@@ -127,6 +127,152 @@ function sortOpportunities(entries) {
   });
 }
 
+function deriveOperationalRecommendation(entry) {
+  const opportunityRecord =
+    entry && entry.contract_bundle ? entry.contract_bundle.opportunity_record : null;
+  const workflowRecord = entry ? entry.workflow_record : null;
+  const handoffPacket =
+    entry && entry.contract_bundle ? entry.contract_bundle.handoff_packet : null;
+  const latestTask = entry ? entry.latest_task : null;
+  const queueItem = entry ? entry.queue_item : null;
+
+  const rawRecommendation =
+    (opportunityRecord && opportunityRecord.recommendation) ||
+    (workflowRecord && workflowRecord.recommendation) ||
+    null;
+  const recommendedPath = opportunityRecord ? opportunityRecord.recommended_path : null;
+  const askPrice = opportunityRecord ? opportunityRecord.ask_price_usd : null;
+  const valueRange = opportunityRecord ? opportunityRecord.estimated_value_range_usd : null;
+  const valueCeiling =
+    Array.isArray(valueRange) && typeof valueRange[1] === "number" ? valueRange[1] : null;
+  const workflowBlocked = Boolean(
+    workflowRecord && workflowRecord.purchase_recommendation_blocked
+  );
+  const verification = workflowRecord ? workflowRecord.seller_verification : null;
+  const verificationPending = Boolean(
+    verification &&
+      (!verification.imei_proof_verified || !verification.carrier_status_verified)
+  );
+  const overpriced =
+    typeof askPrice === "number" &&
+    typeof valueCeiling === "number" &&
+    askPrice > valueCeiling;
+
+  let recommendationType = "manual_review";
+  if (rawRecommendation === "skip") {
+    recommendationType = "skip";
+  } else if (recommendedPath === "part_out") {
+    recommendationType = "part_out_only";
+  } else if (recommendedPath === "repair_and_resale") {
+    recommendationType = "repair_if_cost_holds";
+  } else if (rawRecommendation === "request_more_info" || workflowBlocked || verificationPending) {
+    recommendationType = "buy_after_verification";
+  } else if (rawRecommendation === "acquire" && overpriced) {
+    recommendationType = "wait_for_better_price";
+  } else if (rawRecommendation === "acquire") {
+    recommendationType = "buy_now";
+  }
+
+  const recommendationLabels = {
+    buy_now: "Buy now",
+    buy_after_verification: "Buy after verification",
+    skip: "Skip",
+    part_out_only: "Part-out only",
+    repair_if_cost_holds: "Repair if cost holds",
+    wait_for_better_price: "Wait for better price",
+    manual_review: "Manual review",
+  };
+
+  const fallbackNextActionByType = {
+    buy_now: "Submit acquisition for approval and prepare execution handoff.",
+    buy_after_verification: "Request missing verification evidence from seller.",
+    skip: "Close this opportunity and route sourcing to stronger alternatives.",
+    part_out_only: "Route to part-out path and avoid full-resale assumptions.",
+    repair_if_cost_holds: "Confirm repair quote before committing to acquisition.",
+    wait_for_better_price: "Re-engage seller at target price and hold acquisition.",
+    manual_review: "Escalate for owner review with current evidence bundle.",
+  };
+
+  const fallbackReasonByType = {
+    buy_now: "Verification and economics support immediate acquisition flow.",
+    buy_after_verification:
+      workflowBlocked || verificationPending
+        ? "Recommendation is blocked until verification evidence clears."
+        : "Acquisition should proceed only after missing verification is resolved.",
+    skip: "Current economics or risk posture do not support acquisition.",
+    part_out_only: "Part-out economics are stronger than full resale for this unit.",
+    repair_if_cost_holds: "Repair-and-resale works only if repair cost remains within estimate.",
+    wait_for_better_price: "Current ask sits above the modeled value ceiling.",
+    manual_review: "Signals are incomplete or conflicting and need owner review.",
+  };
+
+  const fallbackChangeConditionByType = {
+    buy_now: "Change if new verification risk or pricing deterioration appears.",
+    buy_after_verification:
+      "Change when IMEI proof and carrier verification are both confirmed.",
+    skip: "Change if seller price drops or stronger verification reduces risk.",
+    part_out_only: "Change if full-resale net overtakes part-out return.",
+    repair_if_cost_holds: "Change if repair quote exceeds planned threshold.",
+    wait_for_better_price: "Change if ask moves inside the value range.",
+    manual_review: "Change when missing evidence is captured or owner decision lands.",
+  };
+
+  const existingAction =
+    (latestTask && latestTask.next_action) ||
+    (handoffPacket && handoffPacket.next_action) ||
+    (queueItem && queueItem.ticket && queueItem.ticket.reasoning_summary) ||
+    "";
+  const changeCondition =
+    recommendationType === "wait_for_better_price" &&
+    typeof askPrice === "number" &&
+    typeof valueCeiling === "number"
+      ? `Change if ask falls from ${askPrice} USD to ${valueCeiling} USD or below.`
+      : fallbackChangeConditionByType[recommendationType];
+
+  let primaryDriver = "ambiguous_evidence";
+  let blockingType = "ambiguity";
+  let actionability = "ambiguous";
+  if (recommendationType === "buy_now") {
+    primaryDriver = "ready_to_execute";
+    blockingType = "none";
+    actionability = "ready";
+  } else if (recommendationType === "buy_after_verification") {
+    primaryDriver = "verification_pending";
+    blockingType = verificationPending ? "verification" : workflowBlocked ? "approval" : "verification";
+    actionability = "gated";
+  } else if (recommendationType === "skip") {
+    primaryDriver = "clear_negative";
+    blockingType = "none";
+    actionability = "ready";
+  } else if (recommendationType === "part_out_only") {
+    primaryDriver = "part_out_advantage";
+    blockingType = "none";
+    actionability = "ready";
+  } else if (recommendationType === "repair_if_cost_holds") {
+    primaryDriver = "repair_cost_uncertain";
+    blockingType = "repair_cost";
+    actionability = "gated";
+  } else if (recommendationType === "wait_for_better_price") {
+    primaryDriver = "price_too_high";
+    blockingType = "price";
+    actionability = "watching";
+  }
+
+  return {
+    recommendation_type: recommendationType,
+    recommendation_label: recommendationLabels[recommendationType],
+    recommendation_reason: fallbackReasonByType[recommendationType],
+    next_action:
+      existingAction && typeof existingAction === "string" && existingAction.trim()
+        ? existingAction.trim()
+        : fallbackNextActionByType[recommendationType],
+    change_condition: changeCondition,
+    primary_driver: primaryDriver,
+    blocking_type: blockingType,
+    actionability,
+  };
+}
+
 function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaitingTasks) {
   const ids = new Set([
     ...Object.keys(workflowState.opportunities || {}),
@@ -186,7 +332,7 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
       !Number.isNaN(workflowUpdatedAt) &&
       artifactGeneratedAt < workflowUpdatedAt;
 
-    entries.push({
+    const entry = {
       opportunity_id: opportunityId,
       source:
         (opportunityRecord && opportunityRecord.source) ||
@@ -213,7 +359,9 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
             is_stale: artifactIsStale,
           }
         : null,
-    });
+    };
+    entry.operational_recommendation = deriveOperationalRecommendation(entry);
+    entries.push(entry);
   }
 
   return sortOpportunities(entries);
@@ -747,28 +895,28 @@ function getPresenceBlueprint(agentName) {
   const mapping = {
     "CEO Agent": {
       zone_id: "executive-suite",
-      zone_label: "Executive Suite",
-      department_label: "Priority and approvals",
-      avatar_monogram: "CEO",
+      zone_label: "Decision Desk",
+      department_label: "Approvals and direction",
+      avatar_monogram: "DD",
       accent_token: "copper",
     },
     "Risk and Compliance Agent": {
       zone_id: "verification-bay",
-      zone_label: "Verification Bay",
-      department_label: "Risk and seller checks",
+      zone_label: "Sourcing & Verification",
+      department_label: "Intake and seller checks",
       avatar_monogram: "R&C",
       accent_token: "olive",
     },
     "Operations Coordinator Agent": {
       zone_id: "routing-desk",
-      zone_label: "Routing Desk",
-      department_label: "Execution readiness",
+      zone_label: "Ops & Diagnostics",
+      department_label: "Execution and diagnostics",
       avatar_monogram: "OPS",
       accent_token: "umber",
     },
     "Department Operator Agent": {
       zone_id: "market-floor",
-      zone_label: "Market Floor",
+      zone_label: "Sales & Market",
       department_label: "Listings and monetization",
       avatar_monogram: "DPT",
       accent_token: "forest",
@@ -1458,6 +1606,38 @@ function buildPresenceBubble(card, attentionTask, capitalStrategy) {
   };
 }
 
+function isWaitingLikeTask(card, bubble) {
+  const text = `${(card && card.active_task) || ""} ${(bubble && bubble.bubble_text) || ""}`.toLowerCase();
+  return (
+    text.includes("waiting") ||
+    text.includes("awaiting") ||
+    text.includes("hold") ||
+    text.includes("pending")
+  );
+}
+
+function normalizePresenceVisualState(card, bubble) {
+  if (!card) {
+    return "idle";
+  }
+  if (card.status === "awaiting_approval" || bubble.bubble_kind === "approval") {
+    return "needs_approval";
+  }
+  if (card.blocker || bubble.bubble_kind === "blocker" || bubble.bubble_kind === "alert") {
+    return "blocked";
+  }
+  if (card.status === "idle") {
+    return "idle";
+  }
+  if (isWaitingLikeTask(card, bubble)) {
+    return "waiting";
+  }
+  if (card.agent === "CEO Agent" || card.agent === "Risk and Compliance Agent") {
+    return "reviewing";
+  }
+  return "active";
+}
+
 function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso, capitalStrategy = null) {
   return agentStatusCards.map((card) => {
     const blueprint = getPresenceBlueprint(card.agent);
@@ -1475,6 +1655,7 @@ function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso,
             .slice(0, 2)
             .join(" -> ")}`
         : null;
+    const visualState = normalizePresenceVisualState(card, bubble);
 
     return {
       agent: card.agent,
@@ -1484,8 +1665,9 @@ function buildOfficePresence(agentStatusCards, opportunities, attention, nowIso,
       avatar_monogram: blueprint.avatar_monogram,
       accent_token: blueprint.accent_token,
       status: card.status,
+      visual_state: visualState,
       urgency: card.urgency,
-      motion_state: card.status,
+      motion_state: visualState,
       lane_stage: mapStatusToLaneStage(
         focusedOpportunity && focusedOpportunity.current_status
           ? focusedOpportunity.current_status

@@ -116,7 +116,8 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.schema_version, "v1");
     assert.equal(snapshot.kpis.approvals_waiting, 1);
     assert.equal(snapshot.office.agent_status_cards[0].agent, "CEO Agent");
-    assert.equal(snapshot.office.presence[0].zone_label, "Executive Suite");
+    assert.equal(snapshot.office.presence[0].zone_label, "Decision Desk");
+    assert.equal(snapshot.office.presence[0].visual_state, "needs_approval");
     assert.equal(snapshot.office.presence[0].lane_stage, "verification");
     assert.equal(snapshot.office.zone_anchors.length >= 4, true);
     assert.equal(snapshot.office.route_hints.length, 1);
@@ -130,6 +131,26 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.office.events[0].lane_stage, "approval");
     assert.equal(snapshot.office.flow_events[0].action, "status_update");
     assert.match(snapshot.office.presence[1].bubble_text, /purchase recommendation remains blocked/i);
+    assert.equal(
+      snapshot.workflow.opportunities[0].operational_recommendation.recommendation_type,
+      "buy_after_verification"
+    );
+    assert.equal(
+      snapshot.workflow.opportunities[0].operational_recommendation.primary_driver,
+      "verification_pending"
+    );
+    assert.equal(
+      snapshot.workflow.opportunities[0].operational_recommendation.blocking_type,
+      "verification"
+    );
+    assert.equal(
+      snapshot.workflow.opportunities[0].operational_recommendation.actionability,
+      "gated"
+    );
+    assert.match(
+      snapshot.workflow.opportunities[0].operational_recommendation.change_condition,
+      /IMEI proof and carrier verification/i
+    );
 
     const decisionResponse = await request(server, "/api/approval-decision", {
       method: "POST",

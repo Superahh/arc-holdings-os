@@ -23,6 +23,16 @@ const {
   validateCapitalFitAnnotation,
 } = require("../contracts");
 
+const ALLOWED_RECOMMENDATION_TYPES = new Set([
+  "buy_now",
+  "buy_after_verification",
+  "skip",
+  "part_out_only",
+  "repair_if_cost_holds",
+  "wait_for_better_price",
+  "manual_review",
+]);
+
 function loadGoldenFixture() {
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
   return JSON.parse(fs.readFileSync(fixturePath, "utf8"));
@@ -74,6 +84,35 @@ function seedFixtureEnvironment(options = {}) {
   };
 }
 
+function mutateSeededRecommendationInputs(env, mutateFn) {
+  const workflowState = JSON.parse(fs.readFileSync(env.workflowStatePath, "utf8"));
+  const opportunityId = Object.keys(workflowState.opportunities || {})[0];
+  assert.ok(opportunityId, "Expected seeded workflow state to include an opportunity.");
+  const workflowRecord = workflowState.opportunities[opportunityId];
+
+  const runsDir = path.join(env.baseDir, "runs");
+  const artifactName = fs
+    .readdirSync(runsDir)
+    .filter((entry) => entry.endsWith(".artifact.json"))
+    .sort()[0];
+  assert.ok(artifactName, "Expected seeded output to include a run artifact.");
+  const artifactPath = path.join(runsDir, artifactName);
+  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+  assert.ok(artifact && artifact.output, "Expected run artifact to include output payload.");
+  const opportunityRecord = artifact.output.opportunity_record;
+  assert.ok(opportunityRecord, "Expected run artifact to include opportunity_record.");
+
+  mutateFn({
+    workflowRecord,
+    opportunityRecord,
+    artifactOutput: artifact.output,
+  });
+
+  workflowState.opportunities[opportunityId] = workflowRecord;
+  fs.writeFileSync(env.workflowStatePath, JSON.stringify(workflowState, null, 2));
+  fs.writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
+}
+
 test("buildUiSnapshot composes contract-driven shell data from runtime state", () => {
   const env = seedFixtureEnvironment();
 
@@ -103,6 +142,24 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
     snapshot.workflow.opportunities[0].contract_bundle.opportunity_record.opportunity_id,
     "opp-2026-03-25-001"
   );
+  const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+  assert.ok(recommendation);
+  assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
+  assert.equal(typeof recommendation.recommendation_label, "string");
+  assert.equal(recommendation.recommendation_label.length > 0, true);
+  assert.equal(typeof recommendation.recommendation_reason, "string");
+  assert.equal(recommendation.recommendation_reason.length > 0, true);
+  assert.equal(typeof recommendation.next_action, "string");
+  assert.equal(recommendation.next_action.length > 0, true);
+  assert.equal(typeof recommendation.change_condition, "string");
+  assert.equal(recommendation.change_condition.length > 0, true);
+  assert.equal(typeof recommendation.primary_driver, "string");
+  assert.equal(recommendation.primary_driver.length > 0, true);
+  assert.equal(typeof recommendation.blocking_type, "string");
+  assert.equal(recommendation.blocking_type.length > 0, true);
+  assert.equal(typeof recommendation.actionability, "string");
+  assert.equal(recommendation.actionability.length > 0, true);
+  assert.equal(recommendation.recommendation_type, "buy_after_verification");
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -111,10 +168,12 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
     snapshot.office.company_board_snapshot.capital_note,
     /deposit, reserve, approval, and withdrawal/i
   );
-  assert.equal(snapshot.office.presence[0].zone_label, "Executive Suite");
-  assert.equal(snapshot.office.presence[0].motion_state, "awaiting_approval");
+  assert.equal(snapshot.office.presence[0].zone_label, "Decision Desk");
+  assert.equal(snapshot.office.presence[0].visual_state, "needs_approval");
+  assert.equal(snapshot.office.presence[0].motion_state, "needs_approval");
   assert.equal(snapshot.office.presence[0].lane_stage, "verification");
   assert.match(snapshot.office.presence[0].bubble_text, /approval queue is waiting on owner action/i);
+  assert.equal(snapshot.office.presence[1].visual_state, "blocked");
   assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
   assert.equal(snapshot.office.handoff_signals[0].to_agent, "Risk and Compliance Agent");
   assert.equal(snapshot.office.handoff_signals[0].from_zone_id, "company-floor");
@@ -129,6 +188,21 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.events[1].type, "handoff_completed");
   assert.equal(snapshot.office.flow_events[0].action, "status_update");
   assert.equal(snapshot.office.flow_events[0].lane_stage, "verification");
+  const allowedVisualStates = new Set([
+    "idle",
+    "active",
+    "reviewing",
+    "waiting",
+    "blocked",
+    "needs_approval",
+  ]);
+  for (const presence of snapshot.office.presence) {
+    assert.equal(
+      allowedVisualStates.has(presence.visual_state),
+      true,
+      `Unexpected visual_state in office presence: ${presence.visual_state}`
+    );
+  }
 
   for (const zone of snapshot.office.zone_anchors) {
     assert.equal(
@@ -507,6 +581,257 @@ test("buildUiSnapshot caps capital board history to the latest four snapshots in
       "2026-03-25T19:10:00.000Z",
     ]
   );
+});
+
+test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with deterministic provenance", () => {
+  const scenarios = [
+    {
+      name: "buy_now",
+      expected: {
+        type: "buy_now",
+        primary_driver: "ready_to_execute",
+        blocking_type: "none",
+        actionability: "ready",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.ask_price_usd = 320;
+        opportunityRecord.estimated_value_range_usd = [330, 480];
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "buy_after_verification",
+      expected: {
+        type: "buy_after_verification",
+        primary_driver: "verification_pending",
+        blocking_type: "verification",
+        actionability: "gated",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.ask_price_usd = 300;
+        opportunityRecord.estimated_value_range_usd = [330, 470];
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "skip",
+      expected: {
+        type: "skip",
+        primary_driver: "clear_negative",
+        blocking_type: "none",
+        actionability: "ready",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "part_out_only",
+      expected: {
+        type: "part_out_only",
+        primary_driver: "part_out_advantage",
+        blocking_type: "none",
+        actionability: "ready",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "part_out";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "repair_if_cost_holds",
+      expected: {
+        type: "repair_if_cost_holds",
+        primary_driver: "repair_cost_uncertain",
+        blocking_type: "repair_cost",
+        actionability: "gated",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "repair_and_resale";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "wait_for_better_price",
+      expected: {
+        type: "wait_for_better_price",
+        primary_driver: "price_too_high",
+        blocking_type: "price",
+        actionability: "watching",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.ask_price_usd = 690;
+        opportunityRecord.estimated_value_range_usd = [430, 520];
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "manual_review",
+      expected: {
+        type: "manual_review",
+        primary_driver: "ambiguous_evidence",
+        blocking_type: "ambiguity",
+        actionability: "ambiguous",
+      },
+      mutate: ({ workflowRecord, artifactOutput }) => {
+        artifactOutput.opportunity_record = null;
+        workflowRecord.recommendation = null;
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+  ];
+
+  const observedTypes = new Set();
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: false });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+    assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
+    assert.equal(recommendation.recommendation_type, scenario.expected.type, scenario.name);
+    assert.equal(recommendation.primary_driver, scenario.expected.primary_driver, scenario.name);
+    assert.equal(recommendation.blocking_type, scenario.expected.blocking_type, scenario.name);
+    assert.equal(recommendation.actionability, scenario.expected.actionability, scenario.name);
+    observedTypes.add(recommendation.recommendation_type);
+  }
+
+  assert.deepEqual(new Set([...observedTypes].sort()), new Set([...ALLOWED_RECOMMENDATION_TYPES].sort()));
+});
+
+test("buildUiSnapshot recommendation tie-breaks stay deterministic at near-boundary conditions", () => {
+  const cases = [
+    {
+      name: "verification_pending_beats_price_borderline",
+      expectedType: "buy_after_verification",
+      expectedProvenance: {
+        primary_driver: "verification_pending",
+        blocking_type: "verification",
+        actionability: "gated",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.ask_price_usd = 501;
+        opportunityRecord.estimated_value_range_usd = [420, 500];
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+        };
+      },
+    },
+    {
+      name: "repair_path_beats_generic_missing_evidence",
+      expectedType: "repair_if_cost_holds",
+      expectedProvenance: {
+        primary_driver: "repair_cost_uncertain",
+        blocking_type: "repair_cost",
+        actionability: "gated",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "repair_and_resale";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: false,
+        };
+      },
+    },
+    {
+      name: "part_out_advantage_beats_overpriced_whole_unit",
+      expectedType: "part_out_only",
+      expectedProvenance: {
+        primary_driver: "part_out_advantage",
+        blocking_type: "none",
+        actionability: "ready",
+      },
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "part_out";
+        opportunityRecord.ask_price_usd = 760;
+        opportunityRecord.estimated_value_range_usd = [450, 520];
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+      },
+    },
+  ];
+
+  for (const fixtureCase of cases) {
+    const env = seedFixtureEnvironment({ enqueueApproval: false });
+    mutateSeededRecommendationInputs(env, fixtureCase.mutate);
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+    assert.equal(recommendation.recommendation_type, fixtureCase.expectedType, fixtureCase.name);
+    assert.equal(
+      recommendation.primary_driver,
+      fixtureCase.expectedProvenance.primary_driver,
+      fixtureCase.name
+    );
+    assert.equal(
+      recommendation.blocking_type,
+      fixtureCase.expectedProvenance.blocking_type,
+      fixtureCase.name
+    );
+    assert.equal(
+      recommendation.actionability,
+      fixtureCase.expectedProvenance.actionability,
+      fixtureCase.name
+    );
+  }
 });
 
 test("buildUiSnapshot preserves repeated consecutive same-mode entries in capital board history", () => {
