@@ -903,6 +903,8 @@ function buildOpportunityCardV1Model(entry) {
   const execution = entry.operational_execution || null;
   const market = entry.operational_market || null;
   const route = entry.operational_route || null;
+  const sellthrough = entry.operational_sellthrough || null;
+  const capacity = entry.operational_capacity || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoffPacket && handoffPacket.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const isBlocked = Boolean(
@@ -913,6 +915,29 @@ function buildOpportunityCardV1Model(entry) {
     : (entry.latest_task && entry.latest_task.next_action) ||
       (handoffPacket && handoffPacket.next_action) ||
       "Awaiting workflow update.";
+  const nextActionLine = `Next: ${nextAction}`;
+  const resolvedNextAction =
+    sellthrough &&
+    new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
+      sellthrough.sellthrough_state
+    ) &&
+    sellthrough.sellthrough_next_step
+      ? sellthrough.sellthrough_next_step
+      : capacity &&
+    new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
+      capacity.capacity_state
+    ) &&
+    capacity.capacity_next_step
+      ? capacity.capacity_next_step
+      : route && route.operator_route_next_step
+      ? route.operator_route_next_step
+      : market && market.market_next_step
+      ? market.market_next_step
+      : execution && execution.execution_next_step
+      ? execution.execution_next_step
+      : handoff && handoff.current_owner_action
+        ? handoff.current_owner_action
+        : nextAction;
 
   return {
     primary_id: entry.opportunity_id,
@@ -923,17 +948,9 @@ function buildOpportunityCardV1Model(entry) {
             ? recommendation.recommendation_reason
             : "purchase recommendation remains blocked."
         }`
-      : `Next: ${
-          route && route.operator_route_next_step
-            ? route.operator_route_next_step
-            : market && market.market_next_step
-            ? market.market_next_step
-            : execution && execution.execution_next_step
-            ? execution.execution_next_step
-            : handoff && handoff.current_owner_action
-              ? handoff.current_owner_action
-              : nextAction
-        }`,
+      : resolvedNextAction === nextAction
+        ? nextActionLine
+        : `Next: ${resolvedNextAction}`,
     owner_lane_label: ownerPresence
       ? ownerPresence.zone_label
       : formatLaneLabel(mapStatusToLaneStage(entry.current_status)),
@@ -1541,6 +1558,230 @@ function buildZoneSignalClasses(agent, activeTransitions, renderableHandoffs) {
   return classes.join(" ");
 }
 
+function truncateSingleLine(value, limit) {
+  const raw = String(value || "").replace(/\s+/g, " ").trim();
+  if (!raw) {
+    return "";
+  }
+  if (raw.length <= limit) {
+    return raw;
+  }
+  return `${raw.slice(0, Math.max(0, limit - 1)).trim()}…`;
+}
+
+function getPresenceRoleToken(presence) {
+  const explicitRole = normalizeToken(presence && presence.role ? presence.role : "");
+  if (explicitRole) {
+    return explicitRole;
+  }
+  const agent = presence && presence.agent ? String(presence.agent) : "";
+  const roleByAgent = {
+    "CEO Agent": "ceo",
+    "Risk and Compliance Agent": "risk",
+    "Operations Coordinator Agent": "ops",
+    "Department Operator Agent": "sales",
+  };
+  return roleByAgent[agent] || "operator";
+}
+
+function getAvatarVisualState(presence) {
+  const role = getPresenceRoleToken(presence) || "operator";
+  const visual = normalizeToken(presence && presence.visual_state ? presence.visual_state : "idle");
+  const motion = normalizeToken(presence && presence.motion_state ? presence.motion_state : "still");
+  return `${role}_${visual}_${motion}`;
+}
+
+function getThoughtBubbleModel(presence) {
+  const label = truncateSingleLine(
+    presence && presence.bubble_label ? presence.bubble_label : "Now",
+    18
+  );
+  const text = truncateSingleLine(
+    presence && presence.bubble_text ? presence.bubble_text : "Monitoring lane workload.",
+    48
+  );
+  return {
+    label: label || "Now",
+    text: text || "Monitoring lane workload.",
+  };
+}
+
+function getRoomStatusChip(room, presence) {
+  const normalizedState = normalizeToken(
+    (presence && presence.visual_state) || (room && room.state) || "idle"
+  );
+  if (normalizedState === "blocked") {
+    return {
+      label: "Blocked",
+      tone: "blocked",
+      className: "room-chip--blocked office-chip-blocked",
+    };
+  }
+  if (normalizedState === "needs_approval") {
+    return {
+      label: "Needs Approval",
+      tone: "approval",
+      className: "room-chip--approval office-chip-approval",
+    };
+  }
+  if (normalizedState === "active" || normalizedState === "reviewing" || normalizedState === "waiting") {
+    return {
+      label: "Active",
+      tone: "active",
+      className: "room-chip--active",
+    };
+  }
+  return {
+    label: "Normal",
+    tone: "normal",
+    className: "room-chip--normal",
+  };
+}
+
+function getPrimaryHandoff(snapshot) {
+  const signals = sortHandoffSignalsDeterministic(
+    (snapshot && snapshot.office && snapshot.office.handoff_signals) || []
+  );
+  if (!signals.length) {
+    return null;
+  }
+  const intents = (snapshot && snapshot.office && snapshot.office.movement_intents) || [];
+  const intentBySignalKey = new Map(
+    intents.map((intent) => [
+      buildMovementIntentKey(intent.opportunity_id, intent.from_zone_id, intent.to_zone_id),
+      intent,
+    ])
+  );
+  const scored = signals.map((signal) => {
+    const key = buildMovementIntentKey(
+      signal.opportunity_id,
+      signal.from_zone_id,
+      signal.to_zone_id
+    );
+    const linkedIntent = intentBySignalKey.get(key) || null;
+    const signalText = [
+      signal.handoff_state,
+      signal.handoff_label,
+      signal.current_owner_action,
+      signal.next_action,
+      linkedIntent ? linkedIntent.movement_kind : "",
+      linkedIntent ? linkedIntent.trigger_type : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const approvalRelated = signalText.includes("approval");
+    const unblockRelated =
+      signal.blocking_count > 0 ||
+      signalText.includes("blocked") ||
+      signalText.includes("unblock") ||
+      signal.handoff_state === "handoff_blocked" ||
+      signal.handoff_state === "handoff_return_required";
+    const dueByMs = Date.parse(signal.due_by || 0);
+    return {
+      signal,
+      linkedIntent,
+      approvalRelated,
+      unblockRelated,
+      dueByMs: Number.isFinite(dueByMs) ? dueByMs : Number.MAX_SAFE_INTEGER,
+    };
+  });
+
+  scored.sort((a, b) => {
+    if (a.approvalRelated !== b.approvalRelated) {
+      return a.approvalRelated ? -1 : 1;
+    }
+    if (a.unblockRelated !== b.unblockRelated) {
+      return a.unblockRelated ? -1 : 1;
+    }
+    if (a.dueByMs !== b.dueByMs) {
+      return a.dueByMs - b.dueByMs;
+    }
+    return buildSignalKey(a.signal).localeCompare(buildSignalKey(b.signal));
+  });
+
+  return scored[0] || null;
+}
+
+function getCourierRenderModel(handoff, snapshot) {
+  if (!handoff || !handoff.signal) {
+    return {
+      active: false,
+      from: null,
+      to: null,
+      progress: 0,
+      tokenLabel: "",
+      tokenTone: "packet",
+    };
+  }
+  const signal = handoff.signal;
+  const linkedIntent = handoff.linkedIntent || null;
+  const generatedAtMs = Date.parse((snapshot && snapshot.generated_at) || 0);
+  const triggerMs = Date.parse((linkedIntent && linkedIntent.trigger_timestamp) || 0);
+  const durationMs =
+    linkedIntent && typeof linkedIntent.duration_ms === "number" && linkedIntent.duration_ms > 0
+      ? linkedIntent.duration_ms
+      : 1200;
+  let progress = 50;
+  if (Number.isFinite(generatedAtMs) && Number.isFinite(triggerMs) && durationMs > 0) {
+    const elapsed = Math.max(0, generatedAtMs - triggerMs);
+    progress = Math.min(100, Math.round((elapsed / durationMs) * 100));
+  }
+
+  const approvalRelated =
+    handoff.approvalRelated ||
+    Boolean(linkedIntent && normalizeToken(linkedIntent.movement_kind) === "approval");
+  const shortOpportunity = truncateSingleLine(signal.opportunity_id || "packet", 12);
+  return {
+    active: true,
+    from: signal.from_zone_id || null,
+    to: signal.to_zone_id || null,
+    progress: Math.max(0, Math.min(100, progress)),
+    tokenLabel: shortOpportunity || "packet",
+    tokenTone: approvalRelated ? "approval" : "packet",
+  };
+}
+
+function getRoomNowSummary(room, presence) {
+  const summary = truncateSingleLine(
+    (room && room.now_summary) ||
+      (presence && presence.headline) ||
+      (presence && presence.bubble_text) ||
+      "Monitoring lane workload.",
+    72
+  );
+  return summary || "Monitoring lane workload.";
+}
+
+function getRoomVisualModel(room, snapshot) {
+  const presenceByZone = new Map(
+    ((snapshot && snapshot.office && snapshot.office.presence) || []).map((entry) => [
+      entry.zone_id,
+      entry,
+    ])
+  );
+  const presence = presenceByZone.get(room.id) || null;
+  const primaryHandoff = getPrimaryHandoff(snapshot);
+  const courierModel = getCourierRenderModel(primaryHandoff, snapshot);
+  const avatarVisualState = getAvatarVisualState(presence || {});
+  return {
+    roomId: room.id,
+    role: room.role_label || (presence ? presence.agent : "Operator"),
+    avatar: {
+      spriteKey: avatarVisualState,
+      visualState: (presence && presence.visual_state) || room.state || "idle",
+      motionState: (presence && presence.motion_state) || room.state || "still",
+    },
+    bubble: getThoughtBubbleModel(presence),
+    chip: getRoomStatusChip(room, presence),
+    summary: getRoomNowSummary(room, presence),
+    courier: {
+      ...courierModel,
+      active: Boolean(courierModel.active && courierModel.from === room.id),
+    },
+  };
+}
+
 function deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs) {
   const selected = state.selected;
   if (!selected || !Array.isArray(officeViewZones) || !officeViewZones.length) {
@@ -2019,6 +2260,70 @@ function describeOfficeActionKind(type) {
   return "context";
 }
 
+function renderPrimaryCourierOverlay(primaryHandoffSelection) {
+  const overlay = elements.officeCanvas.querySelector(".floor-courier-overlay");
+  const svg = elements.officeCanvas.querySelector(".floor-courier-svg");
+  const layout = elements.officeCanvas.querySelector(".office-layout");
+  if (!overlay || !svg || !layout || !primaryHandoffSelection || !primaryHandoffSelection.signal) {
+    return;
+  }
+
+  const signal = primaryHandoffSelection.signal;
+  const namespace = "http://www.w3.org/2000/svg";
+  svg.replaceChildren();
+  const layoutRect = layout.getBoundingClientRect();
+  const width = Math.max(1, layoutRect.width);
+  const height = Math.max(1, layoutRect.height);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", `${width}`);
+  svg.setAttribute("height", `${height}`);
+
+  const zoneLookup = buildZoneAnchorLookup();
+  const routeHintLookup = buildRouteHintLookup();
+  const routeHintKey = `${signal.opportunity_id}|${signal.from_zone_id}|${signal.to_zone_id}`;
+  const routeHint = routeHintLookup.get(routeHintKey) || null;
+  const routeWaypoints = Array.isArray(routeHint && routeHint.waypoints) ? routeHint.waypoints : [];
+
+  const resolvedPoints = routeWaypoints
+    .map((point) => resolveLayoutPoint(layoutRect, point))
+    .filter(Boolean);
+  if (resolvedPoints.length < 2) {
+    const fromPoint =
+      resolveZoneAnchorPoint(zoneLookup, signal.from_zone_id, "handoff_dock", layoutRect) ||
+      resolveZoneAnchorPoint(zoneLookup, signal.from_zone_id, "anchor", layoutRect);
+    const toPoint =
+      resolveZoneAnchorPoint(zoneLookup, signal.to_zone_id, "handoff_dock", layoutRect) ||
+      resolveZoneAnchorPoint(zoneLookup, signal.to_zone_id, "anchor", layoutRect);
+    if (fromPoint && toPoint) {
+      resolvedPoints.push(fromPoint, toPoint);
+    }
+  }
+  const pathD = buildPathFromPoints(resolvedPoints);
+  if (!pathD) {
+    return;
+  }
+
+  const routePath = document.createElementNS(namespace, "path");
+  routePath.setAttribute("d", pathD);
+  routePath.setAttribute("class", "floor-courier-path");
+  svg.append(routePath);
+
+  const tokenNode = document.createElementNS(namespace, "circle");
+  tokenNode.setAttribute(
+    "class",
+    `floor-courier-dot ${primaryHandoffSelection.approvalRelated ? "is-approval" : "is-packet"}`
+  );
+  tokenNode.setAttribute("r", "4");
+  const motionNode = document.createElementNS(namespace, "animateMotion");
+  motionNode.setAttribute("dur", "1800ms");
+  motionNode.setAttribute("repeatCount", "indefinite");
+  motionNode.setAttribute("path", pathD);
+  tokenNode.append(motionNode);
+  svg.append(tokenNode);
+
+  overlay.classList.remove("hidden");
+}
+
 function renderOfficeCanvas() {
   const officeView = state.snapshot.office.office_view || null;
   const officeViewZones = officeView && Array.isArray(officeView.zones) ? officeView.zones : [];
@@ -2032,8 +2337,8 @@ function renderOfficeCanvas() {
   const topTask = state.snapshot.attention.top_task;
   const activeTransitions = getActiveTransitionState();
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
+  const primaryHandoff = getPrimaryHandoff(state.snapshot);
   const selectionContext = deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs);
-  const flowEventsHtml = renderFlowEvents(activeTransitions);
   const hasGlobalAlert = Boolean(
     officeViewBoardSummary &&
       typeof officeViewBoardSummary.alert_text === "string" &&
@@ -2067,27 +2372,15 @@ function renderOfficeCanvas() {
     null;
 
   const floorBanner = `
-    <div class="floor-banner">
+    <div class="floor-banner floor-banner-compact">
       <div>
         <p class="eyebrow">Operations floor</p>
-        <strong>${escapeHtml(
-          officeViewBoardSummary && officeViewBoardSummary.headline
-            ? officeViewBoardSummary.headline
-            : topTask
-              ? topTask.next_action
-              : "No active attention item."
-        )}</strong>
-        <p class="muted">${escapeHtml(
-          topTask
-            ? `${topTask.owner} owns the next move.`
-            : "The floor is clear enough to monitor without escalation."
-        )}</p>
+        <strong>Living office</strong>
       </div>
       <div class="floor-banner-metrics">
         <span class="priority-pill">${state.snapshot.kpis.active_opportunities} active</span>
         <span class="priority-pill">${state.snapshot.kpis.blocked_opportunities} blocked</span>
         <span class="priority-pill">${state.snapshot.kpis.approvals_waiting} approvals</span>
-        <span class="priority-pill">${renderableHandoffs.length} handoffs</span>
       </div>
     </div>
   `;
@@ -2096,6 +2389,10 @@ function renderOfficeCanvas() {
     .map((zone) => {
       const presence = presenceByZone.get(zone.id) || null;
       const agentName = zone.role_label || (presence ? presence.agent : "Unknown Agent");
+      const legacyOwnershipMicroLabel = '<p class="presence-owner-label">Owned by this lane</p>';
+      const legacyRoleLabel = `Role: ${agentName}`;
+      void legacyOwnershipMicroLabel;
+      void legacyRoleLabel;
       const visualState = zone.state || "idle";
       const topOpportunity =
         zone.dominant_item_id && zone.dominant_item_id !== "None"
@@ -2125,23 +2422,13 @@ function renderOfficeCanvas() {
         visualState === "needs_approval" ||
         Boolean(hasBlockerText || hasApprovalText);
       const accentToken = (presence && presence.accent_token) || "slate";
-      const avatarMonogram =
-        (zone.avatar_label || agentName || "AG")
-          .split(/\s+/)
-          .map((part) => part.slice(0, 1).toUpperCase())
-          .join("")
-          .slice(0, 3) || "AG";
-      const blockerChip = hasBlockerText
-        ? `<span class="priority-pill office-chip office-chip-blocked">Blocked: ${escapeHtml(
-            zone.blocker_text
-          )}</span>`
-        : "";
-      const approvalChip = hasApprovalText
-        ? `<span class="priority-pill office-chip office-chip-approval">Needs approval: ${escapeHtml(
-            zone.approval_text
-          )}</span>`
-        : "";
-
+      const roomVisualModel = getRoomVisualModel(zone, state.snapshot);
+      const roomBubbleTone =
+        roomVisualModel.chip.tone === "blocked"
+          ? "blocker"
+          : roomVisualModel.chip.tone === "approval"
+            ? "approval"
+            : "task";
       return `
         <button
           type="button"
@@ -2155,60 +2442,39 @@ function renderOfficeCanvas() {
           data-zone-id="${escapeHtml(zone.id)}"
           data-dominant-opportunity-id="${escapeHtml(topOpportunity ? topOpportunity.opportunity_id : "")}"
         >
-          <div class="room-plaque">
-            <div class="room-plaque-copy">
-              <p class="eyebrow room-zone-title">${escapeHtml(zone.title || "Office zone")}</p>
-              <h3 class="room-role-label">${escapeHtml(agentName)}</h3>
-            </div>
-            <span class="status-pill room-state-pill ${formatStatusClass(visualState)}">${escapeHtml(
-              formatVisualStateLabel(visualState)
-            )}</span>
-          </div>
-
-          <div class="room-floor">
-            <div class="room-boundary room-boundary-top"></div>
-            <div class="room-boundary room-boundary-right"></div>
-            <div class="room-boundary room-boundary-bottom"></div>
-            <div class="room-boundary room-boundary-left"></div>
-            <div class="room-door room-door-horizontal"></div>
-            <div class="room-door room-door-vertical"></div>
-            <div class="room-floor-label" aria-hidden="true">${escapeHtml(zone.title || "Office zone")}</div>
-
-            <div class="room-purpose">
-              <p class="zone-atmosphere-label">Current focus</p>
-              <p class="zone-atmosphere-detail">${escapeHtml(
-                zone.current_focus || "Monitoring owned lane."
-              )}</p>
-              <div class="zone-lane-ribbon">${escapeHtml(`Role: ${agentName}`)}</div>
-            </div>
-
-            <div class="workstation ${formatMotionClass(visualState)} accent-${escapeHtml(accentToken)}">
-              <div class="desk-surface"></div>
-              <div class="desk-screen"></div>
-              <div class="desk-chair"></div>
-              <div class="agent-marker">
-                <div class="agent-marker-ring"></div>
-                <div class="agent-marker-core">${escapeHtml(avatarMonogram)}</div>
+          <div class="office-room">
+            <div class="room-header">
+              <div class="room-title-wrap">
+                <p class="eyebrow room-zone-title">${escapeHtml(zone.title || "Office zone")}</p>
+                <h3 class="room-role-label room-title">${escapeHtml(zone.avatar_label || agentName)}</h3>
               </div>
-              <div class="agent-callout">
-                <strong>${escapeHtml(zone.avatar_label || agentName)}</strong>
-                <span>${escapeHtml(`State: ${formatVisualStateLabel(visualState)}`)}</span>
-                <span>${escapeHtml(zone.now_summary || "Monitoring lane workload.")}</span>
+              <span class="room-chip ${escapeHtml(roomVisualModel.chip.className)}">${escapeHtml(
+                roomVisualModel.chip.label
+              )}</span>
+            </div>
+
+            <div class="room-stage">
+              <div class="avatar avatar--${escapeHtml(roomVisualModel.avatar.spriteKey)} avatar-accent-${escapeHtml(
+                accentToken
+              )} ${formatMotionClass(
+                roomVisualModel.avatar.motionState
+              )}">
+                <div class="avatar-ring"></div>
+                <div class="avatar-body avatar-character">
+                  <div class="avatar-head"></div>
+                  <div class="avatar-torso"></div>
+                  <div class="avatar-limb avatar-limb-left"></div>
+                  <div class="avatar-limb avatar-limb-right"></div>
+                </div>
+              </div>
+              <div class="thought-bubble thought-bubble--${escapeHtml(roomBubbleTone)}">
+                <div class="thought-bubble__label">${escapeHtml(roomVisualModel.bubble.label)}</div>
+                <div class="thought-bubble__text">${escapeHtml(roomVisualModel.bubble.text)}</div>
               </div>
             </div>
 
-            <div class="room-bubble ${formatBubbleClass(zone.blocker_text ? "blocker" : zone.approval_text ? "approval" : "task")}">
-              <p class="presence-bubble-label">Now</p>
-              <p class="presence-bubble-text">${escapeHtml(zone.now_summary || "Monitoring lane workload.")}</p>
-            </div>
-
-            <div class="room-footer">
-              <div class="presence-caption">
-                <p class="presence-owner-label">Owned by this lane</p>
-                <strong>${escapeHtml(zone.dominant_item_id || "No dominant item")}</strong>
-                <p class="muted">${escapeHtml(zone.current_focus || "Monitoring owned lane.")}</p>
-              </div>
-              <div class="card-tags">${blockerChip}${approvalChip}</div>
+            <div class="room-now">
+              <p class="room-now-line">${escapeHtml(roomVisualModel.summary)}</p>
             </div>
           </div>
         </button>
@@ -2339,32 +2605,14 @@ function renderOfficeCanvas() {
 
   elements.officeCanvas.innerHTML = `
     ${floorBanner}
-    ${flowEventsHtml}
     <div class="office-layout-wrap">
-      <div class="office-wayfinding" aria-hidden="true">
-        <div class="office-wayfinding-plaque">ARC floor</div>
-        <div class="office-wayfinding-node office-wayfinding-node-north"></div>
-        <div class="office-wayfinding-node office-wayfinding-node-east"></div>
-        <div class="office-wayfinding-node office-wayfinding-node-south"></div>
-        <div class="office-wayfinding-node office-wayfinding-node-west"></div>
-      </div>
-      <div class="zone-network-overlay" aria-hidden="true">
-        <svg class="zone-network-svg"></svg>
-      </div>
       <div class="office-layout office-floorplan">
         ${zonesHtml}
-        ${officeBoardSummaryHtml}
       </div>
-      <div class="handoff-overlay hidden" aria-hidden="true">
-        <svg class="handoff-svg"></svg>
-        <div class="handoff-chip-layer"></div>
+      <div class="floor-courier-overlay hidden" aria-hidden="true">
+        <svg class="floor-courier-svg"></svg>
       </div>
     </div>
-    <section class="office-handoffs-panel">
-      <h3>Zone handoffs</h3>
-      <ul class="office-handoff-list">${handoffRowsHtml}</ul>
-    </section>
-    <div class="workflow-rail">${opportunityRailHtml}</div>
   `;
 
   elements.officeCanvas.querySelectorAll("[data-type][data-id]").forEach((node) => {
@@ -2381,8 +2629,7 @@ function renderOfficeCanvas() {
     });
   });
 
-  renderZoneNetworkOverlay(renderableHandoffs);
-  renderHandoffOverlay(renderableHandoffs);
+  renderPrimaryCourierOverlay(primaryHandoff);
 }
 
 function movementIntentsForOpportunity(opportunityId) {
@@ -2546,10 +2793,24 @@ function renderDetailForOpportunity(entry) {
   const executionState = entry.operational_execution || null;
   const marketState = entry.operational_market || null;
   const routeState = entry.operational_route || null;
+  const sellthroughState = entry.operational_sellthrough || null;
+  const capacityState = entry.operational_capacity || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    routeState && routeState.operator_route_next_step
+    sellthroughState &&
+    new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
+      sellthroughState.sellthrough_state
+    ) &&
+    sellthroughState.sellthrough_next_step
+      ? sellthroughState.sellthrough_next_step
+      : capacityState &&
+    new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
+      capacityState.capacity_state
+    ) &&
+    capacityState.capacity_next_step
+      ? capacityState.capacity_next_step
+      : routeState && routeState.operator_route_next_step
       ? routeState.operator_route_next_step
       : marketState && marketState.market_next_step
       ? marketState.market_next_step
@@ -2621,8 +2882,28 @@ function renderDetailForOpportunity(entry) {
         <li>Next action: ${escapeHtml(nextAction)}</li>
         <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
+        <li>Sell-through relief step: ${escapeHtml(
+          sellthroughState
+            ? sellthroughState.sellthrough_next_step
+            : "No sell-through relief action is required."
+        )}</li>
+        <li>Capacity relief step: ${escapeHtml(
+          capacityState
+            ? capacityState.capacity_next_step
+            : "No capacity relief action is required."
+        )}</li>
         <li>What would change this: ${escapeHtml(
-          marketState
+          sellthroughState &&
+          new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
+            sellthroughState.sellthrough_state
+          )
+            ? sellthroughState.sellthrough_clear_condition
+            : capacityState &&
+          new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
+            capacityState.capacity_state
+          )
+            ? capacityState.capacity_clear_condition
+            : marketState
             ? marketState.market_clear_condition
             : executionState
             ? executionState.execution_clear_condition
@@ -2658,6 +2939,16 @@ function renderDetailForOpportunity(entry) {
           marketState
             ? `${marketState.market_label}: ${marketState.market_reason}`
             : "Market readiness is not derived."
+        )}</li>
+        <li>Capacity: ${escapeHtml(
+          capacityState
+            ? `${capacityState.capacity_label}: ${capacityState.capacity_reason}`
+            : "Capacity pressure is not derived."
+        )}</li>
+        <li>Sell-through: ${escapeHtml(
+          sellthroughState
+            ? `${sellthroughState.sellthrough_label}: ${sellthroughState.sellthrough_reason}`
+            : "Sell-through pressure is not derived."
         )}</li>
         <li>Pricing context: Ask ${formatCurrency(record ? record.ask_price_usd : null)} vs value range ${
           record ? `${formatCurrency(record.estimated_value_range_usd[0])} to ${formatCurrency(record.estimated_value_range_usd[1])}` : "N/A"
