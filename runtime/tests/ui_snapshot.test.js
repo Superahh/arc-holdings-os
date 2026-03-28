@@ -42,6 +42,13 @@ const ALLOWED_EXECUTION_STATES = new Set([
   "execution_blocked",
   "execution_not_applicable",
 ]);
+const ALLOWED_MARKET_STATES = new Set([
+  "market_ready",
+  "market_waiting_pricing",
+  "market_waiting_listing",
+  "market_blocked",
+  "market_not_applicable",
+]);
 
 function loadGoldenFixture() {
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
@@ -183,6 +190,19 @@ function assertExecutionTextContract(execution) {
   assert.equal(execution.execution_clear_condition.trim().length > 0, true);
 }
 
+function assertMarketTextContract(market) {
+  assert.equal(typeof market.market_state, "string");
+  assert.equal(ALLOWED_MARKET_STATES.has(market.market_state), true);
+  assert.equal(typeof market.market_label, "string");
+  assert.equal(market.market_label.trim().length > 0, true);
+  assert.equal(typeof market.market_reason, "string");
+  assert.equal(market.market_reason.trim().length > 0, true);
+  assert.equal(typeof market.market_next_step, "string");
+  assert.equal(market.market_next_step.trim().length > 0, true);
+  assert.equal(typeof market.market_clear_condition, "string");
+  assert.equal(market.market_clear_condition.trim().length > 0, true);
+}
+
 test("buildUiSnapshot composes contract-driven shell data from runtime state", () => {
   const env = seedFixtureEnvironment();
 
@@ -220,9 +240,11 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
   const handoff = snapshot.workflow.opportunities[0].operational_handoff;
   const execution = snapshot.workflow.opportunities[0].operational_execution;
+  const market = snapshot.workflow.opportunities[0].operational_market;
   assert.ok(recommendation);
   assert.ok(handoff);
   assert.ok(execution);
+  assert.ok(market);
   assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
   assert.equal(typeof recommendation.recommendation_label, "string");
   assert.equal(recommendation.recommendation_label.length > 0, true);
@@ -244,6 +266,8 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(handoff.handoff_state, "handoff_blocked");
   assertExecutionTextContract(execution);
   assert.equal(execution.execution_state, "execution_blocked");
+  assertMarketTextContract(market);
+  assert.equal(market.market_state, "market_blocked");
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -1188,6 +1212,141 @@ test("buildUiSnapshot execution next step and clear condition remain determinist
 
   assert.equal(first.execution_next_step, second.execution_next_step);
   assert.equal(first.execution_clear_condition, second.execution_clear_condition);
+});
+
+test("buildUiSnapshot market mapping covers ready waiting-pricing waiting-listing blocked and not-applicable states", () => {
+  const scenarios = [
+    {
+      name: "market_ready",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "market_waiting_pricing",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "repair_and_resale";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "market_waiting_listing",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "awaiting_seller_verification";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+          response_status: "pending",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "market_blocked",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+      },
+    },
+    {
+      name: "market_not_applicable",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "researching";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: scenario.enqueueApproval });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities[0];
+    const market = opportunity.operational_market;
+    assertMarketTextContract(market);
+    assert.equal(market.market_state, scenario.name, scenario.name);
+    assert.equal(opportunity.market_state, scenario.name, scenario.name);
+  }
+});
+
+test("buildUiSnapshot market next step and clear condition remain deterministic", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  mutateSeededRecommendationInputs(env, ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+    opportunityRecord.recommendation = "acquire";
+    opportunityRecord.recommended_path = "resale_as_is";
+    workflowRecord.current_status = "approved";
+    workflowRecord.purchase_recommendation_blocked = false;
+    workflowRecord.seller_verification = {
+      imei_proof_verified: true,
+      carrier_status_verified: true,
+      response_status: "verified",
+    };
+    artifactOutput.handoff_packet.blocking_items = [];
+  });
+
+  const first = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_market;
+  const second = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_market;
+
+  assert.equal(first.market_next_step, second.market_next_step);
+  assert.equal(first.market_clear_condition, second.market_clear_condition);
 });
 
 test("buildUiSnapshot preserves repeated consecutive same-mode entries in capital board history", () => {

@@ -17,6 +17,7 @@ The current UI/runtime slice is an operator-facing workflow shell that derives d
 - recommendation readiness
 - handoff actionability
 - execution readiness
+- monetization readiness
 
 No new lanes or visual systems are introduced in this slice. Existing UI locations are reused for clearer operator actions.
 
@@ -34,15 +35,16 @@ Use this repo to:
 
 1. Runtime ingests workflow state, approval queue items, and latest run artifacts.
 2. Runtime builds a UI snapshot in `runtime/ui_snapshot.js`.
-3. Snapshot derivation computes compact operational fields for recommendation, handoff, and execution.
+3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, and monetization.
 4. UI reads those fields and renders text only in existing cards/panels.
-5. Approval/verification/handoff/execution wording remains deterministic and blocker-aware.
+5. Approval/verification/handoff/execution/market wording remains deterministic and blocker-aware.
 
 ### Current workflow semantics (decision stack)
 
 - `operational_recommendation`: whether to proceed, wait, hold, or reject.
 - `operational_handoff`: whether ownership transfer is ready, blocked, waiting, or must return.
 - `operational_execution`: whether execution can start now, is waiting on intake/parts, is blocked, or is not applicable.
+- `operational_market`: whether market action can start now, is waiting on pricing/listing, is blocked, or is not applicable.
 
 ### Current execution readiness model (v1)
 
@@ -51,6 +53,14 @@ Use this repo to:
 - `execution_waiting_parts`: repair path needs parts/quote readiness.
 - `execution_blocked`: hard blocker prevents execution (canonical blocker text reused).
 - `execution_not_applicable`: reject/terminal path, execution should not start.
+
+### Current monetization readiness model (v1)
+
+- `market_ready`: market action can start now.
+- `market_waiting_pricing`: pricing prerequisite is missing.
+- `market_waiting_listing`: listing preparation is still incomplete.
+- `market_blocked`: hard blocker prevents market action (canonical blocker text reused).
+- `market_not_applicable`: decision path should not proceed to market action.
 
 ### Snapshot payload additions used by UI
 
@@ -63,6 +73,16 @@ Per opportunity, snapshot now includes:
 - `execution_clear_condition`
 
 Execution fields are also grouped under `operational_execution` for direct UI consumption.
+
+Per opportunity, snapshot also includes:
+
+- `market_state`
+- `market_label`
+- `market_reason`
+- `market_next_step`
+- `market_clear_condition`
+
+Market fields are also grouped under `operational_market` for direct UI consumption.
 
 ## Operating loop
 

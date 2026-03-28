@@ -895,6 +895,7 @@ function buildOpportunityCardV1Model(entry) {
   const recommendation = entry.operational_recommendation || null;
   const handoff = entry.operational_handoff || null;
   const execution = entry.operational_execution || null;
+  const market = entry.operational_market || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoffPacket && handoffPacket.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const isBlocked = Boolean(
@@ -916,7 +917,9 @@ function buildOpportunityCardV1Model(entry) {
             : "purchase recommendation remains blocked."
         }`
       : `Next: ${
-          execution && execution.execution_next_step
+          market && market.market_next_step
+            ? market.market_next_step
+            : execution && execution.execution_next_step
             ? execution.execution_next_step
             : handoff && handoff.current_owner_action
               ? handoff.current_owner_action
@@ -2448,10 +2451,13 @@ function renderDetailForOpportunity(entry) {
   const recommendation = entry.operational_recommendation || null;
   const handoffState = entry.operational_handoff || null;
   const executionState = entry.operational_execution || null;
+  const marketState = entry.operational_market || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    executionState && executionState.execution_next_step
+    marketState && marketState.market_next_step
+      ? marketState.market_next_step
+      : executionState && executionState.execution_next_step
       ? executionState.execution_next_step
       : handoffState && handoffState.current_owner_action
         ? handoffState.current_owner_action
@@ -2520,7 +2526,9 @@ function renderDetailForOpportunity(entry) {
         <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
         <li>What would change this: ${escapeHtml(
-          executionState
+          marketState
+            ? marketState.market_clear_condition
+            : executionState
             ? executionState.execution_clear_condition
             : handoffState
             ? handoffState.handoff_clear_condition
@@ -2544,6 +2552,11 @@ function renderDetailForOpportunity(entry) {
           executionState
             ? `${executionState.execution_label}: ${executionState.execution_reason}`
             : "Execution readiness is not derived."
+        )}</li>
+        <li>Market: ${escapeHtml(
+          marketState
+            ? `${marketState.market_label}: ${marketState.market_reason}`
+            : "Market readiness is not derived."
         )}</li>
         <li>Pricing context: Ask ${formatCurrency(record ? record.ask_price_usd : null)} vs value range ${
           record ? `${formatCurrency(record.estimated_value_range_usd[0])} to ${formatCurrency(record.estimated_value_range_usd[1])}` : "N/A"

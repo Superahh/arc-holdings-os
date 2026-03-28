@@ -682,6 +682,103 @@ function deriveOperationalExecution(entry) {
   };
 }
 
+function deriveOperationalMarket(entry) {
+  const opportunityRecord =
+    entry &&
+    entry.contract_bundle &&
+    entry.contract_bundle.opportunity_record &&
+    typeof entry.contract_bundle.opportunity_record === "object"
+      ? entry.contract_bundle.opportunity_record
+      : null;
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const handoff = entry && entry.operational_handoff ? entry.operational_handoff : null;
+  const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+  const workflowRecord = entry && entry.workflow_record ? entry.workflow_record : null;
+  const currentStatus = entry && typeof entry.current_status === "string" ? entry.current_status : "";
+
+  const terminalStatus = TERMINAL_OPPORTUNITY_STATES.has(
+    normalizeRecommendationCopy(currentStatus).toLowerCase()
+  );
+  const hardBlocked = Boolean(
+    (execution &&
+      execution.execution_state === "execution_blocked") ||
+      (handoff &&
+        (handoff.handoff_state === "handoff_blocked" ||
+          handoff.handoff_state === "handoff_return_required")) ||
+      (workflowRecord && workflowRecord.purchase_recommendation_blocked)
+  );
+  const pricingMissing = Boolean(
+    !opportunityRecord ||
+      (recommendation && recommendation.blocker_class === "decision_input_missing")
+  );
+
+  let marketState = "market_waiting_listing";
+  if (terminalStatus || (recommendation && recommendation.recommendation_state === "reject_now")) {
+    marketState = "market_not_applicable";
+  } else if (hardBlocked) {
+    marketState = "market_blocked";
+  } else if (pricingMissing) {
+    marketState = "market_waiting_pricing";
+  } else if (execution && execution.execution_state === "execution_ready") {
+    marketState = "market_ready";
+  }
+
+  const marketLabels = {
+    market_ready: "Market ready",
+    market_waiting_pricing: "Waiting pricing",
+    market_waiting_listing: "Waiting listing",
+    market_blocked: "Market blocked",
+    market_not_applicable: "Not applicable",
+  };
+
+  let marketReason = "Listing intake is not ready yet.";
+  let marketNextStep = "Prepare listing packet for the next market action.";
+  let marketClearCondition = "Clears when listing packet is complete and ready to publish.";
+
+  if (marketState === "market_ready") {
+    marketReason = "Execution and pricing prerequisites are clear for market action.";
+    marketNextStep = "Publish listing on approved marketplace now.";
+    marketClearCondition = "Clears when listing is posted and market monitoring starts.";
+  } else if (marketState === "market_waiting_pricing") {
+    marketReason = "Pricing inputs are incomplete for market action.";
+    marketNextStep = "Set list price and floor from value range and comps.";
+    marketClearCondition = "Clears when explicit list price and floor are recorded.";
+  } else if (marketState === "market_waiting_listing") {
+    if (execution && execution.execution_state === "execution_waiting_parts") {
+      marketReason = "Listing waits on parts and repair intake readiness.";
+      marketNextStep = "Finish parts intake, then draft listing package.";
+      marketClearCondition = "Clears when parts intake completes and listing draft is prepared.";
+    } else if (execution && execution.execution_state === "execution_waiting_intake") {
+      marketReason = "Listing waits on execution intake completion.";
+      marketNextStep = "Complete execution intake and capture sellable condition notes.";
+      marketClearCondition = "Clears when execution intake is complete for listing prep.";
+    } else {
+      marketReason = "Listing packet is not prepared for market action yet.";
+      marketNextStep = "Draft listing copy and media for publication.";
+      marketClearCondition = "Clears when listing packet is approved for publication.";
+    }
+  } else if (marketState === "market_blocked") {
+    const blockerText =
+      (recommendation && recommendation.blocker_text) ||
+      canonicalizeBlockerText("purchase_recommendation_blocked");
+    marketReason = blockerText;
+    marketNextStep = "Resolve blocker, then resume market prep.";
+    marketClearCondition = `Clears when blocker resolves: ${blockerText}`;
+  } else if (marketState === "market_not_applicable") {
+    marketReason = "Current decision path does not proceed to market action.";
+    marketNextStep = "Do not prepare listing for this path.";
+    marketClearCondition = "Clears only if decision path changes to executable.";
+  }
+
+  return {
+    market_state: marketState,
+    market_label: marketLabels[marketState],
+    market_reason: marketReason,
+    market_next_step: marketNextStep,
+    market_clear_condition: marketClearCondition,
+  };
+}
+
 function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaitingTasks) {
   const ids = new Set([
     ...Object.keys(workflowState.opportunities || {}),
@@ -785,6 +882,13 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
     entry.execution_next_step = execution.execution_next_step;
     entry.execution_clear_condition = execution.execution_clear_condition;
     entry.operational_execution = execution;
+    const market = deriveOperationalMarket(entry);
+    entry.market_state = market.market_state;
+    entry.market_label = market.market_label;
+    entry.market_reason = market.market_reason;
+    entry.market_next_step = market.market_next_step;
+    entry.market_clear_condition = market.market_clear_condition;
+    entry.operational_market = market;
     if (entry.contract_bundle && entry.contract_bundle.approval_ticket) {
       entry.contract_bundle.approval_ticket = {
         ...entry.contract_bundle.approval_ticket,

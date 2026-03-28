@@ -192,6 +192,7 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     );
     const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
     const execution = snapshot.workflow.opportunities[0].operational_execution;
+    const market = snapshot.workflow.opportunities[0].operational_market;
     assert.equal(typeof recommendation.recommendation_reason, "string");
     assert.equal(recommendation.recommendation_reason.trim().length > 0, true);
     assert.equal(typeof recommendation.next_action, "string");
@@ -225,6 +226,16 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(
       typeof execution.execution_clear_condition === "string" &&
         execution.execution_clear_condition.length > 0,
+      true
+    );
+    assert.equal(typeof market.market_state === "string" && market.market_state.length > 0, true);
+    assert.equal(
+      typeof market.market_next_step === "string" && market.market_next_step.length > 0,
+      true
+    );
+    assert.equal(
+      typeof market.market_clear_condition === "string" &&
+        market.market_clear_condition.length > 0,
       true
     );
 
