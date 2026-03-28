@@ -145,6 +145,16 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     );
     assert.equal(Array.isArray(snapshot.office.office_view.handoffs), true);
     assert.equal(
+      typeof snapshot.office.office_view.handoffs[0].opportunity_id === "string" &&
+        snapshot.office.office_view.handoffs[0].opportunity_id.length > 0,
+      true
+    );
+    assert.equal(
+      typeof snapshot.office.office_view.handoffs[0].to_agent === "string" &&
+        snapshot.office.office_view.handoffs[0].to_agent.length > 0,
+      true
+    );
+    assert.equal(
       snapshot.workflow.opportunities[0].operational_recommendation.recommendation_type,
       "buy_after_verification"
     );

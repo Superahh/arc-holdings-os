@@ -1809,6 +1809,32 @@ function renderOfficeCanvas() {
       typeof officeViewBoardSummary.alert_text === "string" &&
       officeViewBoardSummary.alert_text.trim()
   );
+  const opportunities = state.snapshot.workflow.opportunities;
+  const zoneRoleById = new Map(
+    officeViewZones.map((zone) => [zone.id, zone.role_label]).filter((entry) => entry[1])
+  );
+  const firstBlockedOpportunity =
+    opportunities.find(
+      (entry) =>
+        entry &&
+        entry.workflow_record &&
+        entry.workflow_record.purchase_recommendation_blocked &&
+        entry.opportunity_id
+    )?.opportunity_id || null;
+  const firstApprovalOpportunity =
+    opportunities.find(
+      (entry) =>
+        entry &&
+        entry.opportunity_id &&
+        mapStatusToLaneStage(entry.current_status) === "approval"
+    )?.opportunity_id || null;
+  const firstActiveOpportunity = opportunities[0] ? opportunities[0].opportunity_id : null;
+  const alertFocusOpportunityId =
+    (topTask && topTask.opportunity_id) ||
+    firstBlockedOpportunity ||
+    firstApprovalOpportunity ||
+    firstActiveOpportunity ||
+    null;
 
   const floorBanner = `
     <div class="floor-banner">
@@ -1971,15 +1997,31 @@ function renderOfficeCanvas() {
           ${Array.isArray(officeViewBoardSummary.key_counts)
             ? officeViewBoardSummary.key_counts
                 .map(
-                  (entry) =>
-                    `<span class="priority-pill">${escapeHtml(`${entry.label}: ${entry.value}`)}</span>`
+                  (entry) => {
+                    const label = entry && typeof entry.label === "string" ? entry.label : "";
+                    const normalizedLabel = normalizeToken(label);
+                    const targetOpportunityId = normalizedLabel.startsWith("blocked")
+                      ? firstBlockedOpportunity
+                      : normalizedLabel.startsWith("approvals")
+                      ? firstApprovalOpportunity
+                      : normalizedLabel.startsWith("active")
+                      ? firstActiveOpportunity
+                      : null;
+                    const pillLabel = escapeHtml(`${entry.label}: ${entry.value}`);
+                    if (targetOpportunityId) {
+                      return `<button type="button" class="priority-pill office-summary-action" data-type="opportunity" data-id="${escapeHtml(targetOpportunityId)}">${pillLabel}</button>`;
+                    }
+                    return `<span class="priority-pill">${pillLabel}</span>`;
+                  }
                 )
                 .join("")
             : ""}
         </div>
         ${
           officeViewBoardSummary.alert_text
-            ? `<p class="muted office-board-summary-alert">${escapeHtml(officeViewBoardSummary.alert_text)}</p>`
+            ? alertFocusOpportunityId
+              ? `<button type="button" class="muted office-board-summary-alert office-summary-action office-summary-alert-action" data-type="opportunity" data-id="${escapeHtml(alertFocusOpportunityId)}">${escapeHtml(officeViewBoardSummary.alert_text)}</button>`
+              : `<p class="muted office-board-summary-alert">${escapeHtml(officeViewBoardSummary.alert_text)}</p>`
             : ""
         }
       </section>
@@ -1990,7 +2032,7 @@ function renderOfficeCanvas() {
     ? officeViewHandoffs
         .map(
           (handoff, index) => `
-            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""} ${handoff.status === "blocked" || /(approval|blocked|urgent)/i.test(handoff && typeof handoff.label === "string" ? handoff.label : "") ? "is-urgent-handoff" : ""}">
+            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""} ${handoff.status === "blocked" || /(approval|blocked|urgent)/i.test(handoff && typeof handoff.label === "string" ? handoff.label : "") ? "is-urgent-handoff" : ""} ${(handoff && handoff.opportunity_id && findOpportunityById(handoff.opportunity_id)) || (handoff && handoff.to_zone && zoneRoleById.get(handoff.to_zone)) || (handoff && handoff.from_zone && zoneRoleById.get(handoff.from_zone)) ? "is-actionable" : ""}" ${(handoff && handoff.opportunity_id && findOpportunityById(handoff.opportunity_id)) ? `data-type="opportunity" data-id="${escapeHtml(handoff.opportunity_id)}"` : (handoff && handoff.to_zone && zoneRoleById.get(handoff.to_zone)) ? `data-type="agent" data-id="${escapeHtml(zoneRoleById.get(handoff.to_zone))}"` : (handoff && handoff.from_zone && zoneRoleById.get(handoff.from_zone)) ? `data-type="agent" data-id="${escapeHtml(zoneRoleById.get(handoff.from_zone))}"` : ""}>
               <div class="office-handoff-route">
                 <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
                 <span class="office-handoff-arrow" aria-hidden="true">→</span>
@@ -2003,7 +2045,6 @@ function renderOfficeCanvas() {
         .join("")
     : '<li class="office-handoff-row is-idle"><span class="office-handoff-label">No active handoffs right now.</span></li>';
 
-  const opportunities = state.snapshot.workflow.opportunities;
   const opportunityRailHtml = opportunities.length
     ? opportunities
         .map((entry) => {

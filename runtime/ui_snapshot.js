@@ -1968,6 +1968,9 @@ function buildOfficeViewModel(
   });
 
   const handoffs = (officeHandoffSignals || []).map((signal) => ({
+    opportunity_id: signal.opportunity_id || null,
+    from_agent: signal.from_agent || null,
+    to_agent: signal.to_agent || null,
     from_zone: signal.from_zone_id,
     to_zone: signal.to_zone_id,
     status: signal.blocking_count > 0 ? "blocked" : "active",

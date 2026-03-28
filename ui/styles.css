@@ -522,6 +522,14 @@ h2 {
   padding: 9px 10px;
 }
 
+.office-handoff-row.is-actionable {
+  cursor: pointer;
+}
+
+.office-handoff-row.is-actionable:hover {
+  border-color: rgba(20, 35, 34, 0.3);
+}
+
 .office-handoff-row.is-active {
   border-left: 4px solid rgba(47, 107, 79, 0.38);
 }
@@ -559,6 +567,19 @@ h2 {
 
 .office-handoff-row.is-context-dim.is-urgent-handoff {
   opacity: 0.94;
+}
+
+.office-summary-action {
+  cursor: pointer;
+}
+
+button.office-summary-action {
+  border: none;
+}
+
+.office-summary-alert-action {
+  width: 100%;
+  text-align: left;
 }
 
 .office-handoff-route {

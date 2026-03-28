@@ -153,3 +153,18 @@ test("office canvas allows urgency and selection context hooks to coexist", () =
   assert.match(source, /is-urgent-handoff/);
   assert.match(source, /has-global-alert/);
 });
+
+test("office handoff rows map clicks into existing selection targets", () => {
+  const source = readUiAppSource();
+  assert.match(source, /handoff\.opportunity_id && findOpportunityById\(handoff\.opportunity_id\)/);
+  assert.match(source, /zoneRoleById\.get\(handoff\.to_zone\)/);
+  assert.match(source, /class=\"office-handoff-row[\s\S]*is-actionable/);
+  assert.match(source, /data-type=\"opportunity\" data-id=\"\$\{escapeHtml\(handoff\.opportunity_id\)\}\"/);
+});
+
+test("office board summary emits click-through hooks using existing opportunity focus", () => {
+  const source = readUiAppSource();
+  assert.match(source, /alertFocusOpportunityId/);
+  assert.match(source, /office-summary-action/);
+  assert.match(source, /data-type=\"opportunity\" data-id=\"\$\{escapeHtml\(targetOpportunityId\)\}\"/);
+});
