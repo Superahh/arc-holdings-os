@@ -2006,6 +2006,26 @@ function renderBoard() {
             </ul>
           </div>
         </div>
+        <div>
+          <h3>Recent posture</h3>
+          ${
+            capitalStrategy.board_history.length
+              ? `<ul class="history-list">${capitalStrategy.board_history
+                  .map(
+                    (entry) => `
+                      <li class="status-history-item">
+                        <div class="detail-meta">
+                          <strong>${escapeHtml(formatStrategyLabel(entry.capital_mode))}</strong>
+                          <time>${escapeHtml(formatTimestamp(entry.timestamp))}</time>
+                        </div>
+                        <p>${escapeHtml(entry.rationale_snapshot)}</p>
+                      </li>
+                    `
+                  )
+                  .join("")}</ul>`
+              : `<div class="empty-state">No recent capital posture snapshots recorded.</div>`
+          }
+        </div>
       </article>
     `
     : "";

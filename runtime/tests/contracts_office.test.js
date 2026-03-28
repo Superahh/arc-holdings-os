@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   validateCapitalStrategySnapshot,
+  validateCapitalStrategyHistoryEntry,
   validateCapitalFitAnnotation,
   validateOfficeZoneAnchor,
   validateOfficeRouteHint,
@@ -103,6 +104,13 @@ test("validateCapitalStrategySnapshot accepts approved strategy snapshot", () =>
     as_of: "2026-03-27T12:00:00.000Z",
     capital_mode: "constrained",
     capital_mode_reason: "Pending exposure is crowding available capital.",
+    board_history: [
+      {
+        timestamp: "2026-03-27T12:00:00.000Z",
+        capital_mode: "constrained",
+        rationale_snapshot: "Available capital is tight relative to current posture.",
+      },
+    ],
     approved_strategy_priorities: ["resale_only", "arbitrage", "bundle_optimization"],
     capital_risk_flags: ["460 USD pending approval exposure."],
     recommended_avoidances: ["Off-policy sourcing."],
@@ -111,6 +119,16 @@ test("validateCapitalStrategySnapshot accepts approved strategy snapshot", () =>
   });
 
   assert.equal(errors.length, 0, `Unexpected CapitalStrategySnapshot errors: ${errors.join(", ")}`);
+});
+
+test("validateCapitalStrategyHistoryEntry accepts a bounded history entry", () => {
+  const errors = validateCapitalStrategyHistoryEntry({
+    timestamp: "2026-03-27T12:00:00.000Z",
+    capital_mode: "recovery",
+    rationale_snapshot: "Recorded posture showed low available operating capital.",
+  });
+
+  assert.equal(errors.length, 0, `Unexpected CapitalStrategyHistoryEntry errors: ${errors.join(", ")}`);
 });
 
 test("validateCapitalFitAnnotation accepts approved advisory annotation", () => {

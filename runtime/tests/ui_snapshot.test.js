@@ -19,6 +19,7 @@ const {
   validateOfficeRouteHint,
   validateOfficeEvent,
   validateOfficeMovementIntent,
+  validateCapitalStrategyHistoryEntry,
   validateCapitalFitAnnotation,
 } = require("../contracts");
 
@@ -204,11 +205,17 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
   assert.equal(snapshot.capital_controls.latest_request.action, "deposit");
   assert.equal(snapshot.capital_strategy.capital_mode, "constrained");
   assert.equal(snapshot.capital_strategy.source_capital_account_id, "arc-main-usd");
+  assert.equal(snapshot.capital_strategy.board_history.length, 1);
   assert.deepEqual(snapshot.capital_strategy.approved_strategy_priorities.slice(0, 2), [
     "resale_only",
     "arbitrage",
   ]);
   assert.match(snapshot.capital_strategy.capital_mode_reason, /tighter relative to exposure|safe working posture/i);
+  assert.equal(
+    validateCapitalStrategyHistoryEntry(snapshot.capital_strategy.board_history[0]).length,
+    0,
+    "Expected capital strategy board_history entries to conform to contract."
+  );
   assert.equal(snapshot.office.presence[0].capital_mode, "constrained");
   assert.match(snapshot.office.presence[0].headline, /constrained mode/i);
   assert.equal(snapshot.workflow.opportunities[0].capital_fit.stance, "neutral");
@@ -339,6 +346,72 @@ test("buildUiSnapshot covers favored, neutral, and discouraged capital_fit stanc
       validateCapitalFitAnnotation(snapshot.workflow.opportunities[0].capital_fit).length,
       0,
       "Expected capital_fit to conform to CapitalFitAnnotation contract."
+    );
+  }
+});
+
+test("buildUiSnapshot surfaces bounded capital board history from recent ledger posture", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "deposit",
+    amountUsd: 1200,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed account for board history coverage.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "reserve",
+    amountUsd: 250,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Reserve capital for approved operating exposure.",
+    notes: "",
+    opportunityId: "opp-2026-03-25-001",
+    approvalTicketId: "apr-ui-001",
+    requestId: null,
+    now: "2026-03-25T19:07:00.000Z",
+  });
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_strategy.board_history.length, 2);
+  assert.equal(snapshot.capital_strategy.board_history[0].timestamp, "2026-03-25T19:06:00.000Z");
+  assert.equal(snapshot.capital_strategy.board_history[1].timestamp, "2026-03-25T19:07:00.000Z");
+  assert.equal(
+    snapshot.capital_strategy.board_history[1].capital_mode,
+    snapshot.capital_strategy.capital_mode
+  );
+  assert.equal(
+    snapshot.capital_strategy.board_history[1].rationale_snapshot,
+    snapshot.capital_strategy.capital_mode_reason
+  );
+  for (const entry of snapshot.capital_strategy.board_history) {
+    assert.equal(
+      validateCapitalStrategyHistoryEntry(entry).length,
+      0,
+      "Expected capital strategy board_history entries to conform to contract."
     );
   }
 });

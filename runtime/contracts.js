@@ -289,6 +289,17 @@ function validateCapitalStrategySnapshot(snapshot) {
   if (typeof snapshot.capital_mode_reason !== "string" || !snapshot.capital_mode_reason) {
     errors.push("capital_mode_reason must be a non-empty string.");
   }
+  if (!Array.isArray(snapshot.board_history)) {
+    errors.push("board_history must be an array.");
+  } else {
+    snapshot.board_history.forEach((entry, index) => {
+      errors.push(
+        ...validateCapitalStrategyHistoryEntry(entry).map(
+          (error) => `board_history[${index}]: ${error}`
+        )
+      );
+    });
+  }
   if (
     !Array.isArray(snapshot.approved_strategy_priorities) ||
     !snapshot.approved_strategy_priorities.length
@@ -310,6 +321,23 @@ function validateCapitalStrategySnapshot(snapshot) {
   }
   if (!isNullableString(snapshot.source_capital_account_id)) {
     errors.push("source_capital_account_id must be string or null.");
+  }
+  return errors;
+}
+
+function validateCapitalStrategyHistoryEntry(entry) {
+  const errors = [];
+  if (!entry || typeof entry !== "object") {
+    return ["CapitalStrategyHistoryEntry must be an object."];
+  }
+  if (!isIsoDateTime(entry.timestamp)) {
+    errors.push("timestamp must be ISO-8601 datetime.");
+  }
+  if (!CAPITAL_MODES.has(entry.capital_mode)) {
+    errors.push("capital_mode contains invalid enum value.");
+  }
+  if (typeof entry.rationale_snapshot !== "string" || !entry.rationale_snapshot) {
+    errors.push("rationale_snapshot must be a non-empty string.");
   }
   return errors;
 }
@@ -614,6 +642,13 @@ function assertValidCapitalStrategySnapshot(snapshot) {
   }
 }
 
+function assertValidCapitalStrategyHistoryEntry(entry) {
+  const errors = validateCapitalStrategyHistoryEntry(entry);
+  if (errors.length > 0) {
+    throw new Error(`Invalid CapitalStrategyHistoryEntry: ${errors.join(" | ")}`);
+  }
+}
+
 function assertValidCapitalFitAnnotation(annotation) {
   const errors = validateCapitalFitAnnotation(annotation);
   if (errors.length > 0) {
@@ -663,6 +698,7 @@ module.exports = {
   validateAgentStatusCard,
   validateCompanyBoardSnapshot,
   validateCapitalStrategySnapshot,
+  validateCapitalStrategyHistoryEntry,
   validateCapitalFitAnnotation,
   validateOfficeZoneAnchor,
   validateOfficeHandoffSignal,
@@ -675,6 +711,7 @@ module.exports = {
   assertValidAgentStatusCard,
   assertValidCompanyBoardSnapshot,
   assertValidCapitalStrategySnapshot,
+  assertValidCapitalStrategyHistoryEntry,
   assertValidCapitalFitAnnotation,
   assertValidOfficeZoneAnchor,
   assertValidOfficeHandoffSignal,

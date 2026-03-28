@@ -198,6 +198,33 @@ Future anti-flapping note:
 - Capital Strategy Agent should initially share the executive/finance zone
 - future board state may expose capital mode, strategy priorities, and rationale as read-only company context
 
+### Capital Strategy Board History (v1)
+Capital Strategy Board History is a read-only executive/company-context history surface showing recent capital posture snapshots over time.
+
+Purpose:
+
+- improve operator trust
+- provide continuity for company-level capital posture
+- explain recent capital mode context without changing behavior
+
+In v1, Board History:
+
+- is read-only
+- is limited to executive/company context
+- does not affect ranking, routing, approvals, or money movement
+- does not modify `capital_fit`
+- does not require a generic event or persistence framework
+
+Each history entry should remain narrow and explainable.
+
+Suggested entry fields:
+
+- `timestamp`
+- `capital_mode`
+- `rationale_snapshot`
+
+If explicit change events are not already available from runtime truth, the system may present recent capital posture snapshots in chronological order rather than inventing synthetic transition events.
+
 ## Approval model
 
 Human approval required for:

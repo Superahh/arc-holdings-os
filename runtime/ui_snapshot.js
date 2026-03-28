@@ -480,10 +480,17 @@ function buildCapitalStrategySnapshot(capitalControls, queueTotals, opportunitie
     reason = `Available operating capital (${available} USD) is below safe working posture relative to active commitments/exposure.`;
   }
 
+  const boardHistory = buildCapitalStrategyBoardHistory(capitalControls, {
+    as_of: account.as_of || nowIso,
+    capital_mode: capitalMode,
+    capital_mode_reason: reason,
+  });
+
   const snapshot = {
     as_of: account.as_of || nowIso,
     capital_mode: capitalMode,
     capital_mode_reason: reason,
+    board_history: boardHistory,
     approved_strategy_priorities: priorities,
     capital_risk_flags: riskFlags,
     recommended_avoidances: avoidances,
@@ -492,6 +499,80 @@ function buildCapitalStrategySnapshot(capitalControls, queueTotals, opportunitie
   };
   assertValidCapitalStrategySnapshot(snapshot);
   return snapshot;
+}
+
+function classifyHistoricalCapitalMode(accountSnapshot) {
+  const available = accountSnapshot.available_usd || 0;
+  const reserved = accountSnapshot.reserved_usd || 0;
+  const committed = accountSnapshot.committed_usd || 0;
+
+  if (available <= 300 || committed > available) {
+    return "recovery";
+  }
+  if (available <= 1000 || reserved + committed >= Math.max(200, available * 0.75)) {
+    return "constrained";
+  }
+  return "normal";
+}
+
+function buildHistoricalCapitalRationale(accountSnapshot, capitalMode) {
+  const available = accountSnapshot.available_usd || 0;
+  const reserved = accountSnapshot.reserved_usd || 0;
+  const committed = accountSnapshot.committed_usd || 0;
+
+  if (capitalMode === "recovery") {
+    return `Recorded posture showed ${available} USD available with ${reserved} USD reserved and ${committed} USD committed, indicating a recovery posture.`;
+  }
+  if (capitalMode === "constrained") {
+    return `Recorded posture showed ${available} USD available with ${reserved} USD reserved and ${committed} USD committed, indicating tighter operating headroom.`;
+  }
+  return `Recorded posture showed ${available} USD available with ${reserved} USD reserved and ${committed} USD committed, supporting normal operating posture.`;
+}
+
+function buildCapitalStrategyBoardHistory(capitalControls, currentSnapshot) {
+  if (
+    !capitalControls ||
+    !capitalControls.account_snapshot ||
+    !capitalControls.state_path ||
+    !fs.existsSync(capitalControls.state_path)
+  ) {
+    return [];
+  }
+
+  const state = loadCapitalState(capitalControls.state_path);
+  if (!Array.isArray(state.ledger) || !state.ledger.length) {
+    return [
+      {
+        timestamp: currentSnapshot.as_of,
+        capital_mode: currentSnapshot.capital_mode,
+        rationale_snapshot: currentSnapshot.capital_mode_reason,
+      },
+    ];
+  }
+
+  const recentEntries = state.ledger.slice(-4);
+  return recentEntries.map((entry, index) => {
+    const isLatest = index === recentEntries.length - 1;
+    if (isLatest) {
+      return {
+        timestamp: currentSnapshot.as_of,
+        capital_mode: currentSnapshot.capital_mode,
+        rationale_snapshot: currentSnapshot.capital_mode_reason,
+      };
+    }
+
+    const accountSnapshot = {
+      available_usd: entry.balance_after_usd - entry.reserved_after_usd - entry.committed_after_usd,
+      reserved_usd: entry.reserved_after_usd,
+      committed_usd: entry.committed_after_usd,
+    };
+    const capitalMode = classifyHistoricalCapitalMode(accountSnapshot);
+    return {
+      timestamp: entry.timestamp,
+      capital_mode: capitalMode,
+      rationale_snapshot: buildHistoricalCapitalRationale(accountSnapshot, capitalMode),
+    };
+  });
 }
 
 function buildOpportunityCapitalFit(entry, capitalStrategy) {

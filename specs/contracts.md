@@ -171,6 +171,13 @@ Purpose: expose read-only capital posture and approved strategy priorities witho
   "as_of": "ISO-8601 datetime",
   "capital_mode": "normal|constrained|recovery",
   "capital_mode_reason": "string",
+  "board_history": [
+    {
+      "timestamp": "ISO-8601 datetime",
+      "capital_mode": "normal|constrained|recovery",
+      "rationale_snapshot": "string"
+    }
+  ],
   "approved_strategy_priorities": [
     "repair_resell|part_out|resale_only|arbitrage|liquidation|bundle_optimization"
   ],
@@ -178,6 +185,18 @@ Purpose: expose read-only capital posture and approved strategy priorities witho
   "recommended_avoidances": ["string"],
   "recommended_actions": ["string"],
   "source_capital_account_id": "string|null"
+}
+```
+
+### CapitalStrategyHistoryEntry
+
+Purpose: expose a bounded recent capital-posture snapshot in executive/company context without implying a generic event system.
+
+```json
+{
+  "timestamp": "ISO-8601 datetime",
+  "capital_mode": "normal|constrained|recovery",
+  "rationale_snapshot": "string"
 }
 ```
 
