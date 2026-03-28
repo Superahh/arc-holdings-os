@@ -1296,9 +1296,9 @@ function buildCapitalNote(queueTotals, opportunities) {
     .reduce((sum, ticket) => sum + (ticket.max_exposure_usd || 0), 0);
 
   if (queueTotals.pending > 0) {
-    return `${pendingExposure} USD is awaiting explicit approval. Capital remains user-controlled until deposit, reserve, approval, and withdrawal flows are implemented with auditability.`;
+    return `${pendingExposure} USD is awaiting explicit approval. Capital remains user-controlled: UI supports withdrawal request/approve/cancel only; deposit/reserve/release/approve_use stay runtime-manual.`;
   }
-  return "No capital approval is currently pending. Capital remains manually controlled until explicit deposit, reserve, approval, and withdrawal controls are implemented.";
+  return "No capital approval is currently pending. Capital remains user-controlled with auditable ledger-backed withdrawals and runtime-manual deposit/reserve/release/approve_use actions.";
 }
 
 function buildCapitalControls(capitalStatePath) {
@@ -1311,15 +1311,40 @@ function buildCapitalControls(capitalStatePath) {
       account_snapshot: null,
       ledger_integrity: null,
       latest_request: null,
+      pending_withdrawal_requests: [],
+      recent_ledger_entries: [],
+      capital_left_usd: null,
     };
   }
 
   const state = loadCapitalState(absolutePath);
   const integrity = verifyLedgerIntegrity(state);
   const latestRequest = state.requests.length ? state.requests[state.requests.length - 1] : null;
+  const pendingRequests = state.requests
+    .filter((request) => request.action === "request_withdrawal" && request.status === "requested")
+    .map((request) => ({
+      request_id: request.request_id,
+      action: request.action,
+      amount_usd: request.amount_usd,
+      status: request.status,
+      requested_at: request.requested_at,
+      requested_by: request.requested_by || null,
+      reason: request.reason || "",
+      current_available_usd: state.account.available_usd,
+      current_pending_withdrawal_usd: state.account.pending_withdrawal_usd,
+      resulting_available_usd_after_execution: state.account.available_usd,
+    }));
+  const recentLedgerEntries = state.ledger.slice(-5).reverse().map((entry) => ({
+    entry_id: entry.entry_id,
+    timestamp: entry.timestamp,
+    action: entry.action,
+    amount_usd: entry.amount_usd,
+    performed_by: entry.performed_by,
+    request_id: entry.request_id || null,
+  }));
   return {
     status: "manual_only",
-    note: "Capital movements are runtime-manual only (CLI/operator), UI write endpoints remain disabled.",
+    note: "Capital remains user-controlled. UI write scope is withdrawal request/approve/cancel only; all other capital movement actions remain runtime-manual.",
     state_path: absolutePath,
     account_snapshot: {
       account_id: state.account.account_id,
@@ -1331,17 +1356,22 @@ function buildCapitalControls(capitalStatePath) {
       pending_withdrawal_usd: state.account.pending_withdrawal_usd,
       manual_only: state.account.manual_only,
     },
+    capital_left_usd: state.account.available_usd,
     ledger_integrity: integrity,
     latest_request: latestRequest
       ? {
-          request_id: latestRequest.request_id,
-          action: latestRequest.action,
-          amount_usd: latestRequest.amount_usd,
-          status: latestRequest.status,
-          requested_at: latestRequest.requested_at,
-          opportunity_id: latestRequest.opportunity_id,
-        }
+        request_id: latestRequest.request_id,
+        action: latestRequest.action,
+        amount_usd: latestRequest.amount_usd,
+        status: latestRequest.status,
+        requested_at: latestRequest.requested_at,
+        requested_by: latestRequest.requested_by || null,
+        reason: latestRequest.reason || "",
+        opportunity_id: latestRequest.opportunity_id,
+      }
       : null,
+    pending_withdrawal_requests: pendingRequests,
+    recent_ledger_entries: recentLedgerEntries,
   };
 }
 

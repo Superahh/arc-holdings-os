@@ -20,6 +20,7 @@ The current UI/runtime slice is an operator-facing workflow shell that derives d
 - monetization readiness
 - compact operator route summary
 - approval decision consequences
+- read-only capital posture visibility plus user-controlled withdrawal request/approve/cancel actions
 
 No new lanes or visual systems are introduced in this slice. Existing UI locations are reused for clearer operator actions.
 
@@ -37,9 +38,10 @@ Use this repo to:
 
 1. Runtime ingests workflow state, approval queue items, and latest run artifacts.
 2. Runtime builds a UI snapshot in `runtime/ui_snapshot.js`.
-3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, operator route summary, and approval consequences.
-4. UI reads those fields and renders text only in existing cards/panels.
-5. Approval/verification/handoff/execution/market wording remains deterministic and blocker-aware.
+3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, operator route summary, approval consequences, and capital controls.
+4. UI reads those fields and renders text only in existing cards/panels, including read-only capital buckets and pending withdrawal requests.
+5. Writable UI actions remain narrow and confirmation-gated: approval decisions and withdrawal request/approve/cancel/reject only.
+6. Deposit/reserve/release_reserve/approve_use remain runtime-manual (CLI/operator) and no autonomous capital movement is allowed.
 
 ### Current workflow semantics (decision stack)
 
@@ -104,6 +106,18 @@ Per approval queue ticket item, snapshot now also includes:
 - `more_info_consequence`
 - `resume_owner`
 - `resume_condition`
+
+Snapshot also includes `capital_controls` fields used by UI:
+
+- `account_snapshot.available_usd`
+- `account_snapshot.reserved_usd`
+- `account_snapshot.committed_usd`
+- `account_snapshot.pending_withdrawal_usd`
+- `capital_left_usd` (display alias of `available_usd`)
+- `latest_request`
+- `pending_withdrawal_requests`
+- `recent_ledger_entries`
+- `ledger_integrity`
 
 ## Operating loop
 

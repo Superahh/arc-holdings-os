@@ -12,6 +12,7 @@ const { createEmptyQueue, enqueueApprovalTicket, saveQueue } = require("../appro
 const { createEmptyWorkflowState, upsertFromPipeline, saveWorkflowState } = require("../workflow_state");
 const { runBootstrapAction } = require("../capital_bootstrap_cli");
 const { runMovementAction } = require("../capital_movement_cli");
+const { loadCapitalState, saveCapitalState, submitWithdrawalRequest } = require("../capital_state");
 const { buildUiSnapshot } = require("../ui_snapshot");
 const {
   validateOfficeZoneAnchor,
@@ -297,7 +298,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   );
   assert.match(
     snapshot.office.company_board_snapshot.capital_note,
-    /deposit, reserve, approval, and withdrawal/i
+    /withdrawal request\/approve\/cancel|runtime-manual/i
   );
   assert.equal(snapshot.office.presence[0].zone_label, "Decision Desk");
   assert.equal(snapshot.office.presence[0].visual_state, "needs_approval");
@@ -465,8 +466,13 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
 
   assert.equal(snapshot.capital_controls.status, "manual_only");
   assert.equal(snapshot.capital_controls.account_snapshot.available_usd, 900);
+  assert.equal(snapshot.capital_controls.capital_left_usd, 900);
   assert.equal(snapshot.capital_controls.ledger_integrity.ok, true);
   assert.equal(snapshot.capital_controls.latest_request.action, "deposit");
+  assert.equal(Array.isArray(snapshot.capital_controls.pending_withdrawal_requests), true);
+  assert.equal(snapshot.capital_controls.pending_withdrawal_requests.length, 0);
+  assert.equal(Array.isArray(snapshot.capital_controls.recent_ledger_entries), true);
+  assert.equal(snapshot.capital_controls.recent_ledger_entries.length >= 1, true);
   assert.equal(snapshot.capital_strategy.capital_mode, "constrained");
   assert.equal(snapshot.capital_strategy.source_capital_account_id, "arc-main-usd");
   assert.equal(snapshot.capital_strategy.board_history.length, 1);
@@ -514,6 +520,62 @@ test("buildUiSnapshot keeps capital board history empty when no eligible ledger-
 
   assert.equal(snapshot.capital_strategy.capital_mode, "recovery");
   assert.deepEqual(snapshot.capital_strategy.board_history, []);
+});
+
+test("buildUiSnapshot includes pending withdrawal request preview fields", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "deposit",
+    amountUsd: 1000,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed for withdrawal preview coverage.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+
+  const state = loadCapitalState(env.capitalStatePath);
+  submitWithdrawalRequest(
+    state,
+    {
+      amount_usd: 125,
+      requested_by: "owner_operator",
+      performed_by: "owner_operator",
+      authorized_by: "owner_operator",
+      reason: "Owner withdrawal request",
+    },
+    { now: "2026-03-25T19:07:00.000Z" }
+  );
+  saveCapitalState(env.capitalStatePath, state, "2026-03-25T19:07:00.000Z");
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_controls.account_snapshot.available_usd, 875);
+  assert.equal(snapshot.capital_controls.account_snapshot.pending_withdrawal_usd, 125);
+  assert.equal(snapshot.capital_controls.pending_withdrawal_requests.length, 1);
+  assert.equal(snapshot.capital_controls.pending_withdrawal_requests[0].request_id, "cap-req-000002");
+  assert.equal(
+    snapshot.capital_controls.pending_withdrawal_requests[0].resulting_available_usd_after_execution,
+    875
+  );
 });
 
 test("buildUiSnapshot covers favored, neutral, and discouraged capital_fit stances", () => {

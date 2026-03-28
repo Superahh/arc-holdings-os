@@ -32,7 +32,7 @@ Versioning rule:
 
 Current extension note:
 
-- `v1.1` adds planned capital-control interfaces to support explicit deposit/reserve/approve-to-use/withdraw modeling with auditability.
+- `v1.1` adds capital-control interfaces to support explicit deposit/reserve/approve-to-use and request-first withdrawal modeling with auditability.
 
 ## OpportunityRecord
 
@@ -231,7 +231,7 @@ Purpose: annotate a single opportunity against the current company capital mode 
 ```json
 {
   "request_id": "string",
-  "action": "deposit|reserve|release_reserve|approve_use|withdraw",
+  "action": "deposit|reserve|release_reserve|approve_use|withdraw|request_withdrawal",
   "amount_usd": 0,
   "requested_by": "string",
   "requested_at": "ISO-8601 datetime",
@@ -262,16 +262,59 @@ Purpose: annotate a single opportunity against the current company capital mode 
 {
   "entry_id": "string",
   "timestamp": "ISO-8601 datetime",
-  "action": "deposit|reserve|release_reserve|approve_use|withdraw|adjustment",
+  "action": "deposit|reserve|release_reserve|approve_use|withdraw|adjustment|request_withdrawal|approve_withdrawal|cancel_withdrawal|reject_withdrawal",
   "amount_usd": 0,
   "balance_after_usd": 0,
   "reserved_after_usd": 0,
   "committed_after_usd": 0,
+  "pending_withdrawal_after_usd": 0,
   "performed_by": "string",
   "authorized_by": "string|null",
   "request_id": "string|null",
   "opportunity_id": "string|null",
   "notes": "string"
+}
+```
+
+### CapitalControlsSnapshot
+
+```json
+{
+  "status": "manual_only",
+  "note": "string",
+  "state_path": "string",
+  "account_snapshot": "CapitalAccountSnapshot|null",
+  "capital_left_usd": "number|null",
+  "ledger_integrity": {
+    "ok": true,
+    "errors": ["string"],
+    "entry_count": 0,
+    "latest_entry_id": "string|null"
+  },
+  "latest_request": "CapitalMovementRequest|null",
+  "pending_withdrawal_requests": [
+    {
+      "request_id": "string",
+      "amount_usd": 0,
+      "status": "requested",
+      "requested_at": "ISO-8601 datetime",
+      "requested_by": "string|null",
+      "reason": "string",
+      "current_available_usd": 0,
+      "current_pending_withdrawal_usd": 0,
+      "resulting_available_usd_after_execution": 0
+    }
+  ],
+  "recent_ledger_entries": [
+    {
+      "entry_id": "string",
+      "timestamp": "ISO-8601 datetime",
+      "action": "string",
+      "amount_usd": 0,
+      "performed_by": "string",
+      "request_id": "string|null"
+    }
+  ]
 }
 ```
 

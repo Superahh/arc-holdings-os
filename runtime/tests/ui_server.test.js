@@ -11,6 +11,8 @@ const { runOpportunityPipeline } = require("../pipeline");
 const { buildRunArtifact, writeRunArtifact } = require("../output");
 const { createEmptyQueue, enqueueApprovalTicket, saveQueue } = require("../approval_queue");
 const { createEmptyWorkflowState, upsertFromPipeline, saveWorkflowState } = require("../workflow_state");
+const { runBootstrapAction } = require("../capital_bootstrap_cli");
+const { runMovementAction } = require("../capital_movement_cli");
 const { createUiServer } = require("../../ui/server");
 
 function seedFixtureEnvironment() {
@@ -18,6 +20,7 @@ function seedFixtureEnvironment() {
   const baseDir = path.join(tempDir, "output");
   const queuePath = path.join(tempDir, "approval_queue.json");
   const workflowStatePath = path.join(tempDir, "workflow_state.json");
+  const capitalStatePath = path.join(tempDir, "capital_state.json");
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
   const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
   const output = runOpportunityPipeline(fixture, "2026-03-25T19:00:00.000Z");
@@ -47,11 +50,32 @@ function seedFixtureEnvironment() {
   saveWorkflowState(workflowStatePath, workflowState, "2026-03-25T19:00:00.000Z");
 
   writeRunArtifact(baseDir, buildRunArtifact(fixture, output, "2026-03-25T19:00:00.000Z"));
+  runBootstrapAction({
+    statePath: capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:00:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: capitalStatePath,
+    action: "deposit",
+    amountUsd: 1000,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed capital for ui_server tests.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:01:00.000Z",
+  });
 
   return {
     baseDir,
     queuePath,
     workflowStatePath,
+    capitalStatePath,
   };
 }
 
@@ -95,6 +119,7 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     rootDir: path.join(__dirname, "..", "..", "ui"),
     queuePath: env.queuePath,
     workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
     baseDir: env.baseDir,
   });
 
@@ -345,6 +370,125 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
       }),
     });
     assert.equal(roomTransitionWriteResponse.statusCode, 404);
+
+    const withdrawalRequestResponse = await request(server, "/api/capital-withdrawal/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount_usd: 120,
+        reason: "Owner withdrawal request from UI server test.",
+        actor: "owner_operator",
+      }),
+    });
+    assert.equal(withdrawalRequestResponse.statusCode, 200);
+    const withdrawalRequestPayload = JSON.parse(withdrawalRequestResponse.body);
+    assert.equal(withdrawalRequestPayload.ok, true);
+    assert.equal(withdrawalRequestPayload.result.request.action, "request_withdrawal");
+    assert.equal(withdrawalRequestPayload.result.request.status, "requested");
+
+    const withdrawalSnapshotResponse = await request(
+      server,
+      "/api/snapshot?now=2026-03-25T19:13:00.000Z"
+    );
+    assert.equal(withdrawalSnapshotResponse.statusCode, 200);
+    const withdrawalSnapshot = JSON.parse(withdrawalSnapshotResponse.body);
+    assert.equal(withdrawalSnapshot.capital_controls.account_snapshot.available_usd, 880);
+    assert.equal(withdrawalSnapshot.capital_controls.account_snapshot.pending_withdrawal_usd, 120);
+    assert.equal(withdrawalSnapshot.capital_controls.pending_withdrawal_requests.length, 1);
+
+    const withdrawalApproveResponse = await request(server, "/api/capital-withdrawal/approve", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: withdrawalSnapshot.capital_controls.pending_withdrawal_requests[0].request_id,
+        actor: "owner_operator",
+        confirm_irreversible: true,
+      }),
+    });
+    assert.equal(withdrawalApproveResponse.statusCode, 200);
+    const withdrawalApprovePayload = JSON.parse(withdrawalApproveResponse.body);
+    assert.equal(withdrawalApprovePayload.ok, true);
+    assert.equal(withdrawalApprovePayload.result.request.status, "executed");
+
+    const secondWithdrawalRequest = await request(server, "/api/capital-withdrawal/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount_usd: 50,
+        reason: "Cancel flow coverage.",
+        actor: "owner_operator",
+      }),
+    });
+    assert.equal(secondWithdrawalRequest.statusCode, 200);
+    const secondRequestPayload = JSON.parse(secondWithdrawalRequest.body);
+    const cancelResponse = await request(server, "/api/capital-withdrawal/cancel", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: secondRequestPayload.result.request.request_id,
+        actor: "owner_operator",
+        reason: "User canceled request.",
+      }),
+    });
+    assert.equal(cancelResponse.statusCode, 200);
+    const cancelPayload = JSON.parse(cancelResponse.body);
+    assert.equal(cancelPayload.ok, true);
+    assert.equal(cancelPayload.result.request.status, "cancelled");
+
+    const thirdWithdrawalRequest = await request(server, "/api/capital-withdrawal/request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount_usd: 40,
+        reason: "Reject flow coverage.",
+        actor: "owner_operator",
+      }),
+    });
+    assert.equal(thirdWithdrawalRequest.statusCode, 200);
+    const thirdRequestPayload = JSON.parse(thirdWithdrawalRequest.body);
+    const rejectResponse = await request(server, "/api/capital-withdrawal/reject", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: thirdRequestPayload.result.request.request_id,
+        actor: "owner_operator",
+        reason: "User rejected request.",
+      }),
+    });
+    assert.equal(rejectResponse.statusCode, 200);
+    const rejectPayload = JSON.parse(rejectResponse.body);
+    assert.equal(rejectPayload.ok, true);
+    assert.equal(rejectPayload.result.request.status, "rejected");
+
+    const missingConfirmResponse = await request(server, "/api/capital-withdrawal/approve", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        request_id: "cap-req-missing",
+        actor: "owner_operator",
+      }),
+    });
+    assert.equal(missingConfirmResponse.statusCode, 400);
+
+    const finalSnapshotResponse = await request(server, "/api/snapshot?now=2026-03-25T19:14:00.000Z");
+    assert.equal(finalSnapshotResponse.statusCode, 200);
+    const finalSnapshot = JSON.parse(finalSnapshotResponse.body);
+    assert.equal(finalSnapshot.capital_controls.account_snapshot.available_usd, 880);
+    assert.equal(finalSnapshot.capital_controls.account_snapshot.pending_withdrawal_usd, 0);
   } finally {
     await new Promise((resolve, reject) => {
       server.close((error) => {

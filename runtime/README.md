@@ -27,7 +27,7 @@ This folder contains the first implementation slice for ARC Holdings OS:
 - `workflow_replay_cli.js`: CLI to replay workflow lifecycle events into timeline artifacts
 - `workflow_update_cli.js`: CLI for manual, policy-checked workflow status progression
 - `ui_snapshot.js`: read-only snapshot composer for the visible UI shell
-  - now consumes optional capital state path and surfaces ledger-backed account snapshot in `capital_controls`
+  - now consumes optional capital state path and surfaces ledger-backed account snapshot, pending withdrawal requests, recent ledger summary, and `capital_left_usd` in `capital_controls`
 - `room_transition_validator_cli.js`: read-only validator for planned room-transition request boundary (no mutation endpoint)
 - `room_transition_validation_capture_cli.js`: timestamped room-transition validator record capture into evidence `records/`
 - `room_transition_request_builder_cli.js`: snapshot-aligned room-transition request generator for evidence monitoring runs
@@ -444,6 +444,13 @@ Audit capital ledger integrity and balances:
 ```powershell
 node runtime/capital_audit_cli.js --state-path runtime/state/capital_state.json --output-path runtime/output/capital/latest.audit.json
 ```
+
+UI server exposes a narrow withdrawal-only write surface (all other capital writes stay runtime-manual):
+
+- `POST /api/capital-withdrawal/request`
+- `POST /api/capital-withdrawal/approve` (`confirm_irreversible=true` required)
+- `POST /api/capital-withdrawal/cancel`
+- `POST /api/capital-withdrawal/reject`
 
 Summarize room-transition validation evidence (last 7 days by default):
 

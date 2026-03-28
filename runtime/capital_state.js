@@ -12,6 +12,11 @@ const MOVEMENT_ACTIONS = new Set([
   "withdraw",
   "adjustment",
 ]);
+const WITHDRAWAL_REQUEST_ACTION = "request_withdrawal";
+const WITHDRAWAL_EXECUTION_ACTION = "approve_withdrawal";
+const WITHDRAWAL_CANCEL_ACTION = "cancel_withdrawal";
+const WITHDRAWAL_REJECT_ACTION = "reject_withdrawal";
+const WITHDRAWAL_REQUEST_STATUSES = new Set(["requested", "executed", "cancelled", "rejected"]);
 
 function toIso(value) {
   if (typeof value === "string" && !Number.isNaN(Date.parse(value))) {
@@ -124,12 +129,77 @@ function buildEntryHashInput(entry, previousEntryHash) {
     balance_after_usd: entry.balance_after_usd,
     reserved_after_usd: entry.reserved_after_usd,
     committed_after_usd: entry.committed_after_usd,
+    pending_withdrawal_after_usd: entry.pending_withdrawal_after_usd,
     performed_by: entry.performed_by,
     authorized_by: entry.authorized_by,
     request_id: entry.request_id,
     opportunity_id: entry.opportunity_id,
     notes: entry.notes,
   };
+}
+
+function ensureRequestIdAvailable(state, requestId) {
+  if (state.requests.some((request) => request.request_id === requestId)) {
+    throw new Error(`request_id already exists: ${requestId}`);
+  }
+}
+
+function requireActor(value, fieldName) {
+  const actor = typeof value === "string" ? value.trim() : "";
+  if (!actor) {
+    throw new Error(`${fieldName} is required.`);
+  }
+  return actor;
+}
+
+function buildRequest(state, input, timestamp, action, amount) {
+  const requestId =
+    typeof input.request_id === "string" && input.request_id.trim()
+      ? input.request_id.trim()
+      : nextRequestId(state);
+  ensureRequestIdAvailable(state, requestId);
+  return {
+    request_id: requestId,
+    action,
+    amount_usd: amount,
+    requested_by: requireActor(input.requested_by, "requested_by"),
+    requested_at: toIso(timestamp),
+    reason: String(input.reason || "").trim(),
+    opportunity_id: input.opportunity_id || null,
+    approval_ticket_id: input.approval_ticket_id || null,
+    status: "requested",
+  };
+}
+
+function computeBalanceAfter(account) {
+  return asCurrency(
+    account.available_usd + account.reserved_usd + account.committed_usd + account.pending_withdrawal_usd
+  );
+}
+
+function appendLedgerEntry(state, input, timestamp) {
+  const previousEntry = state.ledger[state.ledger.length - 1] || null;
+  const previousEntryHash = previousEntry ? previousEntry.entry_hash : null;
+  const entry = {
+    entry_id: nextLedgerEntryId(state),
+    timestamp: toIso(timestamp),
+    action: input.action,
+    amount_usd: input.amount_usd,
+    balance_after_usd: computeBalanceAfter(state.account),
+    reserved_after_usd: state.account.reserved_usd,
+    committed_after_usd: state.account.committed_usd,
+    pending_withdrawal_after_usd: state.account.pending_withdrawal_usd,
+    performed_by: requireActor(input.performed_by, "performed_by"),
+    authorized_by: requireActor(input.authorized_by, "authorized_by"),
+    request_id: input.request_id || null,
+    opportunity_id: input.opportunity_id || null,
+    notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : "Capital ledger action.",
+    previous_entry_hash: previousEntryHash,
+  };
+  const hashInput = buildEntryHashInput(entry, previousEntryHash);
+  entry.entry_hash = hashEntry(hashInput);
+  state.ledger.push(entry);
+  return entry;
 }
 
 function findActiveReservation(state, opportunityId) {
@@ -209,14 +279,13 @@ function applyAccounting(state, request, timestamp) {
       throw new Error("Insufficient available capital for withdraw.");
     }
     account.available_usd = asCurrency(account.available_usd - amount);
-    account.pending_withdrawal_usd = 0;
   } else if (request.action === "adjustment") {
     account.available_usd = asCurrency(account.available_usd + amount);
   }
 
   return {
     reservation,
-    balance_after_usd: asCurrency(account.available_usd + account.reserved_usd + account.committed_usd),
+    balance_after_usd: computeBalanceAfter(account),
   };
 }
 
@@ -246,45 +315,31 @@ function submitAndExecuteMovement(state, input, options = {}) {
     throw new Error("reason is required.");
   }
 
-  const request = {
-    request_id:
-      typeof input.request_id === "string" && input.request_id.trim()
-        ? input.request_id.trim()
-        : nextRequestId(state),
+  const request = buildRequest(
+    state,
+    {
+      ...input,
+      requested_by: requestedBy,
+      reason,
+    },
+    at,
     action,
-    amount_usd: amount,
-    requested_by: requestedBy,
-    requested_at: at,
-    reason,
-    opportunity_id: input.opportunity_id || null,
-    approval_ticket_id: input.approval_ticket_id || null,
-    status: "requested",
-  };
+    amount
+  );
 
-  const { reservation, balance_after_usd } = applyAccounting(state, request, at);
+  const { reservation } = applyAccounting(state, request, at);
   request.status = "executed";
   state.requests.push(request);
 
-  const previousEntry = state.ledger[state.ledger.length - 1] || null;
-  const previousEntryHash = previousEntry ? previousEntry.entry_hash : null;
-  const entry = {
-    entry_id: nextLedgerEntryId(state),
-    timestamp: at,
+  const entry = appendLedgerEntry(state, {
     action,
     amount_usd: amount,
-    balance_after_usd: balance_after_usd,
-    reserved_after_usd: state.account.reserved_usd,
-    committed_after_usd: state.account.committed_usd,
     performed_by: performedBy,
     authorized_by: authorizedBy,
     request_id: request.request_id,
     opportunity_id: request.opportunity_id,
     notes: typeof input.notes === "string" ? input.notes : reason,
-    previous_entry_hash: previousEntryHash,
-  };
-  const hashInput = buildEntryHashInput(entry, previousEntryHash);
-  entry.entry_hash = hashEntry(hashInput);
-  state.ledger.push(entry);
+  }, at);
 
   state.account.as_of = at;
   state.updated_at = at;
@@ -292,6 +347,195 @@ function submitAndExecuteMovement(state, input, options = {}) {
   return {
     request,
     reservation,
+    entry,
+    account: state.account,
+  };
+}
+
+function findPendingWithdrawalRequest(state, requestId) {
+  return (
+    state.requests.find(
+      (request) =>
+        request.request_id === requestId &&
+        request.action === WITHDRAWAL_REQUEST_ACTION &&
+        request.status === "requested"
+    ) || null
+  );
+}
+
+function listPendingWithdrawalRequests(state) {
+  ensureShape(state);
+  return state.requests
+    .filter((request) => request.action === WITHDRAWAL_REQUEST_ACTION && request.status === "requested")
+    .map((request) => ({ ...request }));
+}
+
+function submitWithdrawalRequest(state, input, options = {}) {
+  ensureShape(state);
+  const at = toIso(options.now);
+  const amount = toAmount(input.amount_usd, "amount_usd");
+  const reason = String(input.reason || "").trim();
+  if (!reason) {
+    throw new Error("reason is required.");
+  }
+  if (state.account.available_usd < amount) {
+    throw new Error("Insufficient available capital for withdrawal request.");
+  }
+  if (state.account.pending_withdrawal_usd < 0) {
+    throw new Error("Invalid capital state: pending_withdrawal_usd cannot be negative.");
+  }
+
+  const request = buildRequest(
+    state,
+    {
+      ...input,
+      requested_by: requireActor(input.requested_by, "requested_by"),
+      reason,
+    },
+    at,
+    WITHDRAWAL_REQUEST_ACTION,
+    amount
+  );
+  if (!WITHDRAWAL_REQUEST_STATUSES.has(request.status)) {
+    throw new Error("Invalid withdrawal request status.");
+  }
+
+  state.account.available_usd = asCurrency(state.account.available_usd - amount);
+  state.account.pending_withdrawal_usd = asCurrency(state.account.pending_withdrawal_usd + amount);
+  state.requests.push(request);
+
+  const actor = requireActor(input.performed_by || input.requested_by, "performed_by");
+  const entry = appendLedgerEntry(
+    state,
+    {
+      action: WITHDRAWAL_REQUEST_ACTION,
+      amount_usd: amount,
+      performed_by: actor,
+      authorized_by: requireActor(input.authorized_by || input.requested_by, "authorized_by"),
+      request_id: request.request_id,
+      notes:
+        typeof input.notes === "string" && input.notes.trim()
+          ? input.notes
+          : `Withdrawal requested: ${reason}`,
+    },
+    at
+  );
+
+  state.account.as_of = at;
+  state.updated_at = at;
+
+  return {
+    request,
+    entry,
+    account: state.account,
+    preview: {
+      request_id: request.request_id,
+      requested_amount_usd: request.amount_usd,
+      current_available_usd: state.account.available_usd,
+      current_pending_withdrawal_usd: state.account.pending_withdrawal_usd,
+      resulting_available_usd_after_execution: state.account.available_usd,
+    },
+  };
+}
+
+function approveWithdrawalRequest(state, input, options = {}) {
+  ensureShape(state);
+  const at = toIso(options.now);
+  const requestId = typeof input.request_id === "string" ? input.request_id.trim() : "";
+  if (!requestId) {
+    throw new Error("request_id is required.");
+  }
+  if (input.confirm_irreversible !== true) {
+    throw new Error("confirm_irreversible must be true for withdrawal approval.");
+  }
+  const request = findPendingWithdrawalRequest(state, requestId);
+  if (!request) {
+    throw new Error(`Pending withdrawal request not found: ${requestId}`);
+  }
+  if (state.account.pending_withdrawal_usd < request.amount_usd) {
+    throw new Error("Invalid capital state: pending withdrawal balance is lower than request amount.");
+  }
+
+  state.account.pending_withdrawal_usd = asCurrency(state.account.pending_withdrawal_usd - request.amount_usd);
+  request.status = "executed";
+  request.approved_at = at;
+  request.approved_by = requireActor(input.authorized_by, "authorized_by");
+  request.executed_at = at;
+
+  const entry = appendLedgerEntry(
+    state,
+    {
+      action: WITHDRAWAL_EXECUTION_ACTION,
+      amount_usd: request.amount_usd,
+      performed_by: requireActor(input.performed_by, "performed_by"),
+      authorized_by: request.approved_by,
+      request_id: request.request_id,
+      notes:
+        typeof input.notes === "string" && input.notes.trim()
+          ? input.notes
+          : "Withdrawal approved and executed by explicit user confirmation.",
+    },
+    at
+  );
+
+  state.account.as_of = at;
+  state.updated_at = at;
+
+  return {
+    request,
+    entry,
+    account: state.account,
+  };
+}
+
+function cancelWithdrawalRequest(state, input, options = {}) {
+  ensureShape(state);
+  const at = toIso(options.now);
+  const requestId = typeof input.request_id === "string" ? input.request_id.trim() : "";
+  if (!requestId) {
+    throw new Error("request_id is required.");
+  }
+  const decision = input.decision === "reject" ? "reject" : "cancel";
+  const action = decision === "reject" ? WITHDRAWAL_REJECT_ACTION : WITHDRAWAL_CANCEL_ACTION;
+  const status = decision === "reject" ? "rejected" : "cancelled";
+  const defaultReason =
+    decision === "reject" ? "Rejected by user." : "Cancelled by user.";
+  const request = findPendingWithdrawalRequest(state, requestId);
+  if (!request) {
+    throw new Error(`Pending withdrawal request not found: ${requestId}`);
+  }
+  if (state.account.pending_withdrawal_usd < request.amount_usd) {
+    throw new Error("Invalid capital state: pending withdrawal balance is lower than request amount.");
+  }
+
+  state.account.pending_withdrawal_usd = asCurrency(state.account.pending_withdrawal_usd - request.amount_usd);
+  state.account.available_usd = asCurrency(state.account.available_usd + request.amount_usd);
+  request.status = status;
+  request.resolved_at = at;
+  request.resolved_by = requireActor(input.authorized_by, "authorized_by");
+  request.resolution_reason = String(input.reason || "").trim() || defaultReason;
+
+  const entry = appendLedgerEntry(
+    state,
+    {
+      action,
+      amount_usd: request.amount_usd,
+      performed_by: requireActor(input.performed_by, "performed_by"),
+      authorized_by: request.resolved_by,
+      request_id: request.request_id,
+      notes:
+        typeof input.notes === "string" && input.notes.trim()
+          ? input.notes
+          : `Withdrawal request ${request.request_id} ${status}.`,
+    },
+    at
+  );
+
+  state.account.as_of = at;
+  state.updated_at = at;
+
+  return {
+    request,
     entry,
     account: state.account,
   };
@@ -326,9 +570,13 @@ function verifyLedgerIntegrity(state) {
     if (state.account.committed_usd !== last.committed_after_usd) {
       errors.push("Account committed_usd does not match latest ledger entry.");
     }
-    const accountBalance = asCurrency(
-      state.account.available_usd + state.account.reserved_usd + state.account.committed_usd
-    );
+    if (
+      typeof last.pending_withdrawal_after_usd === "number" &&
+      state.account.pending_withdrawal_usd !== last.pending_withdrawal_after_usd
+    ) {
+      errors.push("Account pending_withdrawal_usd does not match latest ledger entry.");
+    }
+    const accountBalance = computeBalanceAfter(state.account);
     if (accountBalance !== last.balance_after_usd) {
       errors.push("Account balance does not match latest ledger entry.");
     }
@@ -344,10 +592,18 @@ function verifyLedgerIntegrity(state) {
 
 module.exports = {
   MOVEMENT_ACTIONS,
+  WITHDRAWAL_REQUEST_ACTION,
+  WITHDRAWAL_EXECUTION_ACTION,
+  WITHDRAWAL_CANCEL_ACTION,
+  WITHDRAWAL_REJECT_ACTION,
   createEmptyCapitalState,
   ensureShape,
   loadCapitalState,
   saveCapitalState,
   submitAndExecuteMovement,
+  submitWithdrawalRequest,
+  approveWithdrawalRequest,
+  cancelWithdrawalRequest,
+  listPendingWithdrawalRequests,
   verifyLedgerIntegrity,
 };

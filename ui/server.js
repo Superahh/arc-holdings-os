@@ -7,6 +7,14 @@ const { URL } = require("node:url");
 
 const { buildUiSnapshot } = require("../runtime/ui_snapshot");
 const { runDecisionAction } = require("../runtime/queue_decision_cli");
+const {
+  loadCapitalState,
+  saveCapitalState,
+  submitWithdrawalRequest,
+  approveWithdrawalRequest,
+  cancelWithdrawalRequest,
+  verifyLedgerIntegrity,
+} = require("../runtime/capital_state");
 const APPROVAL_DECISIONS = new Set(["approve", "reject", "request_more_info"]);
 
 const CONTENT_TYPES = {
@@ -22,6 +30,7 @@ function parseArgs(argv) {
     port: 4173,
     queuePath: path.join(__dirname, "..", "runtime", "state", "approval_queue.json"),
     workflowStatePath: path.join(__dirname, "..", "runtime", "state", "workflow_state.json"),
+    capitalStatePath: path.join(__dirname, "..", "runtime", "state", "capital_state.json"),
     baseDir: path.join(__dirname, "..", "runtime", "output"),
   };
 
@@ -39,6 +48,9 @@ function parseArgs(argv) {
     } else if (token === "--workflow-state-path") {
       args.workflowStatePath = argv[i + 1];
       i += 1;
+    } else if (token === "--capital-state-path") {
+      args.capitalStatePath = argv[i + 1];
+      i += 1;
     } else if (token === "--base-dir") {
       args.baseDir = argv[i + 1];
       i += 1;
@@ -52,6 +64,17 @@ function parseArgs(argv) {
   }
 
   return args;
+}
+
+function runWithdrawalAction(capitalStatePath, operation) {
+  const state = loadCapitalState(capitalStatePath);
+  const now = new Date().toISOString();
+  const result = operation(state, now);
+  saveCapitalState(capitalStatePath, state, now);
+  return {
+    ...result,
+    ledger_integrity: verifyLedgerIntegrity(state),
+  };
 }
 
 function getStaticPath(rootDir, requestPathname) {
@@ -111,6 +134,7 @@ function createUiServer(options = {}) {
   const snapshotOptions = {
     queuePath: options.queuePath,
     workflowStatePath: options.workflowStatePath,
+    capitalStatePath: options.capitalStatePath,
     baseDir: options.baseDir,
   };
 
@@ -201,6 +225,198 @@ function createUiServer(options = {}) {
       return;
     }
 
+    if (request.method === "POST" && requestUrl.pathname === "/api/capital-withdrawal/request") {
+      readJsonBody(request)
+        .then((body) => {
+          const actor = typeof body.actor === "string" && body.actor.trim() ? body.actor.trim() : "owner_operator";
+          const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+          const amountUsd = Number(body.amount_usd);
+          const requestId =
+            typeof body.request_id === "string" && body.request_id.trim() ? body.request_id.trim() : null;
+          const note = typeof body.note === "string" ? body.note : "";
+
+          if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "amount_usd must be a positive number.",
+              retryable: false,
+            });
+            return;
+          }
+          if (!reason) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "reason is required.",
+              retryable: false,
+            });
+            return;
+          }
+
+          try {
+            const result = runWithdrawalAction(snapshotOptions.capitalStatePath, (state, now) =>
+              submitWithdrawalRequest(
+                state,
+                {
+                  request_id: requestId,
+                  amount_usd: amountUsd,
+                  requested_by: actor,
+                  performed_by: actor,
+                  authorized_by: actor,
+                  reason,
+                  notes: note || `Requested from UI by ${actor}.`,
+                },
+                { now }
+              )
+            );
+            sendJson(response, 200, {
+              ok: true,
+              result,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const isConflict = /insufficient|already exists|invalid capital state/i.test(message);
+            sendJson(response, isConflict ? 409 : 400, {
+              error: isConflict ? "withdrawal_request_conflict" : "withdrawal_request_failed",
+              message,
+              retryable: false,
+            });
+          }
+        })
+        .catch((error) => {
+          sendJson(response, 400, {
+            error: "invalid_request",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          });
+        });
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/capital-withdrawal/approve") {
+      readJsonBody(request)
+        .then((body) => {
+          const actor = typeof body.actor === "string" && body.actor.trim() ? body.actor.trim() : "owner_operator";
+          const requestId = typeof body.request_id === "string" ? body.request_id.trim() : "";
+          const note = typeof body.note === "string" ? body.note : "";
+          if (!requestId) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "request_id is required.",
+              retryable: false,
+            });
+            return;
+          }
+          if (body.confirm_irreversible !== true) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "confirm_irreversible must be true for withdrawal approval.",
+              retryable: false,
+            });
+            return;
+          }
+
+          try {
+            const result = runWithdrawalAction(snapshotOptions.capitalStatePath, (state, now) =>
+              approveWithdrawalRequest(
+                state,
+                {
+                  request_id: requestId,
+                  performed_by: actor,
+                  authorized_by: actor,
+                  notes: note || `Approved from UI by ${actor}.`,
+                  confirm_irreversible: true,
+                },
+                { now }
+              )
+            );
+            sendJson(response, 200, {
+              ok: true,
+              result,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const isConflict = /not found|invalid capital state/i.test(message);
+            sendJson(response, isConflict ? 409 : 400, {
+              error: isConflict ? "withdrawal_approval_conflict" : "withdrawal_approval_failed",
+              message,
+              retryable: false,
+            });
+          }
+        })
+        .catch((error) => {
+          sendJson(response, 400, {
+            error: "invalid_request",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          });
+        });
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      (requestUrl.pathname === "/api/capital-withdrawal/cancel" ||
+        requestUrl.pathname === "/api/capital-withdrawal/reject")
+    ) {
+      readJsonBody(request)
+        .then((body) => {
+          const actor = typeof body.actor === "string" && body.actor.trim() ? body.actor.trim() : "owner_operator";
+          const requestId = typeof body.request_id === "string" ? body.request_id.trim() : "";
+          const note = typeof body.note === "string" ? body.note : "";
+          const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+          const decision = requestUrl.pathname.endsWith("/reject") ? "reject" : "cancel";
+          const decisionReason =
+            decision === "reject" ? "Rejected by user from UI." : "Cancelled by user from UI.";
+          const decisionNote =
+            decision === "reject" ? `Rejected from UI by ${actor}.` : `Cancelled from UI by ${actor}.`;
+          if (!requestId) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "request_id is required.",
+              retryable: false,
+            });
+            return;
+          }
+
+          try {
+            const result = runWithdrawalAction(snapshotOptions.capitalStatePath, (state, now) =>
+              cancelWithdrawalRequest(
+                state,
+                {
+                  request_id: requestId,
+                  decision,
+                  reason: reason || decisionReason,
+                  performed_by: actor,
+                  authorized_by: actor,
+                  notes: note || decisionNote,
+                },
+                { now }
+              )
+            );
+            sendJson(response, 200, {
+              ok: true,
+              result,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const isConflict = /not found|invalid capital state/i.test(message);
+            sendJson(response, isConflict ? 409 : 400, {
+              error: isConflict ? "withdrawal_cancel_conflict" : "withdrawal_cancel_failed",
+              message,
+              retryable: false,
+            });
+          }
+        })
+        .catch((error) => {
+          sendJson(response, 400, {
+            error: "invalid_request",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          });
+        });
+      return;
+    }
+
     const staticPath = getStaticPath(rootDir, requestUrl.pathname);
     if (!staticPath || !fs.existsSync(staticPath) || fs.statSync(staticPath).isDirectory()) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
@@ -218,6 +434,7 @@ function main() {
     rootDir: __dirname,
     queuePath: args.queuePath,
     workflowStatePath: args.workflowStatePath,
+    capitalStatePath: args.capitalStatePath,
     baseDir: args.baseDir,
   });
 

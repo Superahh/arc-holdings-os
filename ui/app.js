@@ -3,6 +3,8 @@
 const TRANSITION_WINDOW_MS = 14000;
 const DECISION_REQUEST_TIMEOUT_MS = 12000;
 const DECISION_SUCCESS_MESSAGE_MS = 9000;
+const CAPITAL_REQUEST_TIMEOUT_MS = 12000;
+const CAPITAL_SUCCESS_MESSAGE_MS = 9000;
 const V1_BOARD_CONTRACT = {
   maxVisibleHandoffs: 3,
   maxOpportunityMetadataChips: 2,
@@ -37,6 +39,10 @@ const state = {
   decisionMessageLevel: "info",
   decisionMessageTimerId: null,
   lastDecisionRetry: null,
+  capitalActionInFlight: false,
+  capitalMessage: null,
+  capitalMessageLevel: "info",
+  capitalMessageTimerId: null,
   routePlayback: {
     intentId: null,
     progress: 50,
@@ -1133,9 +1139,42 @@ function formatDecisionLabel(decision) {
   return labels[decision] || decision;
 }
 
+function formatCapitalRequestStatus(value) {
+  const labels = {
+    requested: "Requested",
+    executed: "Executed",
+    cancelled: "Cancelled",
+    rejected: "Rejected",
+  };
+  return labels[normalizeToken(value)] || String(value || "Unknown");
+}
+
 function buildDecisionConfirmMessage(ticketId, decision) {
   const label = formatDecisionLabel(decision);
   return `Submit ${label} decision for ${ticketId}?`;
+}
+
+function clearCapitalMessage() {
+  state.capitalMessage = null;
+  state.capitalMessageLevel = "info";
+}
+
+function setCapitalMessage(message, level = "info", options = {}) {
+  state.capitalMessage = message;
+  state.capitalMessageLevel = level;
+  if (state.capitalMessageTimerId !== null) {
+    window.clearTimeout(state.capitalMessageTimerId);
+    state.capitalMessageTimerId = null;
+  }
+  const ttlMs = Number.isInteger(options.ttlMs) ? options.ttlMs : 0;
+  if (ttlMs > 0) {
+    state.capitalMessageTimerId = window.setTimeout(() => {
+      clearCapitalMessage();
+      if (state.snapshot) {
+        renderBoard();
+      }
+    }, ttlMs);
+  }
 }
 
 function isRetryableDecisionError(payload, statusCode) {
@@ -1154,6 +1193,57 @@ function buildTimeoutError(ticketId, decision) {
   );
   error.retryable = true;
   return error;
+}
+
+function buildCapitalTimeoutError(actionName) {
+  const error = new Error(`${actionName} request timed out. Retry or refresh.`);
+  error.retryable = true;
+  return error;
+}
+
+async function submitCapitalWithdrawalAction(url, payload, pendingMessage, successMessage) {
+  if (state.capitalActionInFlight) {
+    return false;
+  }
+  state.capitalActionInFlight = true;
+  setCapitalMessage(pendingMessage, "info");
+  renderBoard();
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort();
+  }, CAPITAL_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      throw new Error(data && data.message ? data.message : `Capital action failed (${response.status}).`);
+    }
+    setCapitalMessage(successMessage, "success", { ttlMs: CAPITAL_SUCCESS_MESSAGE_MS });
+    await loadSnapshot();
+    return true;
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    const normalizedError = isAbort ? buildCapitalTimeoutError("Capital") : error;
+    setCapitalMessage(
+      normalizedError instanceof Error ? normalizedError.message : String(normalizedError),
+      "error"
+    );
+    renderBoard();
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+    state.capitalActionInFlight = false;
+    renderBoard();
+  }
 }
 
 async function submitApprovalDecision(ticketId, decision) {
@@ -2909,6 +2999,14 @@ function renderBoard() {
   const capitalStrategy = state.snapshot.capital_strategy;
   const capitalSnapshot = capitalControls && capitalControls.account_snapshot ? capitalControls.account_snapshot : null;
   const capitalIntegrity = capitalControls && capitalControls.ledger_integrity ? capitalControls.ledger_integrity : null;
+  const pendingWithdrawalRequests =
+    capitalControls && Array.isArray(capitalControls.pending_withdrawal_requests)
+      ? capitalControls.pending_withdrawal_requests
+      : [];
+  const recentLedgerEntries =
+    capitalControls && Array.isArray(capitalControls.recent_ledger_entries)
+      ? capitalControls.recent_ledger_entries
+      : [];
   const priorities = board.priorities.length
     ? board.priorities.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
     : "<li>No active priorities.</li>";
@@ -2943,12 +3041,104 @@ function renderBoard() {
     ? `
       <ul class="detail-list compact-list">
         <li>Available: ${formatCurrency(capitalSnapshot.available_usd)}</li>
+        <li>Capital left: ${formatCurrency(
+          typeof capitalControls.capital_left_usd === "number"
+            ? capitalControls.capital_left_usd
+            : capitalSnapshot.available_usd
+        )}</li>
         <li>Reserved: ${formatCurrency(capitalSnapshot.reserved_usd)}</li>
         <li>Committed: ${formatCurrency(capitalSnapshot.committed_usd)}</li>
+        <li>Pending withdrawal: ${formatCurrency(capitalSnapshot.pending_withdrawal_usd)}</li>
         <li>Ledger entries: ${capitalIntegrity ? capitalIntegrity.entry_count : "n/a"}</li>
       </ul>
     `
     : `<p class="muted">Capital runtime ledger not initialized in this workspace path.</p>`;
+  const capitalLatestRequestHtml =
+    capitalControls && capitalControls.latest_request
+      ? `
+      <article class="status-history-item capital-history-item">
+        <div class="detail-meta">
+          <strong>Latest request: ${escapeHtml(capitalControls.latest_request.request_id)}</strong>
+          <time>${escapeHtml(formatTimestamp(capitalControls.latest_request.requested_at))}</time>
+        </div>
+        <p>${escapeHtml(
+          `${formatCapitalRequestStatus(capitalControls.latest_request.status)} ${capitalControls.latest_request.action} for ${formatCurrency(
+            capitalControls.latest_request.amount_usd
+          )}.`
+        )}</p>
+      </article>
+    `
+      : `<p class="muted">No capital requests recorded yet.</p>`;
+  const capitalHistoryHtml = recentLedgerEntries.length
+    ? `<ul class="history-list">${recentLedgerEntries
+        .map(
+          (entry) => `
+          <li class="status-history-item">
+            <div class="detail-meta">
+              <strong>${escapeHtml(entry.entry_id)}</strong>
+              <time>${escapeHtml(formatTimestamp(entry.timestamp))}</time>
+            </div>
+            <p>${escapeHtml(
+              `${entry.action} ${formatCurrency(entry.amount_usd)} by ${entry.performed_by || "unknown actor"}`
+            )}</p>
+          </li>
+        `
+        )
+        .join("")}</ul>`
+    : `<p class="muted">No ledger history yet.</p>`;
+  const pendingWithdrawalItemsHtml = pendingWithdrawalRequests.length
+    ? pendingWithdrawalRequests
+        .map(
+          (request) => `
+          <article class="queue-item">
+            <div class="queue-title-row">
+              <div>
+                <strong>${escapeHtml(request.request_id)}</strong>
+                <p class="queue-meta">${escapeHtml(formatTimestamp(request.requested_at))}</p>
+              </div>
+              <span class="status-pill ${formatStatusClass(request.status)}">${escapeHtml(
+                formatCapitalRequestStatus(request.status)
+              )}</span>
+            </div>
+            <p class="queue-meta">${escapeHtml(request.reason || "No reason provided.")}</p>
+            <p class="queue-meta">${escapeHtml(
+              `Amount ${formatCurrency(request.amount_usd)} | Available now ${formatCurrency(
+                request.current_available_usd
+              )} | Pending now ${formatCurrency(request.current_pending_withdrawal_usd)} | Available after execution ${formatCurrency(
+                request.resulting_available_usd_after_execution
+              )}`
+            )}</p>
+            <div class="queue-actions">
+              <button type="button" class="queue-action queue-action-approve" data-capital-action="approve_withdrawal" data-request-id="${escapeHtml(request.request_id)}" data-request-amount="${escapeHtml(String(request.amount_usd))}" ${state.capitalActionInFlight ? "disabled" : ""}>Approve withdrawal</button>
+              <button type="button" class="queue-action queue-action-info" data-capital-action="cancel_withdrawal" data-request-id="${escapeHtml(request.request_id)}" data-request-amount="${escapeHtml(String(request.amount_usd))}" ${state.capitalActionInFlight ? "disabled" : ""}>Cancel request</button>
+              <button type="button" class="queue-action queue-action-reject" data-capital-action="reject_withdrawal" data-request-id="${escapeHtml(request.request_id)}" data-request-amount="${escapeHtml(String(request.amount_usd))}" ${state.capitalActionInFlight ? "disabled" : ""}>Reject request</button>
+            </div>
+          </article>
+        `
+        )
+        .join("")
+    : `<p class="muted">No pending withdrawal requests.</p>`;
+  const withdrawalFormHtml = capitalSnapshot
+    ? `
+      <form class="capital-withdrawal-form" data-capital-form="request-withdrawal">
+        <label>
+          Amount (USD)
+          <input type="number" step="0.01" min="0.01" name="amount_usd" required placeholder="0.00" />
+        </label>
+        <label>
+          Reason
+          <textarea name="reason" rows="2" required placeholder="Why this withdrawal is needed"></textarea>
+        </label>
+        <p class="muted" data-withdraw-preview>Preview available after request: ${formatCurrency(
+          capitalSnapshot.available_usd
+        )} (current available ${formatCurrency(capitalSnapshot.available_usd)}).</p>
+        <button type="submit" class="queue-action queue-action-approve" ${state.capitalActionInFlight ? "disabled" : ""}>Request withdrawal</button>
+      </form>
+    `
+    : "";
+  const capitalMessageHtml = state.capitalMessage
+    ? `<p class="panel-note decision-note-${escapeHtml(state.capitalMessageLevel)}">${escapeHtml(state.capitalMessage)}</p>`
+    : "";
   const capitalStrategySummary = capitalStrategy
     ? `
       <article class="board-block capital-strategy-block">
@@ -3025,12 +3215,148 @@ function renderBoard() {
       <p>${escapeHtml(board.capital_note)}</p>
       <p class="muted">Finance may shape approval and pacing, but it is not a primary board lane in v1.</p>
       ${capitalSummary}
+      ${capitalMessageHtml}
+      ${capitalLatestRequestHtml}
+      <h4>Withdrawal request control (user-authorized)</h4>
+      <p class="muted">Only withdrawal request, approval, and cancel/reject are writable in UI. Deposit/reserve/release/approve_use stay runtime-only.</p>
+      ${withdrawalFormHtml}
+      <h4>Pending withdrawal requests</h4>
+      ${pendingWithdrawalItemsHtml}
+      <h4>Recent capital ledger actions</h4>
+      ${capitalHistoryHtml}
     </article>
   `;
 
   elements.companyBoard.querySelectorAll("[data-type][data-id]").forEach((node) => {
     node.addEventListener("click", () => {
       setSelection(node.dataset.type, node.dataset.id);
+    });
+  });
+  const withdrawalForm = elements.companyBoard.querySelector("[data-capital-form='request-withdrawal']");
+  if (withdrawalForm && capitalSnapshot) {
+    const amountInput = withdrawalForm.querySelector("input[name='amount_usd']");
+    const previewNode = withdrawalForm.querySelector("[data-withdraw-preview]");
+    const updatePreview = () => {
+      if (!amountInput || !previewNode) {
+        return;
+      }
+      const amount = Number(amountInput.value);
+      const validAmount = Number.isFinite(amount) && amount > 0 ? amount : 0;
+      const previewAfterRequest = Math.max(0, capitalSnapshot.available_usd - validAmount);
+      previewNode.textContent = `Preview available after request: ${formatCurrency(
+        previewAfterRequest
+      )} (current available ${formatCurrency(capitalSnapshot.available_usd)}).`;
+    };
+    if (amountInput) {
+      amountInput.addEventListener("input", updatePreview);
+    }
+    withdrawalForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (state.capitalActionInFlight) {
+        return;
+      }
+      const formData = new FormData(withdrawalForm);
+      const amount = Number(formData.get("amount_usd"));
+      const reason = String(formData.get("reason") || "").trim();
+      if (!Number.isFinite(amount) || amount <= 0 || !reason) {
+        setCapitalMessage("Amount and reason are required for withdrawal request.", "error");
+        renderBoard();
+        return;
+      }
+      const availableAfterRequest = capitalSnapshot.available_usd - amount;
+      const confirmed = window.confirm(
+        `Create withdrawal request for ${formatCurrency(amount)}?\nCurrent available: ${formatCurrency(
+          capitalSnapshot.available_usd
+        )}\nCurrent pending withdrawal: ${formatCurrency(
+          capitalSnapshot.pending_withdrawal_usd
+        )}\nAvailable after request: ${formatCurrency(availableAfterRequest)}`
+      );
+      if (!confirmed) {
+        return;
+      }
+      await submitCapitalWithdrawalAction(
+        "/api/capital-withdrawal/request",
+        {
+          amount_usd: amount,
+          reason,
+          actor: "owner_operator",
+          note: "UI withdrawal request.",
+        },
+        "Submitting withdrawal request...",
+        "Withdrawal request recorded."
+      );
+    });
+  }
+  elements.companyBoard.querySelectorAll("[data-capital-action][data-request-id]").forEach((node) => {
+    node.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (state.capitalActionInFlight) {
+        return;
+      }
+      const action = node.dataset.capitalAction;
+      const requestId = node.dataset.requestId;
+      const requestAmount = Number(node.dataset.requestAmount || "0");
+      if (!action || !requestId) {
+        return;
+      }
+      if (!capitalSnapshot) {
+        setCapitalMessage("Capital state is unavailable for withdrawal actions.", "error");
+        renderBoard();
+        return;
+      }
+      if (action === "approve_withdrawal") {
+        const confirmed = window.confirm(
+          `Approve and execute withdrawal ${requestId}?\nRequested amount: ${formatCurrency(
+            requestAmount
+          )}\nCurrent available: ${formatCurrency(capitalSnapshot.available_usd)}\nCurrent pending withdrawal: ${formatCurrency(
+            capitalSnapshot.pending_withdrawal_usd
+          )}\nResulting available after execution: ${formatCurrency(
+            capitalSnapshot.available_usd
+          )}\nThis action is irreversible once confirmed.`
+        );
+        if (!confirmed) {
+          return;
+        }
+        await submitCapitalWithdrawalAction(
+          "/api/capital-withdrawal/approve",
+          {
+            request_id: requestId,
+            actor: "owner_operator",
+            confirm_irreversible: true,
+            note: "UI withdrawal approval.",
+          },
+          `Approving withdrawal ${requestId}...`,
+          `Withdrawal ${requestId} approved and executed.`
+        );
+        return;
+      }
+      if (action === "cancel_withdrawal" || action === "reject_withdrawal") {
+        const endpoint =
+          action === "reject_withdrawal"
+            ? "/api/capital-withdrawal/reject"
+            : "/api/capital-withdrawal/cancel";
+        const actionLabel = action === "reject_withdrawal" ? "Reject" : "Cancel";
+        const confirmed = window.confirm(
+          `${actionLabel} pending withdrawal ${requestId}?\nAmount: ${formatCurrency(
+            requestAmount
+          )}\nFunds will return to available capital.`
+        );
+        if (!confirmed) {
+          return;
+        }
+        await submitCapitalWithdrawalAction(
+          endpoint,
+          {
+            request_id: requestId,
+            actor: "owner_operator",
+            reason: `${actionLabel}ed in UI by owner operator.`,
+            note: `UI ${actionLabel.toLowerCase()} withdrawal request.`,
+          },
+          `${actionLabel}ing withdrawal ${requestId}...`,
+          `Withdrawal ${requestId} ${actionLabel.toLowerCase()}ed.`
+        );
+      }
     });
   });
 }

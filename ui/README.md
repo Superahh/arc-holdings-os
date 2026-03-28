@@ -8,7 +8,8 @@ This folder contains the first visible ARC Holdings OS UI shell.
 - contract-driven rendering from runtime state and latest run artifacts
 - zero external dependencies
 - first writable action limited to approval decision submission (`approve|reject|request_more_info`)
-- no capital movement write-paths
+- narrow capital write-paths: `request_withdrawal`, `approve_withdrawal`, `cancel_withdrawal`, `reject_withdrawal`
+- deposit/reserve/release/approve_use remain runtime-only
 - deterministic office transition visuals (handoff overlays + zone connection rails) from read-only snapshot data
 
 ## Regions
@@ -25,6 +26,7 @@ The shell reads:
 
 - `runtime/state/approval_queue.json`
 - `runtime/state/workflow_state.json`
+- `runtime/state/capital_state.json`
 - latest run artifacts under `runtime/output/runs/`
 
 The read-only snapshot is composed in [runtime/ui_snapshot.js](../runtime/ui_snapshot.js).
@@ -38,5 +40,5 @@ node ui/server.js
 Custom paths:
 
 ```powershell
-node ui/server.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --base-dir runtime/output --port 4173
+node ui/server.js --queue-path runtime/state/approval_queue.json --workflow-state-path runtime/state/workflow_state.json --capital-state-path runtime/state/capital_state.json --base-dir runtime/output --port 4173
 ```
