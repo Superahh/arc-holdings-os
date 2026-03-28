@@ -553,6 +553,43 @@ function findOpportunityById(opportunityId) {
   );
 }
 
+function findOpportunityByIdInSnapshot(snapshot, opportunityId) {
+  if (!snapshot || !snapshot.workflow || !Array.isArray(snapshot.workflow.opportunities)) {
+    return null;
+  }
+  return (
+    snapshot.workflow.opportunities.find((entry) => entry.opportunity_id === opportunityId) || null
+  );
+}
+
+function findApprovalQueueItem(snapshot, ticketId) {
+  if (!snapshot || !snapshot.approval_queue || !Array.isArray(snapshot.approval_queue.items)) {
+    return null;
+  }
+  return snapshot.approval_queue.items.find((item) => item && item.ticket_id === ticketId) || null;
+}
+
+function findOfficeEventById(snapshot, eventId) {
+  if (!snapshot || !snapshot.office || !Array.isArray(snapshot.office.events)) {
+    return null;
+  }
+  return snapshot.office.events.find((event) => event && event.event_id === eventId) || null;
+}
+
+function findDecisionResolvedEvent(snapshot, ticketId) {
+  if (!snapshot || !snapshot.office || !Array.isArray(snapshot.office.events)) {
+    return null;
+  }
+  return (
+    snapshot.office.events.find(
+      (event) =>
+        event &&
+        event.type === "approval_resolved" &&
+        event.ticket_id === ticketId
+    ) || null
+  );
+}
+
 function getMovementIntentById(intentId) {
   if (!state.snapshot || !intentId) {
     return null;
@@ -576,6 +613,156 @@ function opportunityTaskOwner(opportunity) {
     return handoff.to_agent;
   }
   return null;
+}
+
+function resolveOpportunityFollowThroughText(entry) {
+  if (!entry) {
+    return "Awaiting workflow update.";
+  }
+  const handoffPacket = entry.contract_bundle && entry.contract_bundle.handoff_packet;
+  const recommendation = entry.operational_recommendation || null;
+  const handoff = entry.operational_handoff || null;
+  const execution = entry.operational_execution || null;
+  const market = entry.operational_market || null;
+  const route = entry.operational_route || null;
+  const intakePriority = entry.operational_intake_priority || null;
+  const sellthrough = entry.operational_sellthrough || null;
+  const capacity = entry.operational_capacity || null;
+  const policy = entry.operational_policy || null;
+  const quality = entry.operational_opportunity_quality || null;
+  const nextAction = recommendation
+    ? recommendation.next_action
+    : (entry.latest_task && entry.latest_task.next_action) ||
+      (handoffPacket && handoffPacket.next_action) ||
+      "Awaiting workflow update.";
+
+  return policy &&
+    new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
+      policy.policy_state
+    ) &&
+    policy.policy_next_step
+    ? policy.policy_next_step
+    : quality &&
+      new Set(["quality_uncertain", "quality_weak"]).has(quality.opportunity_quality_state) &&
+      quality.opportunity_quality_next_step
+      ? quality.opportunity_quality_next_step
+      : intakePriority &&
+        new Set(["priority_now", "priority_defer"]).has(intakePriority.intake_priority_state) &&
+        intakePriority.intake_priority_next_step
+        ? intakePriority.intake_priority_next_step
+        : sellthrough &&
+          new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
+            sellthrough.sellthrough_state
+          ) &&
+          sellthrough.sellthrough_next_step
+          ? sellthrough.sellthrough_next_step
+          : capacity &&
+            new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
+              capacity.capacity_state
+            ) &&
+            capacity.capacity_next_step
+            ? capacity.capacity_next_step
+            : route && route.operator_route_next_step
+              ? route.operator_route_next_step
+              : market && market.market_next_step
+                ? market.market_next_step
+                : execution && execution.execution_next_step
+                  ? execution.execution_next_step
+                  : handoff && handoff.current_owner_action
+                    ? handoff.current_owner_action
+                    : nextAction;
+}
+
+function buildDecisionFollowThrough(snapshot, ticketId, fallbackDecision) {
+  const queueItem = findApprovalQueueItem(snapshot, ticketId);
+  const resolvedEvent = findDecisionResolvedEvent(snapshot, ticketId);
+  const decision = normalizeToken(
+    (queueItem && queueItem.status) || (resolvedEvent && resolvedEvent.decision) || fallbackDecision
+  );
+  const opportunityId =
+    (queueItem && queueItem.opportunity_id) || (resolvedEvent && resolvedEvent.opportunity_id) || null;
+  const opportunity = opportunityId ? findOpportunityByIdInSnapshot(snapshot, opportunityId) : null;
+  const movementIntent =
+    resolvedEvent && snapshot && snapshot.office && Array.isArray(snapshot.office.movement_intents)
+      ? snapshot.office.movement_intents.find(
+          (intent) => intent && intent.trigger_event_id === resolvedEvent.event_id
+        ) || null
+      : null;
+  const nextOwner =
+    (movementIntent && movementIntent.to_agent) ||
+    (resolvedEvent && resolvedEvent.to_agent) ||
+    (queueItem && queueItem.resume_owner) ||
+    null;
+  const nextStep = resolveOpportunityFollowThroughText(opportunity);
+
+  if (decision === "approve") {
+    return {
+      message: `Approved ${ticketId}. ${
+        opportunityId && nextOwner
+          ? `${opportunityId} moved to ${nextOwner}.`
+          : "The opportunity advanced to the next owner."
+      }${nextStep ? ` Next: ${nextStep}` : ""}`,
+      intentId: movementIntent ? movementIntent.intent_id : null,
+    };
+  }
+  if (decision === "reject") {
+    return {
+      message: `Rejected ${ticketId}. ${
+        opportunityId && nextOwner
+          ? `${opportunityId} moved back to ${nextOwner}.`
+          : "The opportunity moved back for follow-up."
+      }${nextStep ? ` Next: ${nextStep}` : ""}`,
+      intentId: movementIntent ? movementIntent.intent_id : null,
+    };
+  }
+  if (decision === "request_more_info") {
+    return {
+      message: `Requested more info for ${ticketId}. ${
+        opportunityId && nextOwner
+          ? `${opportunityId} returned to ${nextOwner}.`
+          : "The opportunity stayed open for follow-up."
+      }${nextStep ? ` Next: ${nextStep}` : ""}`,
+      intentId: movementIntent ? movementIntent.intent_id : null,
+    };
+  }
+  return {
+    message: `Recorded ${formatDecisionLabel(fallbackDecision)} for ${ticketId}.`,
+    intentId: movementIntent ? movementIntent.intent_id : null,
+  };
+}
+
+function buildResolvedQueueOutcome(snapshot, item) {
+  if (!item || normalizeToken(item.status) === "pending") {
+    return "";
+  }
+  const resolvedEvent = findDecisionResolvedEvent(snapshot, item.ticket_id);
+  const movementIntent =
+    resolvedEvent && snapshot && snapshot.office && Array.isArray(snapshot.office.movement_intents)
+      ? snapshot.office.movement_intents.find(
+          (intent) => intent && intent.trigger_event_id === resolvedEvent.event_id
+        ) || null
+      : null;
+  const nextOwner =
+    (movementIntent && movementIntent.to_agent) ||
+    (resolvedEvent && resolvedEvent.to_agent) ||
+    item.resume_owner ||
+    "next owner";
+  const opportunity = item.opportunity_id
+    ? findOpportunityByIdInSnapshot(snapshot, item.opportunity_id)
+    : null;
+  const nextStep = resolveOpportunityFollowThroughText(opportunity);
+  const decision = normalizeToken(item.status);
+
+  if (decision === "approve") {
+    return `Moved to ${nextOwner}. Next: ${nextStep}`;
+  }
+  if (decision === "reject") {
+    return `Moved back to ${nextOwner}. Next: ${nextStep}`;
+  }
+  if (decision === "request_more_info") {
+    return `Returned to ${nextOwner}. Next: ${nextStep}`;
+  }
+  return `Decision recorded. Next: ${nextStep}`;
 }
 
 function buildSignalKey(signal) {
@@ -906,6 +1093,7 @@ function buildOpportunityCardV1Model(entry) {
   const intakePriority = entry.operational_intake_priority || null;
   const sellthrough = entry.operational_sellthrough || null;
   const capacity = entry.operational_capacity || null;
+  const policy = entry.operational_policy || null;
   const quality = entry.operational_opportunity_quality || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoffPacket && handoffPacket.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
@@ -918,36 +1106,7 @@ function buildOpportunityCardV1Model(entry) {
       (handoffPacket && handoffPacket.next_action) ||
       "Awaiting workflow update.";
   const nextActionLine = `Next: ${nextAction}`;
-  const resolvedNextAction =
-    quality &&
-    new Set(["quality_uncertain", "quality_weak"]).has(quality.opportunity_quality_state) &&
-    quality.opportunity_quality_next_step
-      ? quality.opportunity_quality_next_step
-      : intakePriority &&
-    new Set(["priority_now", "priority_defer"]).has(intakePriority.intake_priority_state) &&
-    intakePriority.intake_priority_next_step
-      ? intakePriority.intake_priority_next_step
-      : sellthrough &&
-    new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
-      sellthrough.sellthrough_state
-    ) &&
-    sellthrough.sellthrough_next_step
-      ? sellthrough.sellthrough_next_step
-      : capacity &&
-    new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
-      capacity.capacity_state
-    ) &&
-    capacity.capacity_next_step
-      ? capacity.capacity_next_step
-      : route && route.operator_route_next_step
-      ? route.operator_route_next_step
-      : market && market.market_next_step
-      ? market.market_next_step
-      : execution && execution.execution_next_step
-      ? execution.execution_next_step
-      : handoff && handoff.current_owner_action
-        ? handoff.current_owner_action
-        : nextAction;
+  const resolvedNextAction = resolveOpportunityFollowThroughText(entry);
 
   return {
     primary_id: entry.opportunity_id,
@@ -1312,12 +1471,10 @@ async function submitApprovalDecision(ticketId, decision) {
       error.retryable = isRetryableDecisionError(payload, response.status);
       throw error;
     }
-    setDecisionMessage(
-      `Submitted ${formatDecisionLabel(decision)} for ${ticketId}.`,
-      "success",
-      { ttlMs: DECISION_SUCCESS_MESSAGE_MS }
-    );
-    await loadSnapshot();
+    const nextSnapshot = await loadSnapshot();
+    const followThrough = buildDecisionFollowThrough(nextSnapshot || state.snapshot, ticketId, decision);
+    setDecisionMessage(followThrough.message, "success", { ttlMs: DECISION_SUCCESS_MESSAGE_MS });
+    renderAttention();
   } catch (error) {
     const isAbort = error instanceof Error && error.name === "AbortError";
     const normalizedError = isAbort ? buildTimeoutError(ticketId, decision) : error;
@@ -1591,16 +1748,17 @@ function getPrimaryHandoff(snapshot) {
   const signals = sortHandoffSignalsDeterministic(
     (snapshot && snapshot.office && snapshot.office.handoff_signals) || []
   );
-  if (!signals.length) {
+  const intents = (snapshot && snapshot.office && snapshot.office.movement_intents) || [];
+  if (!signals.length && !intents.length) {
     return null;
   }
-  const intents = (snapshot && snapshot.office && snapshot.office.movement_intents) || [];
   const intentBySignalKey = new Map(
     intents.map((intent) => [
       buildMovementIntentKey(intent.opportunity_id, intent.from_zone_id, intent.to_zone_id),
       intent,
     ])
   );
+  const consumedIntentIds = new Set();
   const scored = signals.map((signal) => {
     const key = buildMovementIntentKey(
       signal.opportunity_id,
@@ -1608,6 +1766,9 @@ function getPrimaryHandoff(snapshot) {
       signal.to_zone_id
     );
     const linkedIntent = intentBySignalKey.get(key) || null;
+    if (linkedIntent && linkedIntent.intent_id) {
+      consumedIntentIds.add(linkedIntent.intent_id);
+    }
     const signalText = [
       signal.handoff_state,
       signal.handoff_label,
@@ -1635,6 +1796,53 @@ function getPrimaryHandoff(snapshot) {
       dueByMs: Number.isFinite(dueByMs) ? dueByMs : Number.MAX_SAFE_INTEGER,
     };
   });
+
+  for (const intent of intents) {
+    if (!intent || (intent.intent_id && consumedIntentIds.has(intent.intent_id))) {
+      continue;
+    }
+    const relatedEvent = findOfficeEventById(snapshot, intent.trigger_event_id);
+    const opportunity = findOpportunityByIdInSnapshot(snapshot, intent.opportunity_id);
+    const followThroughText = resolveOpportunityFollowThroughText(opportunity);
+    const syntheticSignal = {
+      opportunity_id: intent.opportunity_id,
+      from_agent: intent.from_agent,
+      to_agent: intent.to_agent,
+      from_zone_id: intent.from_zone_id,
+      to_zone_id: intent.to_zone_id,
+      due_by: intent.trigger_timestamp,
+      handoff_state: intent.blocking_count > 0 ? "handoff_blocked" : "handoff_ready",
+      handoff_label: relatedEvent ? formatOfficeEventType(relatedEvent.type) : "Operational route",
+      current_owner_action: followThroughText,
+      next_action: followThroughText,
+      blocking_count: intent.blocking_count || 0,
+    };
+    const signalText = [
+      syntheticSignal.handoff_state,
+      syntheticSignal.handoff_label,
+      syntheticSignal.current_owner_action,
+      syntheticSignal.next_action,
+      intent.movement_kind,
+      intent.trigger_type,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const approvalRelated = signalText.includes("approval");
+    const unblockRelated =
+      syntheticSignal.blocking_count > 0 ||
+      signalText.includes("blocked") ||
+      signalText.includes("unblock") ||
+      syntheticSignal.handoff_state === "handoff_blocked";
+    const dueByMs = Date.parse(intent.trigger_timestamp || 0);
+    scored.push({
+      signal: syntheticSignal,
+      linkedIntent: intent,
+      approvalRelated,
+      unblockRelated,
+      dueByMs: Number.isFinite(dueByMs) ? dueByMs : Number.MAX_SAFE_INTEGER,
+    });
+  }
 
   scored.sort((a, b) => {
     if (a.approvalRelated !== b.approvalRelated) {
@@ -2229,11 +2437,18 @@ function renderDetailForOpportunity(entry) {
   const intakePriorityState = entry.operational_intake_priority || null;
   const sellthroughState = entry.operational_sellthrough || null;
   const capacityState = entry.operational_capacity || null;
+  const policyState = entry.operational_policy || null;
   const qualityState = entry.operational_opportunity_quality || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    qualityState &&
+    policyState &&
+    new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
+      policyState.policy_state
+    ) &&
+    policyState.policy_next_step
+      ? policyState.policy_next_step
+      : qualityState &&
     new Set(["quality_uncertain", "quality_weak"]).has(qualityState.opportunity_quality_state) &&
     qualityState.opportunity_quality_next_step
       ? qualityState.opportunity_quality_next_step
@@ -2335,6 +2550,9 @@ function renderDetailForOpportunity(entry) {
             ? intakePriorityState.intake_priority_next_step
             : "No intake-priority action is required."
         )}</li>
+        <li>Policy boundary step: ${escapeHtml(
+          policyState ? policyState.policy_next_step : "No policy action is required."
+        )}</li>
         <li>Quality proof step: ${escapeHtml(
           qualityState
             ? qualityState.opportunity_quality_next_step
@@ -2351,7 +2569,12 @@ function renderDetailForOpportunity(entry) {
             : "No capacity relief action is required."
         )}</li>
         <li>What would change this: ${escapeHtml(
-          qualityState &&
+          policyState &&
+          new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
+            policyState.policy_state
+          )
+            ? policyState.policy_clear_condition
+            : qualityState &&
           new Set(["quality_promising", "quality_uncertain", "quality_weak"]).has(
             qualityState.opportunity_quality_state
           )
@@ -2402,6 +2625,11 @@ function renderDetailForOpportunity(entry) {
           qualityState
             ? `${qualityState.opportunity_quality_label}: ${qualityState.opportunity_quality_reason}`
             : "Opportunity quality is not derived."
+        )}</li>
+        <li>Policy boundary: ${escapeHtml(
+          policyState
+            ? `${policyState.policy_label}: ${policyState.policy_reason}`
+            : "Policy boundary state is not derived."
         )}</li>
         <li>Route: ${escapeHtml(
           routeState
@@ -3149,6 +3377,7 @@ function renderApprovalQueue() {
             state.selected &&
             state.selected.type === "opportunity" &&
             state.selected.id === item.opportunity_id;
+          const resolvedOutcome = buildResolvedQueueOutcome(state.snapshot, item);
           const decisionControls =
             item.status === "pending"
               ? `
@@ -3183,6 +3412,13 @@ function renderApprovalQueue() {
                 `Resume owner: ${item.resume_owner || "Unassigned"}. Resume when: ${item.resume_condition || "Decision follow-through is confirmed."}`,
                 "Resume context pending."
               ))}</p>
+              ${
+                resolvedOutcome
+                  ? `<p class="queue-meta">${escapeHtml(
+                      normalizeOneLineSummary(resolvedOutcome, "Resolved outcome pending.")
+                    )}</p>`
+                  : ""
+              }
               <div class="detail-meta">
                 <div class="detail-meta-item"><span>Exposure</span><strong>${formatCurrency(item.ticket.max_exposure_usd)}</strong></div>
                 <div class="detail-meta-item"><span>Required by</span><strong>${escapeHtml(formatTimestamp(item.ticket.required_by))}</strong></div>
@@ -3281,10 +3517,12 @@ async function loadSnapshot() {
     state.snapshot = nextSnapshot;
     setTransitionState(transitions);
     render();
+    return nextSnapshot;
   } catch (error) {
     elements.detailPanel.innerHTML = `<div class="empty-state">${escapeHtml(
       error instanceof Error ? error.message : String(error)
     )}</div>`;
+    return null;
   } finally {
     elements.refreshButton.disabled = false;
   }
