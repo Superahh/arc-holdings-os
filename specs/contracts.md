@@ -33,6 +33,7 @@ Versioning rule:
 Current extension note:
 
 - `v1.1` adds capital-control interfaces to support explicit deposit/reserve/approve-to-use and request-first withdrawal modeling with auditability.
+- `v1.2` adds optional approval-trace references on capital movement snapshots so later ledger effects can be linked back to the approval ticket that enabled them.
 
 ## OpportunityRecord
 
@@ -250,6 +251,7 @@ Purpose: annotate a single opportunity against the current company capital mode 
   "opportunity_id": "string",
   "amount_usd": 0,
   "created_from_request_id": "string",
+  "approval_ticket_id": "string|null",
   "status": "active|released|consumed|expired",
   "created_at": "ISO-8601 datetime",
   "updated_at": "ISO-8601 datetime"
@@ -272,6 +274,7 @@ Purpose: annotate a single opportunity against the current company capital mode 
   "authorized_by": "string|null",
   "request_id": "string|null",
   "opportunity_id": "string|null",
+  "approval_ticket_id": "string|null",
   "notes": "string"
 }
 ```
@@ -312,7 +315,11 @@ Purpose: annotate a single opportunity against the current company capital mode 
       "action": "string",
       "amount_usd": 0,
       "performed_by": "string",
-      "request_id": "string|null"
+      "request_id": "string|null",
+      "opportunity_id": "string|null",
+      "approval_ticket_id": "string|null",
+      "approval_decision": "pending|approve|reject|request_more_info|null",
+      "approval_decided_at": "ISO-8601 datetime|null"
     }
   ]
 }

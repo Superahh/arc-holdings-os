@@ -134,6 +134,7 @@ function buildEntryHashInput(entry, previousEntryHash) {
     authorized_by: entry.authorized_by,
     request_id: entry.request_id,
     opportunity_id: entry.opportunity_id,
+    approval_ticket_id: entry.approval_ticket_id,
     notes: entry.notes,
   };
 }
@@ -193,6 +194,7 @@ function appendLedgerEntry(state, input, timestamp) {
     authorized_by: requireActor(input.authorized_by, "authorized_by"),
     request_id: input.request_id || null,
     opportunity_id: input.opportunity_id || null,
+    approval_ticket_id: input.approval_ticket_id || null,
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : "Capital ledger action.",
     previous_entry_hash: previousEntryHash,
   };
@@ -231,6 +233,7 @@ function applyAccounting(state, request, timestamp) {
       opportunity_id: request.opportunity_id,
       amount_usd: amount,
       created_from_request_id: request.request_id,
+      approval_ticket_id: request.approval_ticket_id || null,
       status: "active",
       created_at: toIso(timestamp),
       updated_at: toIso(timestamp),
@@ -252,6 +255,9 @@ function applyAccounting(state, request, timestamp) {
     if (activeReservation.amount_usd === 0) {
       activeReservation.status = "released";
     }
+    if (!request.approval_ticket_id && activeReservation.approval_ticket_id) {
+      request.approval_ticket_id = activeReservation.approval_ticket_id;
+    }
     account.reserved_usd = asCurrency(account.reserved_usd - amount);
     account.available_usd = asCurrency(account.available_usd + amount);
     reservation = activeReservation;
@@ -270,6 +276,9 @@ function applyAccounting(state, request, timestamp) {
     activeReservation.updated_at = toIso(timestamp);
     if (activeReservation.amount_usd === 0) {
       activeReservation.status = "consumed";
+    }
+    if (!request.approval_ticket_id && activeReservation.approval_ticket_id) {
+      request.approval_ticket_id = activeReservation.approval_ticket_id;
     }
     account.reserved_usd = asCurrency(account.reserved_usd - amount);
     account.committed_usd = asCurrency(account.committed_usd + amount);
@@ -338,6 +347,7 @@ function submitAndExecuteMovement(state, input, options = {}) {
     authorized_by: authorizedBy,
     request_id: request.request_id,
     opportunity_id: request.opportunity_id,
+    approval_ticket_id: request.approval_ticket_id,
     notes: typeof input.notes === "string" ? input.notes : reason,
   }, at);
 

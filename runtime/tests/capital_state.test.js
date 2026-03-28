@@ -48,8 +48,11 @@ test("deposit, reserve, approve_use, and withdraw update account and ledger", ()
   assert.equal(state.account.available_usd, 750);
   assert.equal(state.account.reserved_usd, 250);
   assert.equal(reserveResult.reservation.status, "active");
+  assert.equal(reserveResult.request.approval_ticket_id, "apr-2026-03-26-100");
+  assert.equal(reserveResult.reservation.approval_ticket_id, "apr-2026-03-26-100");
+  assert.equal(reserveResult.entry.approval_ticket_id, "apr-2026-03-26-100");
 
-  submitAndExecuteMovement(
+  const approveUseResult = submitAndExecuteMovement(
     state,
     {
       action: "approve_use",
@@ -59,13 +62,14 @@ test("deposit, reserve, approve_use, and withdraw update account and ledger", ()
       authorized_by: "owner_operator",
       reason: "Convert reserve into committed spend.",
       opportunity_id: "opp-2026-03-26-100",
-      approval_ticket_id: "apr-2026-03-26-100",
     },
     { now: "2026-03-26T10:03:00.000Z" }
   );
   assert.equal(state.account.available_usd, 750);
   assert.equal(state.account.reserved_usd, 50);
   assert.equal(state.account.committed_usd, 200);
+  assert.equal(approveUseResult.request.approval_ticket_id, "apr-2026-03-26-100");
+  assert.equal(approveUseResult.entry.approval_ticket_id, "apr-2026-03-26-100");
 
   submitAndExecuteMovement(
     state,

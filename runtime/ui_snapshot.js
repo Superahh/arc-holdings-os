@@ -2101,7 +2101,27 @@ function buildCapitalNote(queueTotals, opportunities) {
   return "No capital approval is currently pending. Capital remains user-controlled with auditable ledger-backed withdrawals and runtime-manual deposit/reserve/release/approve_use actions.";
 }
 
-function buildCapitalControls(capitalStatePath) {
+function buildApprovalTraceLookup(queue) {
+  const lookup = new Map();
+  if (!queue || !Array.isArray(queue.items)) {
+    return lookup;
+  }
+  for (const item of queue.items) {
+    if (!item || !item.ticket_id) {
+      continue;
+    }
+    lookup.set(item.ticket_id, {
+      approval_ticket_id: item.ticket_id,
+      opportunity_id: item.opportunity_id || null,
+      approval_decision: item.status || null,
+      approval_decided_at: item.decided_at || null,
+      approval_decided_by: item.decided_by || null,
+    });
+  }
+  return lookup;
+}
+
+function buildCapitalControls(capitalStatePath, queue = null) {
   const absolutePath = path.resolve(capitalStatePath);
   if (!fs.existsSync(absolutePath)) {
     return {
@@ -2119,6 +2139,10 @@ function buildCapitalControls(capitalStatePath) {
 
   const state = loadCapitalState(absolutePath);
   const integrity = verifyLedgerIntegrity(state);
+  const approvalTraceLookup = buildApprovalTraceLookup(queue);
+  const requestById = new Map(
+    state.requests.map((request) => [request.request_id, request])
+  );
   const latestRequest = state.requests.length ? state.requests[state.requests.length - 1] : null;
   const pendingRequests = state.requests
     .filter((request) => request.action === "request_withdrawal" && request.status === "requested")
@@ -2134,14 +2158,31 @@ function buildCapitalControls(capitalStatePath) {
       current_pending_withdrawal_usd: state.account.pending_withdrawal_usd,
       resulting_available_usd_after_execution: state.account.available_usd,
     }));
-  const recentLedgerEntries = state.ledger.slice(-5).reverse().map((entry) => ({
-    entry_id: entry.entry_id,
-    timestamp: entry.timestamp,
-    action: entry.action,
-    amount_usd: entry.amount_usd,
-    performed_by: entry.performed_by,
-    request_id: entry.request_id || null,
-  }));
+  const recentLedgerEntries = state.ledger.slice(-5).reverse().map((entry) => {
+    const linkedRequest =
+      entry.request_id && requestById.has(entry.request_id) ? requestById.get(entry.request_id) : null;
+    const approvalTicketId =
+      entry.approval_ticket_id ||
+      (linkedRequest && linkedRequest.approval_ticket_id) ||
+      null;
+    const approvalTrace =
+      approvalTicketId && approvalTraceLookup.has(approvalTicketId)
+        ? approvalTraceLookup.get(approvalTicketId)
+        : null;
+    return {
+      entry_id: entry.entry_id,
+      timestamp: entry.timestamp,
+      action: entry.action,
+      amount_usd: entry.amount_usd,
+      performed_by: entry.performed_by,
+      request_id: entry.request_id || null,
+      opportunity_id:
+        entry.opportunity_id || (linkedRequest && linkedRequest.opportunity_id) || null,
+      approval_ticket_id: approvalTicketId,
+      approval_decision: approvalTrace ? approvalTrace.approval_decision : null,
+      approval_decided_at: approvalTrace ? approvalTrace.approval_decided_at : null,
+    };
+  });
   return {
     status: "manual_only",
     note: "Capital remains user-controlled. UI write scope is withdrawal request/approve/cancel only; all other capital movement actions remain runtime-manual.",
@@ -2168,6 +2209,15 @@ function buildCapitalControls(capitalStatePath) {
         requested_by: latestRequest.requested_by || null,
         reason: latestRequest.reason || "",
         opportunity_id: latestRequest.opportunity_id,
+        approval_ticket_id: latestRequest.approval_ticket_id || null,
+        approval_decision:
+          latestRequest.approval_ticket_id && approvalTraceLookup.has(latestRequest.approval_ticket_id)
+            ? approvalTraceLookup.get(latestRequest.approval_ticket_id).approval_decision
+            : null,
+        approval_decided_at:
+          latestRequest.approval_ticket_id && approvalTraceLookup.has(latestRequest.approval_ticket_id)
+            ? approvalTraceLookup.get(latestRequest.approval_ticket_id).approval_decided_at
+            : null,
       }
       : null,
     pending_withdrawal_requests: pendingRequests,
@@ -3536,7 +3586,7 @@ function buildUiSnapshot(options = {}) {
   );
   const queueTotals = summarizeQueueTotals(queue);
   const kpis = buildKpis(statusSnapshot, opportunities);
-  const capitalControls = buildCapitalControls(capitalStatePath);
+  const capitalControls = buildCapitalControls(capitalStatePath, queue);
   const capitalStrategy = buildCapitalStrategySnapshot(
     capitalControls,
     queueTotals,

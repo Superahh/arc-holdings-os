@@ -8,7 +8,7 @@ const path = require("node:path");
 
 const { runOpportunityPipeline } = require("../pipeline");
 const { buildRunArtifact, writeRunArtifact } = require("../output");
-const { createEmptyQueue, enqueueApprovalTicket, saveQueue } = require("../approval_queue");
+const { createEmptyQueue, enqueueApprovalTicket, saveQueue, decideApproval } = require("../approval_queue");
 const { createEmptyWorkflowState, upsertFromPipeline, saveWorkflowState } = require("../workflow_state");
 const { runBootstrapAction } = require("../capital_bootstrap_cli");
 const { runMovementAction } = require("../capital_movement_cli");
@@ -646,6 +646,92 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
     validateCapitalFitAnnotation(snapshot.workflow.opportunities[0].capital_fit).length,
     0,
     "Expected capital_fit to conform to CapitalFitAnnotation contract."
+  );
+});
+
+test("buildUiSnapshot surfaces approval-linked capital trace on later ledger effects", () => {
+  const env = seedFixtureEnvironment();
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "deposit",
+    amountUsd: 1000,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Seed capital for approval trace coverage.",
+    notes: "",
+    opportunityId: null,
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:06:00.000Z",
+  });
+
+  const queue = JSON.parse(fs.readFileSync(env.queuePath, "utf8"));
+  decideApproval(
+    queue,
+    "apr-ui-001",
+    "approve",
+    "owner_operator",
+    "Approved for reserve trace coverage.",
+    "2026-03-25T19:07:00.000Z"
+  );
+  saveQueue(env.queuePath, queue, "2026-03-25T19:07:00.000Z");
+
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "reserve",
+    amountUsd: 200,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Reserve capital after approval clearance.",
+    notes: "",
+    opportunityId: "opp-2026-03-25-001",
+    approvalTicketId: "apr-ui-001",
+    requestId: null,
+    now: "2026-03-25T19:08:00.000Z",
+  });
+  runMovementAction({
+    statePath: env.capitalStatePath,
+    action: "approve_use",
+    amountUsd: 120,
+    requestedBy: "owner_operator",
+    performedBy: "owner_operator",
+    authorizedBy: "owner_operator",
+    reason: "Commit part of the approved reserve.",
+    notes: "",
+    opportunityId: "opp-2026-03-25-001",
+    approvalTicketId: null,
+    requestId: null,
+    now: "2026-03-25T19:09:00.000Z",
+  });
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_controls.latest_request.action, "approve_use");
+  assert.equal(snapshot.capital_controls.latest_request.approval_ticket_id, "apr-ui-001");
+  assert.equal(snapshot.capital_controls.latest_request.approval_decision, "approve");
+  assert.equal(snapshot.capital_controls.latest_request.approval_decided_at, "2026-03-25T19:07:00.000Z");
+  assert.equal(snapshot.capital_controls.recent_ledger_entries[0].action, "approve_use");
+  assert.equal(snapshot.capital_controls.recent_ledger_entries[0].approval_ticket_id, "apr-ui-001");
+  assert.equal(snapshot.capital_controls.recent_ledger_entries[0].approval_decision, "approve");
+  assert.equal(snapshot.capital_controls.recent_ledger_entries[0].approval_decided_at, "2026-03-25T19:07:00.000Z");
+  assert.equal(
+    snapshot.capital_controls.recent_ledger_entries[0].opportunity_id,
+    "opp-2026-03-25-001"
   );
 });
 

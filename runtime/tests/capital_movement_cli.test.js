@@ -80,8 +80,13 @@ test("runMovementAction executes deposit and reserve with ledger integrity", () 
   assert.equal(reserveResult.account.available_usd, 380);
   assert.equal(reserveResult.account.reserved_usd, 120);
   assert.equal(reserveResult.ledger_integrity.ok, true);
+  assert.equal(reserveResult.request.approval_ticket_id, "apr-2026-03-26-200");
+  assert.equal(reserveResult.reservation.approval_ticket_id, "apr-2026-03-26-200");
+  assert.equal(reserveResult.ledger_entry.approval_ticket_id, "apr-2026-03-26-200");
 
   const persisted = JSON.parse(fs.readFileSync(statePath, "utf8"));
   assert.equal(persisted.ledger.length, 2);
   assert.equal(persisted.requests.length, 2);
+  assert.equal(persisted.ledger[1].approval_ticket_id, "apr-2026-03-26-200");
+  assert.equal(persisted.reservations[0].approval_ticket_id, "apr-2026-03-26-200");
 });
