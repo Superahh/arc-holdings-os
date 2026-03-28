@@ -106,3 +106,4 @@ module.exports = {
     return inputPath.split(path.sep).join("/");
   },
 };
+
