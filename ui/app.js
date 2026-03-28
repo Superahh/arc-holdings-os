@@ -1830,11 +1830,13 @@ function renderOfficeCanvas() {
           data-dominant-opportunity-id="${escapeHtml(topOpportunity ? topOpportunity.opportunity_id : "")}"
         >
           <div class="room-plaque">
-            <div>
-              <p class="eyebrow">${escapeHtml(zone.title || "Office zone")}</p>
-              <h3>${escapeHtml(agentName)}</h3>
+            <div class="room-plaque-copy">
+              <p class="eyebrow room-zone-title">${escapeHtml(zone.title || "Office zone")}</p>
+              <h3 class="room-role-label">${escapeHtml(agentName)}</h3>
             </div>
-            <span class="status-pill ${formatStatusClass(visualState)}">${escapeHtml(formatVisualStateLabel(visualState))}</span>
+            <span class="status-pill room-state-pill ${formatStatusClass(visualState)}">${escapeHtml(
+              formatVisualStateLabel(visualState)
+            )}</span>
           </div>
 
           <div class="room-floor">
@@ -1919,9 +1921,11 @@ function renderOfficeCanvas() {
         .map(
           (handoff) => `
             <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"}">
-              <span class="office-handoff-route">${escapeHtml(handoff.from_zone)} -> ${escapeHtml(
-                handoff.to_zone
-              )}</span>
+              <div class="office-handoff-route">
+                <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
+                <span class="office-handoff-arrow" aria-hidden="true">→</span>
+                <span class="office-handoff-to">${escapeHtml(handoff.to_zone)}</span>
+              </div>
               <span class="office-handoff-label">${escapeHtml(handoff.label)}</span>
             </li>
           `

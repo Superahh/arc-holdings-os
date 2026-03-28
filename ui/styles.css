@@ -410,7 +410,7 @@ h2 {
 
 .office-layout {
   display: grid;
-  gap: 20px;
+  gap: 22px;
   grid-template-columns: 1fr 1fr;
   position: relative;
   z-index: 3;
@@ -442,6 +442,7 @@ h2 {
     rgba(249, 242, 231, 0.36);
   position: relative;
   z-index: 3;
+  padding: 10px;
 }
 
 .office-layout-wrap {
@@ -454,14 +455,18 @@ h2 {
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 4;
-  width: min(340px, 88%);
-  border-radius: 16px;
-  border: 1px solid rgba(20, 35, 34, 0.14);
-  background: rgba(250, 245, 236, 0.95);
-  box-shadow: 0 14px 24px rgba(20, 35, 34, 0.12);
-  padding: 12px 14px;
+  width: min(360px, 90%);
+  border-radius: 18px;
+  border: 1px solid rgba(20, 35, 34, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(250, 245, 236, 0.96)),
+    rgba(250, 245, 236, 0.96);
+  box-shadow:
+    0 16px 26px rgba(20, 35, 34, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  padding: 14px 16px;
   display: grid;
-  gap: 10px;
+  gap: 11px;
 }
 
 .office-board-summary strong {
@@ -479,11 +484,13 @@ h2 {
 }
 
 .office-handoffs-panel {
-  margin-top: 16px;
-  border: 1px solid rgba(20, 35, 34, 0.12);
-  border-radius: 16px;
-  background: rgba(255, 252, 245, 0.72);
-  padding: 14px 16px;
+  margin-top: 18px;
+  border: 1px solid rgba(20, 35, 34, 0.16);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 252, 245, 0.82)),
+    rgba(255, 252, 245, 0.8);
+  padding: 14px 16px 16px;
 }
 
 .office-handoff-list {
@@ -496,33 +503,57 @@ h2 {
 
 .office-handoff-row {
   display: grid;
-  gap: 3px;
+  gap: 4px;
   border: 1px solid rgba(20, 35, 34, 0.12);
-  border-radius: 10px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.7);
-  padding: 8px 10px;
+  padding: 9px 10px;
+}
+
+.office-handoff-row.is-active {
+  border-left: 4px solid rgba(47, 107, 79, 0.38);
 }
 
 .office-handoff-row.is-blocked {
-  border-color: rgba(163, 52, 52, 0.36);
-  background: rgba(250, 238, 238, 0.9);
+  border-color: rgba(163, 52, 52, 0.42);
+  border-left: 4px solid rgba(163, 52, 52, 0.5);
+  background: rgba(250, 238, 238, 0.92);
 }
 
 .office-handoff-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: "Consolas", "SFMono-Regular", monospace;
   font-size: 0.7rem;
-  color: var(--muted);
+  color: rgba(20, 35, 34, 0.74);
   letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.office-handoff-arrow {
+  color: rgba(20, 35, 34, 0.42);
+  font-size: 0.82rem;
+}
+
+.office-handoff-from,
+.office-handoff-to {
+  max-width: 24ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .office-handoff-label {
-  font-size: 0.8rem;
-  line-height: 1.3;
+  font-size: 0.81rem;
+  line-height: 1.32;
 }
 
 .office-chip {
   font-size: 0.68rem;
   line-height: 1.2;
+  border-width: 1px;
+  font-weight: 600;
 }
 
 .office-chip-blocked {
@@ -664,7 +695,7 @@ h2 {
   transform-origin: bottom left;
 }
 
-.zone-room-market_lab {
+.zone-room-market_floor {
   transform-origin: bottom right;
 }
 
@@ -688,15 +719,53 @@ h2 {
 }
 
 .state-family-neutral.zone-card {
-  border-color: rgba(20, 35, 34, 0.14);
+  border-color: rgba(20, 35, 34, 0.16);
 }
 
 .state-family-hold.zone-card {
-  border-color: rgba(124, 99, 30, 0.24);
+  border-color: rgba(124, 99, 30, 0.3);
 }
 
 .state-family-interrupt.zone-card {
-  border-color: rgba(163, 52, 52, 0.3);
+  border-color: rgba(163, 52, 52, 0.42);
+}
+
+.visual-state-idle.zone-card {
+  opacity: 0.9;
+}
+
+.visual-state-active.zone-card {
+  box-shadow:
+    0 20px 30px rgba(28, 38, 35, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.visual-state-reviewing.zone-card {
+  box-shadow:
+    0 20px 30px rgba(28, 38, 35, 0.09),
+    0 0 0 2px rgba(47, 107, 79, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.visual-state-waiting.zone-card {
+  opacity: 0.95;
+  box-shadow:
+    0 16px 24px rgba(28, 38, 35, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.visual-state-blocked.zone-card {
+  box-shadow:
+    0 20px 32px rgba(96, 28, 28, 0.12),
+    0 0 0 2px rgba(163, 52, 52, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36);
+}
+
+.visual-state-needs_approval.zone-card {
+  box-shadow:
+    0 20px 30px rgba(92, 73, 18, 0.11),
+    0 0 0 2px rgba(124, 99, 30, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36);
 }
 
 .zone-card-copper {
@@ -957,12 +1026,27 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
   margin: 14px 14px 0;
   padding: 12px 14px;
   border-radius: 16px;
   background: rgba(255, 252, 245, 0.84);
   border: 1px solid rgba(20, 35, 34, 0.1);
+}
+
+.room-zone-title {
+  font-size: 0.76rem;
+  letter-spacing: 0.11em;
+}
+
+.room-role-label {
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.room-state-pill {
+  margin-top: 2px;
+  font-weight: 600;
 }
 
 .room-floor {
@@ -1023,7 +1107,7 @@ h2 {
   clip-path: polygon(0 0, 100% 0, 100% 100%, 22px 100%, 0 calc(100% - 22px));
 }
 
-.zone-room-market_lab .room-floor {
+.zone-room-market_floor .room-floor {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
 }
 
@@ -1102,12 +1186,12 @@ h2 {
 }
 
 .zone-room-verification_bay .room-door-horizontal,
-.zone-room-market_lab .room-door-horizontal {
+.zone-room-market_floor .room-door-horizontal {
   left: 30%;
 }
 
 .zone-room-routing_desk .room-door-horizontal,
-.zone-room-market_lab .room-door-vertical {
+.zone-room-market_floor .room-door-vertical {
   left: auto;
   right: 24%;
   transform: none;
@@ -1167,7 +1251,7 @@ h2 {
   justify-content: flex-start;
 }
 
-.zone-room-market_lab .room-props {
+.zone-room-market_floor .room-props {
   justify-content: flex-end;
 }
 
@@ -1183,7 +1267,7 @@ h2 {
   border-radius: 6px 12px 12px 6px;
 }
 
-.zone-room-market_lab .room-prop {
+.zone-room-market_floor .room-prop {
   border-radius: 12px 6px 6px 12px;
 }
 
@@ -1279,17 +1363,17 @@ h2 {
   right: 28px;
 }
 
-.zone-room-market_lab .room-fixture-display {
+.zone-room-market_floor .room-fixture-display {
   top: 56px;
   left: 24px;
 }
 
-.zone-room-market_lab .room-fixture-table {
+.zone-room-market_floor .room-fixture-table {
   bottom: 74px;
   right: 24px;
 }
 
-.zone-room-market_lab .room-fixture-shelf {
+.zone-room-market_floor .room-fixture-shelf {
   top: 112px;
   right: 22px;
 }
@@ -1316,7 +1400,7 @@ h2 {
   margin-left: auto;
 }
 
-.zone-room-market_lab .workstation {
+.zone-room-market_floor .workstation {
   width: 72%;
 }
 
@@ -1349,7 +1433,7 @@ h2 {
   height: 68px;
 }
 
-.zone-room-market_lab .desk-surface {
+.zone-room-market_floor .desk-surface {
   width: 126px;
   height: 74px;
 }
@@ -1379,7 +1463,7 @@ h2 {
   left: calc(50% - 18px);
 }
 
-.zone-room-market_lab .desk-screen {
+.zone-room-market_floor .desk-screen {
   left: calc(50% + 14px);
 }
 
@@ -1409,7 +1493,7 @@ h2 {
   left: calc(50% + 8px);
 }
 
-.zone-room-market_lab .desk-chair {
+.zone-room-market_floor .desk-chair {
   left: calc(50% - 10px);
 }
 
@@ -1434,7 +1518,7 @@ h2 {
   left: calc(50% + 6px);
 }
 
-.zone-room-market_lab .agent-marker {
+.zone-room-market_floor .agent-marker {
   left: calc(50% - 6px);
 }
 
@@ -1481,18 +1565,20 @@ h2 {
 }
 
 .zone-room-verification_bay .agent-callout,
-.zone-room-market_lab .agent-callout {
+.zone-room-market_floor .agent-callout {
   left: 10px;
   right: auto;
 }
 
 .agent-callout strong {
-  font-size: 0.8rem;
+  font-size: 0.88rem;
+  line-height: 1.2;
 }
 
 .agent-callout span {
-  font-size: 0.72rem;
-  color: var(--muted);
+  font-size: 0.74rem;
+  color: rgba(20, 35, 34, 0.68);
+  line-height: 1.3;
 }
 
 .room-bubble {
@@ -1528,13 +1614,13 @@ h2 {
 }
 
 .zone-room-verification_bay .room-purpose,
-.zone-room-market_lab .room-purpose,
+.zone-room-market_floor .room-purpose,
 .zone-room-verification_bay .room-props,
-.zone-room-market_lab .room-props,
+.zone-room-market_floor .room-props,
 .zone-room-verification_bay .room-bubble,
-.zone-room-market_lab .room-bubble,
+.zone-room-market_floor .room-bubble,
 .zone-room-verification_bay .room-footer,
-.zone-room-market_lab .room-footer {
+.zone-room-market_floor .room-footer {
   margin-left: auto;
 }
 
@@ -1892,6 +1978,14 @@ h2 {
 .health-neutral {
   background: rgba(20, 35, 34, 0.08);
   color: var(--muted);
+}
+
+.room-state-pill.status-blocked {
+  border: 1px solid rgba(163, 52, 52, 0.36);
+}
+
+.room-state-pill.status-needs_approval {
+  border: 1px solid rgba(124, 99, 30, 0.34);
 }
 
 .workflow-rail {
@@ -2744,3 +2838,4 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
