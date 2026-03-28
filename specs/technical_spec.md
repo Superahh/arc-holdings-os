@@ -216,6 +216,7 @@ In v1, Board History:
 - does not require a generic event or persistence framework
 - is bounded to the most recent `4` posture snapshots
 - is ordered chronologically within that bounded window, oldest to newest
+- is a derived ledger-backed posture snapshot history, not a transition log, approval log, or standalone event stream
 
 Each history entry should remain narrow and explainable.
 
@@ -225,7 +226,17 @@ Suggested entry fields:
 - `capital_mode`
 - `rationale_snapshot`
 
-If explicit change events are not already available from runtime truth, the system may present the last `4` capital posture snapshots in chronological order rather than inventing synthetic transition events.
+An eligible history entry is any ledger-backed record from which `timestamp`, `capital_mode`, and `rationale_snapshot` can be derived.
+
+v1 inclusion rules:
+
+- if no eligible ledger-backed posture snapshots exist, history is empty
+- if fewer than `4` eligible snapshots exist, show all available entries
+- if more than `4` eligible snapshots exist, show the latest `4` eligible snapshots
+- consecutive entries with the same `capital_mode` remain visible
+- v1 performs no deduplication, collapsing, or material-change filtering
+
+If explicit change events are not already available from runtime truth, the system presents eligible ledger-backed posture snapshots in chronological order rather than inventing synthetic transition events.
 
 ## Approval model
 

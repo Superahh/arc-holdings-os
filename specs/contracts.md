@@ -190,7 +190,7 @@ Purpose: expose read-only capital posture and approved strategy priorities witho
 
 ### CapitalStrategyHistoryEntry
 
-Purpose: expose a bounded recent capital-posture snapshot in executive/company context without implying a generic event system.
+Purpose: expose a bounded recent capital-posture snapshot in executive/company context without implying a generic event system or transition log.
 
 ```json
 {

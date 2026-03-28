@@ -542,15 +542,12 @@ function buildCapitalStrategyBoardHistory(capitalControls, currentSnapshot) {
 
   const state = loadCapitalState(capitalControls.state_path);
   if (!Array.isArray(state.ledger) || !state.ledger.length) {
-    return [
-      {
-        timestamp: currentSnapshot.as_of,
-        capital_mode: currentSnapshot.capital_mode,
-        rationale_snapshot: currentSnapshot.capital_mode_reason,
-      },
-    ];
+    return [];
   }
 
+  // v1 board history is a bounded, chronological view over eligible ledger-backed
+  // posture snapshots. It intentionally does not deduplicate repeated modes or
+  // reinterpret snapshots as transition events.
   const recentEntries = state.ledger
     .slice(-CAPITAL_STRATEGY_BOARD_HISTORY_LIMIT)
     .sort((a, b) => Date.parse(a.timestamp || 0) - Date.parse(b.timestamp || 0));

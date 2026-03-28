@@ -230,6 +230,28 @@ test("buildUiSnapshot surfaces capital account snapshot when capital runtime sta
   );
 });
 
+test("buildUiSnapshot keeps capital board history empty when no eligible ledger-backed snapshots exist", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_strategy.capital_mode, "recovery");
+  assert.deepEqual(snapshot.capital_strategy.board_history, []);
+});
+
 test("buildUiSnapshot covers favored, neutral, and discouraged capital_fit stances", () => {
   const normalEnv = seedFixtureEnvironment({ enqueueApproval: false });
   runBootstrapAction({
@@ -460,6 +482,113 @@ test("buildUiSnapshot caps capital board history to the latest four snapshots in
   });
 
   assert.equal(snapshot.capital_strategy.board_history.length, 4);
+  assert.deepEqual(
+    snapshot.capital_strategy.board_history.map((entry) => entry.timestamp),
+    [
+      "2026-03-25T19:07:00.000Z",
+      "2026-03-25T19:08:00.000Z",
+      "2026-03-25T19:09:00.000Z",
+      "2026-03-25T19:10:00.000Z",
+    ]
+  );
+});
+
+test("buildUiSnapshot preserves repeated consecutive same-mode entries in capital board history", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+
+  const movements = [
+    { action: "deposit", amountUsd: 1200, now: "2026-03-25T19:06:00.000Z" },
+    { action: "adjustment", amountUsd: 25, now: "2026-03-25T19:07:00.000Z" },
+    { action: "adjustment", amountUsd: 25, now: "2026-03-25T19:08:00.000Z" },
+  ];
+
+  for (const movement of movements) {
+    runMovementAction({
+      statePath: env.capitalStatePath,
+      action: movement.action,
+      amountUsd: movement.amountUsd,
+      requestedBy: "owner_operator",
+      performedBy: "owner_operator",
+      authorizedBy: "owner_operator",
+      reason: `Board history repeat coverage for ${movement.action}.`,
+      notes: "",
+      opportunityId: null,
+      approvalTicketId: null,
+      requestId: null,
+      now: movement.now,
+    });
+  }
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:09:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_strategy.board_history.length, 3);
+  assert.deepEqual(
+    snapshot.capital_strategy.board_history.map((entry) => entry.capital_mode),
+    ["normal", "normal", "normal"]
+  );
+});
+
+test("buildUiSnapshot preserves repeated same-mode entries when capital board history is truncated", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+
+  const movements = [
+    { action: "deposit", amountUsd: 1500, now: "2026-03-25T19:06:00.000Z" },
+    { action: "adjustment", amountUsd: 20, now: "2026-03-25T19:07:00.000Z" },
+    { action: "adjustment", amountUsd: 20, now: "2026-03-25T19:08:00.000Z" },
+    { action: "adjustment", amountUsd: 20, now: "2026-03-25T19:09:00.000Z" },
+    { action: "adjustment", amountUsd: 20, now: "2026-03-25T19:10:00.000Z" },
+  ];
+
+  for (const movement of movements) {
+    runMovementAction({
+      statePath: env.capitalStatePath,
+      action: movement.action,
+      amountUsd: movement.amountUsd,
+      requestedBy: "owner_operator",
+      performedBy: "owner_operator",
+      authorizedBy: "owner_operator",
+      reason: `Board history truncation repeat coverage for ${movement.action}.`,
+      notes: "",
+      opportunityId: null,
+      approvalTicketId: null,
+      requestId: null,
+      now: movement.now,
+    });
+  }
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:11:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_strategy.board_history.length, 4);
+  assert.deepEqual(
+    snapshot.capital_strategy.board_history.map((entry) => entry.capital_mode),
+    ["normal", "normal", "normal", "normal"]
+  );
   assert.deepEqual(
     snapshot.capital_strategy.board_history.map((entry) => entry.timestamp),
     [
