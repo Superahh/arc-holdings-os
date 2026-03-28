@@ -421,6 +421,22 @@ test("buildUiSnapshot surfaces bounded capital board history from recent ledger 
   assert.equal(snapshot.capital_strategy.board_history.length, 2);
   assert.equal(snapshot.capital_strategy.board_history[0].timestamp, "2026-03-25T19:06:00.000Z");
   assert.equal(snapshot.capital_strategy.board_history[1].timestamp, "2026-03-25T19:07:00.000Z");
+  assert.match(
+    snapshot.capital_strategy.board_history[0].rationale_snapshot,
+    /supporting normal operating posture/i
+  );
+  assert.doesNotMatch(
+    snapshot.capital_strategy.board_history[0].rationale_snapshot,
+    /Seed account for board history coverage/i
+  );
+  assert.match(
+    snapshot.capital_strategy.board_history[1].rationale_snapshot,
+    /tighter operating headroom|tighter relative to exposure\/reserve posture|recovery posture|normal operating posture/i
+  );
+  assert.doesNotMatch(
+    snapshot.capital_strategy.board_history[1].rationale_snapshot,
+    /Reserve capital for approved operating exposure/i
+  );
   assert.equal(
     snapshot.capital_strategy.board_history[1].capital_mode,
     snapshot.capital_strategy.capital_mode

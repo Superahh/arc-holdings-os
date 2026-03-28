@@ -228,6 +228,8 @@ Suggested entry fields:
 
 An eligible history entry is any ledger-backed record from which `timestamp`, `capital_mode`, and `rationale_snapshot` can be derived.
 
+In v1, `rationale_snapshot` is historically derived text, not preserved historical explanation text. It is re-derived at snapshot/render time from the historical ledger-backed posture shape represented by that entry.
+
 v1 inclusion rules:
 
 - if no eligible ledger-backed posture snapshots exist, history is empty
@@ -235,6 +237,11 @@ v1 inclusion rules:
 - if more than `4` eligible snapshots exist, show the latest `4` eligible snapshots
 - consecutive entries with the same `capital_mode` remain visible
 - v1 performs no deduplication, collapsing, or material-change filtering
+
+Consequence:
+
+- if rationale derivation rules change later, wording for older history entries may also change even when the underlying ledger-backed posture data does not
+- v1 does not introduce immutable rationale storage, backfill, or migration for board-history entries
 
 If explicit change events are not already available from runtime truth, the system presents eligible ledger-backed posture snapshots in chronological order rather than inventing synthetic transition events.
 

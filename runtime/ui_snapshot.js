@@ -521,6 +521,8 @@ function buildHistoricalCapitalRationale(accountSnapshot, capitalMode) {
   const reserved = accountSnapshot.reserved_usd || 0;
   const committed = accountSnapshot.committed_usd || 0;
 
+  // v1 history rationale is derived from historical posture shape at snapshot time.
+  // It is not preserved narrative text captured alongside the original ledger entry.
   if (capitalMode === "recovery") {
     return `Recorded posture showed ${available} USD available with ${reserved} USD reserved and ${committed} USD committed, indicating a recovery posture.`;
   }
