@@ -119,3 +119,19 @@ test("office canvas renders company board summary panel", () => {
   assert.match(source, /office-board-summary/);
   assert.match(source, /officeViewBoardSummary\.key_counts/);
 });
+
+test("office canvas derives emphasis context from existing selection state", () => {
+  const source = readUiAppSource();
+  assert.match(source, /function deriveOfficeSelectionContext/);
+  assert.match(source, /const selected = state\.selected/);
+  assert.match(source, /zone\.dominant_item_id === selected\.id/);
+  assert.match(source, /zone\.role_label === selected\.id/);
+});
+
+test("office canvas applies contextual emphasis hooks to zones and handoff rows", () => {
+  const source = readUiAppSource();
+  assert.match(source, /is-context-zone/);
+  assert.match(source, /is-context-dim/);
+  assert.match(source, /is-context-related/);
+  assert.match(source, /is-context-primary/);
+});

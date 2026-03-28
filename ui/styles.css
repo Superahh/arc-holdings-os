@@ -520,6 +520,26 @@ h2 {
   background: rgba(250, 238, 238, 0.92);
 }
 
+.office-handoff-row.is-context-related {
+  border-color: rgba(20, 35, 34, 0.28);
+}
+
+.office-handoff-row.is-context-primary {
+  border-left-width: 5px;
+  border-left-color: rgba(175, 95, 45, 0.72);
+  background: linear-gradient(180deg, rgba(175, 95, 45, 0.12), rgba(255, 255, 255, 0.82));
+  box-shadow: 0 10px 18px rgba(20, 35, 34, 0.08);
+}
+
+.office-handoff-row.is-context-primary.is-blocked {
+  border-left-color: rgba(163, 52, 52, 0.66);
+  background: linear-gradient(180deg, rgba(163, 52, 52, 0.14), rgba(250, 238, 238, 0.9));
+}
+
+.office-handoff-row.is-context-dim {
+  opacity: 0.72;
+}
+
 .office-handoff-route {
   display: inline-flex;
   align-items: center;
@@ -711,6 +731,35 @@ h2 {
 .queue-item.is-selected {
   border-color: rgba(175, 95, 45, 0.55);
   background: linear-gradient(180deg, rgba(175, 95, 45, 0.16), rgba(255, 255, 255, 0.66));
+}
+
+.zone-card.is-context-zone {
+  border-color: rgba(175, 95, 45, 0.7);
+  box-shadow:
+    0 22px 32px rgba(28, 38, 35, 0.13),
+    0 0 0 2px rgba(175, 95, 45, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.zone-card.is-context-zone .zone-atmosphere-label {
+  color: rgba(20, 35, 34, 0.92);
+}
+
+.zone-card.is-context-zone .zone-atmosphere-detail {
+  color: rgba(20, 35, 34, 0.82);
+}
+
+.zone-card.is-context-zone .room-state-pill {
+  box-shadow: 0 0 0 2px rgba(175, 95, 45, 0.2);
+}
+
+.zone-card.is-context-dim {
+  opacity: 0.86;
+  filter: saturate(0.88);
+}
+
+.zone-card.is-context-dim .office-chip {
+  opacity: 0.98;
 }
 
 .opportunity-chip.is-selected {

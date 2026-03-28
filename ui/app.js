@@ -1321,6 +1321,60 @@ function buildZoneSignalClasses(agent, activeTransitions, renderableHandoffs) {
   return classes.join(" ");
 }
 
+function deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs) {
+  const selected = state.selected;
+  if (!selected || !Array.isArray(officeViewZones) || !officeViewZones.length) {
+    return {
+      hasMeaningfulSelectionContext: false,
+      dominantZoneId: null,
+      primaryHandoffIndex: -1,
+      relatedHandoffIndexes: new Set(),
+    };
+  }
+
+  let dominantZoneId = null;
+  if (selected.type === "opportunity" && selected.id) {
+    const matchingZone = officeViewZones.find((zone) => zone.dominant_item_id === selected.id);
+    dominantZoneId = matchingZone ? matchingZone.id : null;
+  } else if (selected.type === "agent" && selected.id) {
+    const matchingZone = officeViewZones.find((zone) => zone.role_label === selected.id);
+    dominantZoneId = matchingZone ? matchingZone.id : null;
+  }
+
+  if (!dominantZoneId && selected.type === "opportunity" && selected.id) {
+    const selectedOpportunity = findOpportunityById(selected.id);
+    const ownerAgent = opportunityTaskOwner(selectedOpportunity);
+    const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
+    dominantZoneId = ownerPresence && ownerPresence.zone_id ? ownerPresence.zone_id : null;
+  }
+
+  const hasMeaningfulSelectionContext = Boolean(dominantZoneId);
+  const relatedHandoffIndexes = new Set();
+  let primaryHandoffIndex = -1;
+
+  if (hasMeaningfulSelectionContext) {
+    for (let index = 0; index < (officeViewHandoffs || []).length; index += 1) {
+      const handoff = officeViewHandoffs[index];
+      if (!handoff) {
+        continue;
+      }
+      if (handoff.from_zone === dominantZoneId || handoff.to_zone === dominantZoneId) {
+        relatedHandoffIndexes.add(index);
+        if (primaryHandoffIndex < 0 || handoff.status === "blocked") {
+          primaryHandoffIndex = index;
+        }
+      }
+    }
+  }
+
+  return {
+    hasMeaningfulSelectionContext,
+    dominantZoneId,
+    primaryHandoffIndex,
+    relatedHandoffIndexes,
+  };
+}
+
 function buildZoneAnchorLookup() {
   const lookup = new Map();
   const zones = state.snapshot.office.zone_anchors || [];
@@ -1748,6 +1802,7 @@ function renderOfficeCanvas() {
   const topTask = state.snapshot.attention.top_task;
   const activeTransitions = getActiveTransitionState();
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
+  const selectionContext = deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs);
   const flowEventsHtml = renderFlowEvents(activeTransitions);
 
   const floorBanner = `
@@ -1796,6 +1851,10 @@ function renderOfficeCanvas() {
           state.selected.type === "opportunity" &&
           topOpportunity &&
           state.selected.id === topOpportunity.opportunity_id);
+      const isContextZone =
+        selectionContext.hasMeaningfulSelectionContext &&
+        selectionContext.dominantZoneId === zone.id;
+      const isContextDim = selectionContext.hasMeaningfulSelectionContext && !isContextZone;
       const accentToken = (presence && presence.accent_token) || "slate";
       const avatarMonogram =
         (zone.avatar_label || agentName || "AG")
@@ -1823,7 +1882,7 @@ function renderOfficeCanvas() {
             normalizeToken(zone.id)
           )} ${formatVisualStateFamilyClass(visualState)} ${formatVisualStateClass(
             visualState
-          )} ${isSelected ? "is-selected" : ""} ${signalClasses}"
+          )} ${isSelected ? "is-selected" : ""} ${isContextZone ? "is-context-zone" : ""} ${isContextDim ? "is-context-dim" : ""} ${signalClasses}"
           data-type="agent"
           data-id="${escapeHtml(agentName)}"
           data-zone-id="${escapeHtml(zone.id)}"
@@ -1919,8 +1978,8 @@ function renderOfficeCanvas() {
   const handoffRowsHtml = officeViewHandoffs.length
     ? officeViewHandoffs
         .map(
-          (handoff) => `
-            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"}">
+          (handoff, index) => `
+            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""}">
               <div class="office-handoff-route">
                 <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
                 <span class="office-handoff-arrow" aria-hidden="true">→</span>
