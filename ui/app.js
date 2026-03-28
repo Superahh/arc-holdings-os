@@ -938,29 +938,141 @@ function isFreshMovementSignal(signal) {
   return ageMs <= maxAgeMs;
 }
 
-function ensureSelection() {
-  if (!state.snapshot) {
-    state.selected = null;
-    return;
+function resolveSelectionForSnapshot(nextSnapshot, currentSelected, previousSnapshot = null) {
+  if (!nextSnapshot) {
+    return null;
   }
 
-  if (state.selected && state.selected.type === "agent" && findAgentByName(state.selected.id)) {
-    return;
+  const nextOpportunities = nextSnapshot.workflow && nextSnapshot.workflow.opportunities
+    ? nextSnapshot.workflow.opportunities
+    : [];
+  const nextAgentCards = nextSnapshot.office && nextSnapshot.office.agent_status_cards
+    ? nextSnapshot.office.agent_status_cards
+    : [];
+  const nextPresence = nextSnapshot.office && nextSnapshot.office.presence
+    ? nextSnapshot.office.presence
+    : [];
+  const nextOfficeViewZones =
+    nextSnapshot.office &&
+    nextSnapshot.office.office_view &&
+    Array.isArray(nextSnapshot.office.office_view.zones)
+      ? nextSnapshot.office.office_view.zones
+      : [];
+  const hasOpportunity = (opportunityId) =>
+    nextOpportunities.some(
+      (entry) => entry && entry.opportunity_id === opportunityId
+    );
+  const hasAgent = (agentName) =>
+    nextAgentCards.some((card) => card && card.agent === agentName);
+
+  if (
+    currentSelected &&
+    currentSelected.type === "opportunity" &&
+    currentSelected.id &&
+    hasOpportunity(currentSelected.id)
+  ) {
+    return currentSelected;
   }
-  if (state.selected && state.selected.type === "opportunity" && findOpportunityById(state.selected.id)) {
-    return;
+  if (
+    currentSelected &&
+    currentSelected.type === "agent" &&
+    currentSelected.id &&
+    hasAgent(currentSelected.id)
+  ) {
+    return currentSelected;
   }
 
-  const topOpportunity =
-    (state.snapshot.attention.top_task && state.snapshot.attention.top_task.opportunity_id) ||
-    (state.snapshot.workflow.opportunities[0] && state.snapshot.workflow.opportunities[0].opportunity_id) ||
-    null;
-
-  state.selected = topOpportunity
-    ? { type: "opportunity", id: topOpportunity }
-    : state.snapshot.office.agent_status_cards[0]
-      ? { type: "agent", id: state.snapshot.office.agent_status_cards[0].agent }
+  if (
+    currentSelected &&
+    currentSelected.type === "opportunity" &&
+    currentSelected.id &&
+    previousSnapshot &&
+    previousSnapshot.workflow &&
+    Array.isArray(previousSnapshot.workflow.opportunities)
+  ) {
+    const previousOpportunity =
+      previousSnapshot.workflow.opportunities.find(
+        (entry) => entry && entry.opportunity_id === currentSelected.id
+      ) || null;
+    const previousOwner = opportunityTaskOwner(previousOpportunity);
+    if (previousOwner) {
+      const continuityByOwner = nextOpportunities.find(
+        (entry) => opportunityTaskOwner(entry) === previousOwner
+      );
+      if (continuityByOwner && continuityByOwner.opportunity_id) {
+        return { type: "opportunity", id: continuityByOwner.opportunity_id };
+      }
+    }
+    const previousLaneStage = previousOpportunity
+      ? mapStatusToLaneStage(previousOpportunity.current_status)
       : null;
+    if (previousLaneStage) {
+      const continuityByLane = nextOpportunities.find(
+        (entry) => mapStatusToLaneStage(entry.current_status) === previousLaneStage
+      );
+      if (continuityByLane && continuityByLane.opportunity_id) {
+        return { type: "opportunity", id: continuityByLane.opportunity_id };
+      }
+    }
+  }
+
+  if (
+    currentSelected &&
+    currentSelected.type === "agent" &&
+    currentSelected.id &&
+    previousSnapshot &&
+    previousSnapshot.office &&
+    Array.isArray(previousSnapshot.office.presence)
+  ) {
+    const previousPresence =
+      previousSnapshot.office.presence.find(
+        (entry) => entry && entry.agent === currentSelected.id
+      ) || null;
+    if (previousPresence && previousPresence.zone_id) {
+      const continuityPresence = nextPresence.find(
+        (entry) => entry && entry.zone_id === previousPresence.zone_id
+      );
+      if (continuityPresence && continuityPresence.agent && hasAgent(continuityPresence.agent)) {
+        return { type: "agent", id: continuityPresence.agent };
+      }
+
+      const continuityZone = nextOfficeViewZones.find(
+        (zone) => zone && zone.id === previousPresence.zone_id
+      );
+      if (
+        continuityZone &&
+        continuityZone.dominant_item_id &&
+        hasOpportunity(continuityZone.dominant_item_id)
+      ) {
+        return { type: "opportunity", id: continuityZone.dominant_item_id };
+      }
+    }
+  }
+
+  const topOpportunityId =
+    nextSnapshot.attention &&
+    nextSnapshot.attention.top_task &&
+    nextSnapshot.attention.top_task.opportunity_id &&
+    hasOpportunity(nextSnapshot.attention.top_task.opportunity_id)
+      ? nextSnapshot.attention.top_task.opportunity_id
+      : null;
+  if (topOpportunityId) {
+    return { type: "opportunity", id: topOpportunityId };
+  }
+
+  if (nextOpportunities[0] && nextOpportunities[0].opportunity_id) {
+    return { type: "opportunity", id: nextOpportunities[0].opportunity_id };
+  }
+
+  if (nextAgentCards[0] && nextAgentCards[0].agent) {
+    return { type: "agent", id: nextAgentCards[0].agent };
+  }
+
+  return null;
+}
+
+function ensureSelection() {
+  state.selected = resolveSelectionForSnapshot(state.snapshot, state.selected, null);
 }
 
 function setSelection(type, id) {
@@ -3007,6 +3119,7 @@ async function loadSnapshot() {
     }
     const nextSnapshot = await response.json();
     const transitions = computeTransitionState(state.snapshot, nextSnapshot);
+    state.selected = resolveSelectionForSnapshot(nextSnapshot, state.selected, state.snapshot);
     state.snapshot = nextSnapshot;
     setTransitionState(transitions);
     render();

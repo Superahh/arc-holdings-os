@@ -175,3 +175,23 @@ test("office board summary emits click-through hooks using existing opportunity 
   assert.match(source, /title=\"\$\{escapeHtml\(\"Focus related opportunity\"\)\}\"/);
   assert.match(source, /return `<span class=\"priority-pill\">\$\{pillLabel\}<\/span>`/);
 });
+
+test("selection reconciliation preserves valid target and falls back deterministically", () => {
+  const source = readUiAppSource();
+  assert.match(source, /function resolveSelectionForSnapshot/);
+  assert.match(source, /currentSelected\.type === "opportunity"[\s\S]*hasOpportunity\(currentSelected\.id\)/);
+  assert.match(source, /currentSelected\.type === "agent"[\s\S]*hasAgent\(currentSelected\.id\)/);
+  assert.match(source, /continuityByOwner/);
+  assert.match(source, /continuityByLane/);
+  assert.match(source, /topOpportunityId/);
+  assert.match(source, /nextOpportunities\[0\]/);
+  assert.match(source, /nextAgentCards\[0\]/);
+});
+
+test("loadSnapshot reconciles selection before swapping snapshot to avoid focus churn", () => {
+  const source = readUiAppSource();
+  assert.match(
+    source,
+    /state\.selected = resolveSelectionForSnapshot\(nextSnapshot, state\.selected, state\.snapshot\);\s*state\.snapshot = nextSnapshot;/
+  );
+});
