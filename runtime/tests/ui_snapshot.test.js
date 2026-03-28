@@ -167,6 +167,11 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.events.length >= 3, true);
   assert.equal(snapshot.office.flow_events.length, 1);
   assert.equal(snapshot.office.company_board_snapshot.approvals_waiting, 1);
+  assert.ok(snapshot.office.office_view);
+  assert.equal(Array.isArray(snapshot.office.office_view.zones), true);
+  assert.equal(snapshot.office.office_view.zones.length, 4);
+  assert.equal(Array.isArray(snapshot.office.office_view.handoffs), true);
+  assert.ok(snapshot.office.office_view.company_board_summary);
   assert.equal(snapshot.capital_controls.status, "manual_only");
   assert.equal(snapshot.capital_strategy, null);
   assert.equal(snapshot.workflow.opportunities.length, 1);
@@ -247,6 +252,60 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
       true,
       `Unexpected visual_state in office presence: ${presence.visual_state}`
     );
+  }
+  const expectedZones = [
+    { id: "executive-suite", title: "Decision Desk", role_label: "CEO Agent" },
+    {
+      id: "verification-bay",
+      title: "Sourcing & Verification",
+      role_label: "Risk and Compliance Agent",
+    },
+    {
+      id: "routing-desk",
+      title: "Ops & Diagnostics",
+      role_label: "Operations Coordinator Agent",
+    },
+    {
+      id: "market-floor",
+      title: "Sales & Market",
+      role_label: "Department Operator Agent",
+    },
+  ];
+  assert.deepEqual(
+    snapshot.office.office_view.zones.map((zone) => ({
+      id: zone.id,
+      title: zone.title,
+      role_label: zone.role_label,
+    })),
+    expectedZones
+  );
+  for (const zone of snapshot.office.office_view.zones) {
+    assert.equal(typeof zone.avatar_label, "string");
+    assert.equal(zone.avatar_label.length > 0, true);
+    assert.equal(typeof zone.current_focus, "string");
+    assert.equal(zone.current_focus.length > 0, true);
+    assert.equal(typeof zone.now_summary, "string");
+    assert.equal(zone.now_summary.length > 0, true);
+    assert.equal(allowedVisualStates.has(zone.state), true);
+  }
+  assert.equal(
+    snapshot.office.office_view.company_board_summary.key_counts.length >= 3,
+    true
+  );
+  assert.equal(
+    typeof snapshot.office.office_view.company_board_summary.headline === "string" &&
+      snapshot.office.office_view.company_board_summary.headline.length > 0,
+    true
+  );
+  for (const handoff of snapshot.office.office_view.handoffs) {
+    assert.equal(typeof handoff.from_zone, "string");
+    assert.equal(handoff.from_zone.length > 0, true);
+    assert.equal(typeof handoff.to_zone, "string");
+    assert.equal(handoff.to_zone.length > 0, true);
+    assert.equal(typeof handoff.status, "string");
+    assert.equal(new Set(["active", "blocked"]).has(handoff.status), true);
+    assert.equal(typeof handoff.label, "string");
+    assert.equal(handoff.label.length > 0, true);
   }
 
   for (const zone of snapshot.office.zone_anchors) {

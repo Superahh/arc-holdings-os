@@ -1899,6 +1899,106 @@ function buildOfficeHandoffSignals(opportunities) {
   return signals;
 }
 
+function normalizeOfficeViewState(value) {
+  const allowed = new Set([
+    "idle",
+    "active",
+    "reviewing",
+    "waiting",
+    "blocked",
+    "needs_approval",
+  ]);
+  return allowed.has(value) ? value : "idle";
+}
+
+function buildOfficeViewModel(
+  officePresence,
+  officeHandoffSignals,
+  companyBoardSnapshot,
+  kpis,
+  attention
+) {
+  const zoneOrder = [
+    { id: "executive-suite", title: "Decision Desk", role_label: "CEO Agent" },
+    {
+      id: "verification-bay",
+      title: "Sourcing & Verification",
+      role_label: "Risk and Compliance Agent",
+    },
+    {
+      id: "routing-desk",
+      title: "Ops & Diagnostics",
+      role_label: "Operations Coordinator Agent",
+    },
+    {
+      id: "market-floor",
+      title: "Sales & Market",
+      role_label: "Department Operator Agent",
+    },
+  ];
+  const presenceByZone = new Map((officePresence || []).map((entry) => [entry.zone_id, entry]));
+
+  const zones = zoneOrder.map((zone) => {
+    const presence = presenceByZone.get(zone.id) || null;
+    const nowSummary = presence
+      ? presence.bubble_text || presence.headline || "Monitoring lane workload."
+      : "No active lane signal.";
+    const isBlocked = presence && normalizeOfficeViewState(presence.visual_state) === "blocked";
+    const needsApproval =
+      presence && normalizeOfficeViewState(presence.visual_state) === "needs_approval";
+    const blockerText = isBlocked ? nowSummary : null;
+    const approvalText = needsApproval ? nowSummary : null;
+
+    return {
+      id: zone.id,
+      title: zone.title,
+      role_label: zone.role_label,
+      avatar_label: presence ? presence.agent : zone.role_label,
+      state: normalizeOfficeViewState(presence ? presence.visual_state : "idle"),
+      current_focus: presence
+        ? presence.opportunity_id
+          ? `Focus ${presence.opportunity_id}`
+          : "Monitoring owned lane."
+        : "Monitoring owned lane.",
+      now_summary: nowSummary,
+      blocker_text: blockerText,
+      approval_text: approvalText,
+      dominant_item_id: presence ? presence.opportunity_id || null : null,
+    };
+  });
+
+  const handoffs = (officeHandoffSignals || []).map((signal) => ({
+    from_zone: signal.from_zone_id,
+    to_zone: signal.to_zone_id,
+    status: signal.blocking_count > 0 ? "blocked" : "active",
+    label:
+      signal.next_action && typeof signal.next_action === "string"
+        ? signal.next_action
+        : "Ownership transfer in progress.",
+  }));
+
+  const companyBoardSummary = {
+    headline:
+      (attention && attention.top_task && attention.top_task.next_action) ||
+      "Company board is clear for normal monitoring.",
+    key_counts: [
+      { label: "Active", value: kpis.active_opportunities },
+      { label: "Blocked", value: kpis.blocked_opportunities },
+      { label: "Approvals", value: kpis.approvals_waiting },
+    ],
+    alert_text:
+      companyBoardSnapshot && Array.isArray(companyBoardSnapshot.alerts)
+        ? companyBoardSnapshot.alerts[0] || null
+        : null,
+  };
+
+  return {
+    zones,
+    handoffs,
+    company_board_summary: companyBoardSummary,
+  };
+}
+
 function buildUiSnapshot(options = {}) {
   const queuePath = path.resolve(options.queuePath || path.join(__dirname, "state", "approval_queue.json"));
   const workflowStatePath = path.resolve(
@@ -1980,6 +2080,13 @@ function buildUiSnapshot(options = {}) {
     kpis,
     nowIso
   );
+  const officeView = buildOfficeViewModel(
+    officePresence,
+    officeHandoffSignals,
+    companyBoardSnapshot,
+    kpis,
+    statusSnapshot.attention
+  );
 
   return {
     schema_version: "v1",
@@ -2027,6 +2134,7 @@ function buildUiSnapshot(options = {}) {
       events: officeEvents,
       flow_events: officeFlowEvents,
       company_board_snapshot: companyBoardSnapshot,
+      office_view: officeView,
     },
     awaiting_tasks: statusSnapshot.awaiting_tasks,
     capital_controls: capitalControls,
@@ -2046,6 +2154,7 @@ module.exports = {
   buildOfficeEvents,
   buildOfficeMovementIntents,
   buildOfficeFlowEvents,
+  buildOfficeViewModel,
   buildCompanyBoardSnapshot,
   buildKpis,
   buildCapitalStrategySnapshot,

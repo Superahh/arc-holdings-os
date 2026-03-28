@@ -131,6 +131,19 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.office.events[0].lane_stage, "approval");
     assert.equal(snapshot.office.flow_events[0].action, "status_update");
     assert.match(snapshot.office.presence[1].bubble_text, /purchase recommendation remains blocked/i);
+    assert.ok(snapshot.office.office_view);
+    assert.equal(Array.isArray(snapshot.office.office_view.zones), true);
+    assert.equal(snapshot.office.office_view.zones.length, 4);
+    assert.deepEqual(
+      snapshot.office.office_view.zones.map((zone) => zone.id),
+      ["executive-suite", "verification-bay", "routing-desk", "market-floor"]
+    );
+    assert.equal(
+      typeof snapshot.office.office_view.company_board_summary.headline === "string" &&
+        snapshot.office.office_view.company_board_summary.headline.length > 0,
+      true
+    );
+    assert.equal(Array.isArray(snapshot.office.office_view.handoffs), true);
     assert.equal(
       snapshot.workflow.opportunities[0].operational_recommendation.recommendation_type,
       "buy_after_verification"
