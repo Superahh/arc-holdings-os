@@ -678,8 +678,8 @@ h2 {
 
 .office-room .avatar-body {
   position: relative;
-  width: 46px;
-  height: 70px;
+  width: 60px;
+  height: 78px;
   display: grid;
   justify-items: center;
   align-content: start;
@@ -688,83 +688,27 @@ h2 {
 
 .office-room .avatar-body::before,
 .office-room .avatar-body::after {
+  content: none;
+}
+
+.office-room .avatar-character::before {
   content: "";
   position: absolute;
-  top: 28px;
-  width: 10px;
-  height: 8px;
-  border-top: 2px solid rgba(20, 35, 34, 0.22);
-}
-
-.office-room .avatar-body::before {
-  left: 1px;
-  transform: skewY(-22deg);
-}
-
-.office-room .avatar-body::after {
-  right: 1px;
-  transform: skewY(22deg);
+  inset: 0;
+  background: center bottom / contain no-repeat var(--avatar-sprite);
+  filter: drop-shadow(0 2px 0 rgba(20, 35, 34, 0.12));
 }
 
 .office-room .avatar-head {
-  position: relative;
-  width: 24px;
-  height: 22px;
-  border-radius: 4px 4px 5px 5px;
-  border: 2px solid rgba(20, 35, 34, 0.24);
-  background:
-    linear-gradient(180deg, #f7e5d4 0 35%, #f2dcc7 35% 100%);
-  box-shadow: inset 0 -2px 0 rgba(20, 35, 34, 0.06);
+  display: none;
 }
 
 .office-room .avatar-torso {
-  position: relative;
-  margin-top: 1px;
-  width: 30px;
-  height: 32px;
-  border-radius: 5px 5px 4px 4px;
-  border: 2px solid rgba(20, 35, 34, 0.26);
-  background: rgba(20, 35, 34, 0.82);
-  box-shadow:
-    inset 0 -3px 0 rgba(20, 35, 34, 0.16),
-    inset 0 2px 0 rgba(255, 255, 255, 0.12);
+  display: none;
 }
 
 .office-room .avatar-limb {
-  position: absolute;
-  width: 7px;
-  height: 18px;
-  bottom: 1px;
-  border-radius: 2px;
-  border: 1px solid rgba(20, 35, 34, 0.22);
-  background: rgba(20, 35, 34, 0.68);
-  box-shadow: inset 0 -2px 0 rgba(20, 35, 34, 0.12);
-}
-
-.office-room .avatar-limb-left {
-  left: 11px;
-  transform: rotate(5deg);
-}
-
-.office-room .avatar-limb-right {
-  right: 11px;
-  transform: rotate(-5deg);
-}
-
-.avatar-accent-copper .avatar-torso {
-  background: rgba(175, 95, 45, 0.86);
-}
-
-.avatar-accent-olive .avatar-torso {
-  background: rgba(104, 114, 61, 0.86);
-}
-
-.avatar-accent-umber .avatar-torso {
-  background: rgba(145, 101, 58, 0.86);
-}
-
-.avatar-accent-forest .avatar-torso {
-  background: rgba(47, 107, 79, 0.86);
+  display: none;
 }
 
 .avatar--ceo_idle_idle .avatar-ring,
@@ -779,30 +723,8 @@ h2 {
     linear-gradient(180deg, rgba(175, 95, 45, 0.1), rgba(20, 35, 34, 0.02));
 }
 
-.zone-room-executive_suite .avatar-head::before {
-  content: "";
-  position: absolute;
-  top: -3px;
-  left: 2px;
-  width: 16px;
-  height: 5px;
-  border-radius: 3px 3px 0 0;
-  background: rgba(20, 35, 34, 0.78);
-}
-
-.zone-room-executive_suite .avatar-torso {
-  width: 28px;
-  border-radius: 4px;
-}
-
-.zone-room-executive_suite .avatar-torso::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  top: 3px;
-  width: 4px;
-  height: 22px;
-  background: rgba(255, 255, 255, 0.22);
+.zone-room-executive_suite .avatar-character {
+  --avatar-sprite: url("./assets/sprites/executive-operator.svg");
 }
 
 .zone-room-verification_bay .avatar {
@@ -811,22 +733,8 @@ h2 {
     linear-gradient(180deg, rgba(104, 114, 61, 0.1), rgba(20, 35, 34, 0.02));
 }
 
-.zone-room-verification_bay .avatar-head::after {
-  content: "";
-  position: absolute;
-  right: -6px;
-  top: 8px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid rgba(104, 114, 61, 0.78);
-  border-radius: 999px;
-  background: rgba(255, 252, 245, 0.92);
-}
-
-.zone-room-verification_bay .avatar-torso {
-  width: 26px;
-  height: 30px;
-  border-radius: 4px 4px 6px 6px;
+.zone-room-verification_bay .avatar-character {
+  --avatar-sprite: url("./assets/sprites/verification-operator.svg");
 }
 
 .zone-room-routing_desk .avatar {
@@ -835,21 +743,8 @@ h2 {
     linear-gradient(180deg, rgba(145, 101, 58, 0.1), rgba(20, 35, 34, 0.02));
 }
 
-.zone-room-routing_desk .avatar-body {
-  transform: translateX(1px);
-}
-
-.zone-room-routing_desk .avatar-limb-left {
-  transform: rotate(14deg);
-}
-
-.zone-room-routing_desk .avatar-limb-right {
-  transform: rotate(-14deg);
-}
-
-.zone-room-routing_desk .avatar-body::after {
-  right: -2px;
-  width: 12px;
+.zone-room-routing_desk .avatar-character {
+  --avatar-sprite: url("./assets/sprites/routing-operator.svg");
 }
 
 .zone-room-market_floor .avatar {
@@ -858,33 +753,17 @@ h2 {
     linear-gradient(180deg, rgba(47, 107, 79, 0.12), rgba(20, 35, 34, 0.02));
 }
 
-.zone-room-market_floor .avatar-head::after {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 9px;
-  width: 9px;
-  height: 6px;
-  border-radius: 2px;
-  background: rgba(47, 107, 79, 0.86);
+.zone-room-market_floor .avatar-character {
+  --avatar-sprite: url("./assets/sprites/market-operator.svg");
 }
 
-.zone-room-market_floor .avatar-torso {
-  width: 32px;
-  border-radius: 6px 6px 4px 4px;
+.motion-blocked .avatar-character::before {
+  transform: rotate(-2deg) translateX(-1px);
 }
 
-.zone-room-market_floor .avatar-torso::before {
-  content: "";
-  position: absolute;
-  right: -5px;
-  top: 8px;
-  width: 8px;
-  height: 10px;
-  border: 2px solid rgba(47, 107, 79, 0.72);
-  border-left-width: 1px;
-  border-radius: 2px;
-  background: rgba(255, 252, 245, 0.92);
+.motion-needs_approval .avatar-character::before,
+.motion-awaiting_approval .avatar-character::before {
+  transform: translateY(-1px);
 }
 
 .thought-bubble {
