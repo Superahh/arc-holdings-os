@@ -903,8 +903,10 @@ function buildOpportunityCardV1Model(entry) {
   const execution = entry.operational_execution || null;
   const market = entry.operational_market || null;
   const route = entry.operational_route || null;
+  const intakePriority = entry.operational_intake_priority || null;
   const sellthrough = entry.operational_sellthrough || null;
   const capacity = entry.operational_capacity || null;
+  const quality = entry.operational_opportunity_quality || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoffPacket && handoffPacket.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const isBlocked = Boolean(
@@ -917,7 +919,15 @@ function buildOpportunityCardV1Model(entry) {
       "Awaiting workflow update.";
   const nextActionLine = `Next: ${nextAction}`;
   const resolvedNextAction =
-    sellthrough &&
+    quality &&
+    new Set(["quality_uncertain", "quality_weak"]).has(quality.opportunity_quality_state) &&
+    quality.opportunity_quality_next_step
+      ? quality.opportunity_quality_next_step
+      : intakePriority &&
+    new Set(["priority_now", "priority_defer"]).has(intakePriority.intake_priority_state) &&
+    intakePriority.intake_priority_next_step
+      ? intakePriority.intake_priority_next_step
+      : sellthrough &&
     new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
       sellthrough.sellthrough_state
     ) &&
@@ -1477,67 +1487,6 @@ function getZoneProps(presence) {
   );
 }
 
-function getZoneFixtures(presence) {
-  const byZone = {
-    "executive-suite": [
-      { kind: "table", label: "decision table" },
-      { kind: "cabinet", label: "approval wall" },
-      { kind: "plant", label: "corner plant" },
-    ],
-    "verification-bay": [
-      { kind: "bench", label: "inspection bench" },
-      { kind: "rack", label: "device rack" },
-      { kind: "light", label: "task lamp" },
-    ],
-    "routing-desk": [
-      { kind: "console", label: "routing console" },
-      { kind: "slots", label: "handoff slots" },
-      { kind: "phone", label: "dispatch phone" },
-    ],
-    "market-lab": [
-      { kind: "display", label: "listing wall" },
-      { kind: "table", label: "pricing table" },
-      { kind: "shelf", label: "market shelf" },
-    ],
-  };
-  return byZone[presence.zone_id] || [{ kind: "table", label: "shared station" }];
-}
-
-function renderFlowEvents(activeTransitions) {
-  const events =
-    ((state.snapshot.office.events && state.snapshot.office.events.length
-      ? state.snapshot.office.events
-      : state.snapshot.office.flow_events) || []).slice(0, 5);
-  if (!events.length) {
-    return `<div class="flow-feed empty">No recent workflow events.</div>`;
-  }
-
-  const items = events
-    .map((event) => {
-      const isNew = activeTransitions.newFlowEventIds.has(event.event_id);
-      const approvalOutcome = formatApprovalOutcomeChip(event);
-      const outcomeChipHtml = approvalOutcome
-        ? `<span class="flow-outcome-chip flow-outcome-${escapeHtml(approvalOutcome.tone)}">${escapeHtml(approvalOutcome.label)}</span>`
-        : "";
-      return `
-        <article class="flow-chip ${formatLaneClass(event.lane_stage)} ${formatFlowSeverityClass(event.severity)} ${isNew ? "is-new" : ""}">
-          <p class="flow-chip-meta">
-            <span>${escapeHtml(formatOfficeEventType(event.type || event.action || "event"))}</span>
-            <span class="flow-chip-meta-right">
-              ${outcomeChipHtml}
-              <span>${escapeHtml(formatTimestamp(event.timestamp))}</span>
-            </span>
-          </p>
-          <p class="flow-chip-text">${escapeHtml(event.summary || "Operational event recorded.")}</p>
-          <p class="flow-chip-sub">${escapeHtml(event.opportunity_id || "company")}</p>
-        </article>
-      `;
-    })
-    .join("");
-
-  return `<div class="flow-feed">${items}</div>`;
-}
-
 function buildZoneSignalClasses(agent, activeTransitions, renderableHandoffs) {
   const classes = [];
   if (activeTransitions.focusShiftAgents.has(agent)) {
@@ -1782,14 +1731,12 @@ function getRoomVisualModel(room, snapshot) {
   };
 }
 
-function deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs) {
+function deriveOfficeSelectionContext(officeViewZones) {
   const selected = state.selected;
   if (!selected || !Array.isArray(officeViewZones) || !officeViewZones.length) {
     return {
       hasMeaningfulSelectionContext: false,
       dominantZoneId: null,
-      primaryHandoffIndex: -1,
-      relatedHandoffIndexes: new Set(),
     };
   }
 
@@ -1810,29 +1757,10 @@ function deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs) {
   }
 
   const hasMeaningfulSelectionContext = Boolean(dominantZoneId);
-  const relatedHandoffIndexes = new Set();
-  let primaryHandoffIndex = -1;
-
-  if (hasMeaningfulSelectionContext) {
-    for (let index = 0; index < (officeViewHandoffs || []).length; index += 1) {
-      const handoff = officeViewHandoffs[index];
-      if (!handoff) {
-        continue;
-      }
-      if (handoff.from_zone === dominantZoneId || handoff.to_zone === dominantZoneId) {
-        relatedHandoffIndexes.add(index);
-        if (primaryHandoffIndex < 0 || handoff.status === "blocked") {
-          primaryHandoffIndex = index;
-        }
-      }
-    }
-  }
 
   return {
     hasMeaningfulSelectionContext,
     dominantZoneId,
-    primaryHandoffIndex,
-    relatedHandoffIndexes,
   };
 }
 
@@ -1912,344 +1840,6 @@ function midpointFromPoints(points) {
   };
 }
 
-function pointAtProgress(points, progressRatio) {
-  if (!Array.isArray(points) || !points.length) {
-    return null;
-  }
-  if (points.length === 1) {
-    return points[0];
-  }
-
-  const clamped = Math.max(0, Math.min(1, progressRatio));
-  const segmentLengths = [];
-  let totalLength = 0;
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index];
-    const end = points[index + 1];
-    const length = Math.hypot(end.x - start.x, end.y - start.y);
-    segmentLengths.push(length);
-    totalLength += length;
-  }
-
-  if (totalLength === 0) {
-    return points[0];
-  }
-
-  let target = clamped * totalLength;
-  for (let index = 0; index < segmentLengths.length; index += 1) {
-    const segmentLength = segmentLengths[index];
-    const start = points[index];
-    const end = points[index + 1];
-    if (target <= segmentLength || index === segmentLengths.length - 1) {
-      const ratio = segmentLength === 0 ? 0 : target / segmentLength;
-      return {
-        x: start.x + (end.x - start.x) * ratio,
-        y: start.y + (end.y - start.y) * ratio,
-      };
-    }
-    target -= segmentLength;
-  }
-  return points[points.length - 1];
-}
-
-function resolveFallbackNodeCenter(node, layoutRect) {
-  if (!node) {
-    return null;
-  }
-  const rect = node.getBoundingClientRect();
-  return {
-    x: rect.left - layoutRect.left + rect.width / 2,
-    y: rect.top - layoutRect.top + rect.height / 2,
-  };
-}
-
-function zoneEdgeKey(fromZoneId, toZoneId) {
-  return [fromZoneId || "", toZoneId || ""].sort().join("|");
-}
-
-function buildActiveZoneEdges(renderableHandoffs, routeHintLookup) {
-  const activeEdges = new Set();
-  const activeZones = new Set();
-  for (const signal of renderableHandoffs) {
-    const fromZoneId =
-      signal.from_zone_id ||
-      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.from_agent)?.zone_id ||
-      null;
-    const toZoneId =
-      signal.to_zone_id ||
-      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.to_agent)?.zone_id ||
-      null;
-    if (!fromZoneId || !toZoneId) {
-      continue;
-    }
-
-    const routeKey = `${signal.opportunity_id}|${fromZoneId}|${toZoneId}`;
-    const routeHint = routeHintLookup.get(routeKey) || null;
-    const routePath = Array.isArray(routeHint && routeHint.path_zone_ids)
-      ? routeHint.path_zone_ids
-      : [fromZoneId, toZoneId];
-    if (routePath.length <= 1) {
-      continue;
-    }
-
-    for (let index = 0; index < routePath.length - 1; index += 1) {
-      const from = routePath[index];
-      const to = routePath[index + 1];
-      activeEdges.add(zoneEdgeKey(from, to));
-      activeZones.add(from);
-      activeZones.add(to);
-    }
-  }
-  return { activeEdges, activeZones };
-}
-
-function renderZoneNetworkOverlay(renderableHandoffs) {
-  const overlay = elements.officeCanvas.querySelector(".zone-network-overlay");
-  const svg = elements.officeCanvas.querySelector(".zone-network-svg");
-  const layout = elements.officeCanvas.querySelector(".office-layout");
-  if (!overlay || !svg || !layout) {
-    return;
-  }
-
-  svg.replaceChildren();
-  const layoutRect = layout.getBoundingClientRect();
-  const width = Math.max(1, layoutRect.width);
-  const height = Math.max(1, layoutRect.height);
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.setAttribute("width", `${width}`);
-  svg.setAttribute("height", `${height}`);
-
-  const zoneLookup = buildZoneAnchorLookup();
-  const routeHintLookup = buildRouteHintLookup();
-  const { activeEdges, activeZones } = buildActiveZoneEdges(renderableHandoffs, routeHintLookup);
-  const namespace = "http://www.w3.org/2000/svg";
-  const renderedEdges = new Set();
-
-  for (const zone of zoneLookup.values()) {
-    const connections = Array.isArray(zone.connections) ? zone.connections : [];
-    for (const connection of connections) {
-      if (!zoneLookup.has(connection)) {
-        continue;
-      }
-      const key = zoneEdgeKey(zone.zone_id, connection);
-      if (renderedEdges.has(key)) {
-        continue;
-      }
-      renderedEdges.add(key);
-
-      const start =
-        resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "handoff_dock", layoutRect) ||
-        resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "anchor", layoutRect);
-      const end =
-        resolveZoneAnchorPoint(zoneLookup, connection, "handoff_dock", layoutRect) ||
-        resolveZoneAnchorPoint(zoneLookup, connection, "anchor", layoutRect);
-      if (!start || !end) {
-        continue;
-      }
-
-      const lineNode = document.createElementNS(namespace, "path");
-      lineNode.setAttribute("d", `M ${start.x} ${start.y} L ${end.x} ${end.y}`);
-      lineNode.setAttribute(
-        "class",
-        `zone-network-edge ${activeEdges.has(key) ? "is-active" : "is-idle"}`
-      );
-      svg.append(lineNode);
-    }
-  }
-
-  for (const zone of zoneLookup.values()) {
-    const point =
-      resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "handoff_dock", layoutRect) ||
-      resolveZoneAnchorPoint(zoneLookup, zone.zone_id, "anchor", layoutRect);
-    if (!point) {
-      continue;
-    }
-    const node = document.createElementNS(namespace, "circle");
-    node.setAttribute("cx", `${point.x}`);
-    node.setAttribute("cy", `${point.y}`);
-    node.setAttribute("r", activeZones.has(zone.zone_id) ? "4.5" : "3.2");
-    node.setAttribute(
-      "class",
-      `zone-network-node ${activeZones.has(zone.zone_id) ? "is-active" : "is-idle"}`
-    );
-    svg.append(node);
-  }
-}
-
-function renderHandoffOverlay(renderableHandoffs) {
-  const overlay = elements.officeCanvas.querySelector(".handoff-overlay");
-  const svg = elements.officeCanvas.querySelector(".handoff-svg");
-  const chipLayer = elements.officeCanvas.querySelector(".handoff-chip-layer");
-  const layout = elements.officeCanvas.querySelector(".office-layout");
-
-  if (!overlay || !svg || !chipLayer || !layout) {
-    return;
-  }
-
-  svg.replaceChildren();
-  chipLayer.replaceChildren();
-
-  if (!renderableHandoffs.length) {
-    overlay.classList.add("hidden");
-    return;
-  }
-
-  const layoutRect = layout.getBoundingClientRect();
-  const width = Math.max(1, layoutRect.width);
-  const height = Math.max(1, layoutRect.height);
-  const zoneLookup = buildZoneAnchorLookup();
-  const routeHintLookup = buildRouteHintLookup();
-  const previewIntent = getMovementIntentById(state.routePlayback.intentId);
-  const previewIntentKey = previewIntent
-    ? buildMovementIntentKey(
-        previewIntent.opportunity_id,
-        previewIntent.from_zone_id,
-        previewIntent.to_zone_id
-      )
-    : null;
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.setAttribute("width", `${width}`);
-  svg.setAttribute("height", `${height}`);
-
-  const namespace = "http://www.w3.org/2000/svg";
-
-  for (const signal of renderableHandoffs) {
-    const fromNode = layout.querySelector(
-      `[data-type="agent"][data-id="${CSS.escape(signal.from_agent)}"]`
-    );
-    const toNode = layout.querySelector(
-      `[data-type="agent"][data-id="${CSS.escape(signal.to_agent)}"]`
-    );
-    if (!fromNode || !toNode) {
-      continue;
-    }
-
-    const fromZoneId =
-      signal.from_zone_id ||
-      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.from_agent)?.zone_id ||
-      null;
-    const toZoneId =
-      signal.to_zone_id ||
-      (state.snapshot.office.presence || []).find((entry) => entry.agent === signal.to_agent)?.zone_id ||
-      null;
-    const fromAnchor = resolveZoneAnchorPoint(zoneLookup, fromZoneId, "egress", layoutRect);
-    const toAnchor = resolveZoneAnchorPoint(zoneLookup, toZoneId, "ingress", layoutRect);
-    const fromFallback = resolveFallbackNodeCenter(fromNode, layoutRect);
-    const toFallback = resolveFallbackNodeCenter(toNode, layoutRect);
-    const defaultStart = fromAnchor || fromFallback;
-    const defaultEnd = toAnchor || toFallback;
-    const routeKey = `${signal.opportunity_id}|${fromZoneId || ""}|${toZoneId || ""}`;
-    const routeHint = routeHintLookup.get(routeKey) || null;
-    const signalIntentKey = buildMovementIntentKey(signal.opportunity_id, fromZoneId, toZoneId);
-    const intentPoints =
-      Array.isArray(signal.waypoints) && signal.waypoints.length >= 2
-        ? signal.waypoints
-            .map((point) => resolveLayoutPoint(layoutRect, point))
-            .filter(Boolean)
-        : [];
-    const routePoints =
-      intentPoints.length >= 2
-        ? intentPoints
-        : routeHint && Array.isArray(routeHint.waypoints) && routeHint.waypoints.length >= 2
-        ? routeHint.waypoints
-            .map((point) => resolveLayoutPoint(layoutRect, point))
-            .filter(Boolean)
-        : [];
-
-    const effectivePoints =
-      routePoints.length >= 2
-        ? routePoints
-        : [defaultStart, defaultEnd].filter(Boolean);
-    if (effectivePoints.length < 2) {
-      continue;
-    }
-
-    const pathD =
-      buildPathFromPoints(effectivePoints) ||
-      `M ${defaultStart.x} ${defaultStart.y} L ${defaultEnd.x} ${defaultEnd.y}`;
-    const midPoint = midpointFromPoints(effectivePoints) || {
-      x: (defaultStart.x + defaultEnd.x) / 2,
-      y: (defaultStart.y + defaultEnd.y) / 2,
-    };
-
-    const isApprovalSignal =
-      signal.to_agent === "CEO Agent" || signal.trigger_type === "approval_waiting";
-    const pathNode = document.createElementNS(namespace, "path");
-    pathNode.setAttribute("d", pathD);
-    pathNode.setAttribute(
-      "class",
-      `handoff-path ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""} ${isApprovalSignal ? "is-approval" : ""}`.trim()
-    );
-    svg.append(pathNode);
-
-    const pulseNode = document.createElementNS(namespace, "circle");
-    pulseNode.setAttribute("cx", `${midPoint.x}`);
-    pulseNode.setAttribute("cy", `${midPoint.y}`);
-    pulseNode.setAttribute("r", signal.is_transition ? "6" : "4");
-    pulseNode.setAttribute(
-      "class",
-      `handoff-pulse ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""} ${isApprovalSignal ? "is-approval" : ""}`.trim()
-    );
-    svg.append(pulseNode);
-
-    const isPreviewSignal = previewIntentKey && signalIntentKey === previewIntentKey;
-    const shouldRenderTravelDot =
-      signal.is_transition &&
-      typeof signal.duration_ms === "number" &&
-      signal.duration_ms >= 300 &&
-      isFreshMovementSignal(signal);
-    if (isPreviewSignal) {
-      const previewPoint = pointAtProgress(
-        effectivePoints,
-        state.routePlayback.progress / 100
-      );
-      if (previewPoint) {
-        const previewNode = document.createElementNS(namespace, "circle");
-        previewNode.setAttribute("cx", `${previewPoint.x}`);
-        previewNode.setAttribute("cy", `${previewPoint.y}`);
-        previewNode.setAttribute(
-          "class",
-          `handoff-travel-dot is-preview ${signal.blocking_count > 0 ? "is-blocked" : ""}`
-        );
-        previewNode.setAttribute("r", "4");
-        svg.append(previewNode);
-      }
-    } else if (shouldRenderTravelDot) {
-      const travelNode = document.createElementNS(namespace, "circle");
-      travelNode.setAttribute("r", "3.4");
-      travelNode.setAttribute(
-        "class",
-        `handoff-travel-dot ${signal.blocking_count > 0 ? "is-blocked" : "is-active"}`
-      );
-      const motionNode = document.createElementNS(namespace, "animateMotion");
-      motionNode.setAttribute("dur", `${Math.max(900, signal.duration_ms)}ms`);
-      motionNode.setAttribute("repeatCount", "indefinite");
-      motionNode.setAttribute("path", pathD);
-      travelNode.append(motionNode);
-      svg.append(travelNode);
-    }
-
-    const chipNode = document.createElement("div");
-    chipNode.className = `handoff-chip ${signal.is_transition ? "is-transition" : "is-steady"} ${signal.blocking_count > 0 ? "is-blocked" : ""}`.trim();
-    chipNode.style.left = `${midPoint.x}px`;
-    chipNode.style.top = `${midPoint.y - 12}px`;
-    const summaryLabel =
-      signal.blocking_count > 0
-        ? "Blocked return"
-        : isApprovalSignal
-          ? "Needs approval"
-          : signal.next_action || "Ownership transfer";
-    chipNode.innerHTML = `
-      <strong>${escapeHtml(signal.opportunity_id)}</strong>
-      <span>${escapeHtml(shortAgentLabel(signal.from_agent))} -> ${escapeHtml(shortAgentLabel(signal.to_agent))}</span>
-      <span>${escapeHtml(summaryLabel)}</span>
-    `;
-    chipLayer.append(chipNode);
-  }
-
-  overlay.classList.remove("hidden");
-}
-
 function describeOfficeActionKind(type) {
   if (type === "opportunity") {
     return "opportunity";
@@ -2263,7 +1853,7 @@ function describeOfficeActionKind(type) {
 function renderPrimaryCourierOverlay(primaryHandoffSelection) {
   const overlay = elements.officeCanvas.querySelector(".floor-courier-overlay");
   const svg = elements.officeCanvas.querySelector(".floor-courier-svg");
-  const layout = elements.officeCanvas.querySelector(".office-layout");
+  const layout = elements.officeCanvas.querySelector(".office-room-grid");
   if (!overlay || !svg || !layout || !primaryHandoffSelection || !primaryHandoffSelection.signal) {
     return;
   }
@@ -2327,49 +1917,13 @@ function renderPrimaryCourierOverlay(primaryHandoffSelection) {
 function renderOfficeCanvas() {
   const officeView = state.snapshot.office.office_view || null;
   const officeViewZones = officeView && Array.isArray(officeView.zones) ? officeView.zones : [];
-  const officeViewHandoffs =
-    officeView && Array.isArray(officeView.handoffs) ? officeView.handoffs : [];
-  const officeViewBoardSummary =
-    officeView && officeView.company_board_summary ? officeView.company_board_summary : null;
   const presenceByZone = new Map(
     (state.snapshot.office.presence || []).map((entry) => [entry.zone_id, entry])
   );
-  const topTask = state.snapshot.attention.top_task;
   const activeTransitions = getActiveTransitionState();
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
   const primaryHandoff = getPrimaryHandoff(state.snapshot);
-  const selectionContext = deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs);
-  const hasGlobalAlert = Boolean(
-    officeViewBoardSummary &&
-      typeof officeViewBoardSummary.alert_text === "string" &&
-      officeViewBoardSummary.alert_text.trim()
-  );
-  const opportunities = state.snapshot.workflow.opportunities;
-  const zoneRoleById = new Map(
-    officeViewZones.map((zone) => [zone.id, zone.role_label]).filter((entry) => entry[1])
-  );
-  const firstBlockedOpportunity =
-    opportunities.find(
-      (entry) =>
-        entry &&
-        entry.workflow_record &&
-        entry.workflow_record.purchase_recommendation_blocked &&
-        entry.opportunity_id
-    )?.opportunity_id || null;
-  const firstApprovalOpportunity =
-    opportunities.find(
-      (entry) =>
-        entry &&
-        entry.opportunity_id &&
-        mapStatusToLaneStage(entry.current_status) === "approval"
-    )?.opportunity_id || null;
-  const firstActiveOpportunity = opportunities[0] ? opportunities[0].opportunity_id : null;
-  const alertFocusOpportunityId =
-    (topTask && topTask.opportunity_id) ||
-    firstBlockedOpportunity ||
-    firstApprovalOpportunity ||
-    firstActiveOpportunity ||
-    null;
+  const selectionContext = deriveOfficeSelectionContext(officeViewZones);
 
   const floorBanner = `
     <div class="floor-banner floor-banner-compact">
@@ -2389,10 +1943,6 @@ function renderOfficeCanvas() {
     .map((zone) => {
       const presence = presenceByZone.get(zone.id) || null;
       const agentName = zone.role_label || (presence ? presence.agent : "Unknown Agent");
-      const legacyOwnershipMicroLabel = '<p class="presence-owner-label">Owned by this lane</p>';
-      const legacyRoleLabel = `Role: ${agentName}`;
-      void legacyOwnershipMicroLabel;
-      void legacyRoleLabel;
       const visualState = zone.state || "idle";
       const topOpportunity =
         zone.dominant_item_id && zone.dominant_item_id !== "None"
@@ -2429,6 +1979,11 @@ function renderOfficeCanvas() {
           : roomVisualModel.chip.tone === "approval"
             ? "approval"
             : "task";
+      const roomCourierHtml = roomVisualModel.courier.active
+        ? `<div class="courier-token ${escapeHtml(
+            roomVisualModel.courier.className
+          )}" aria-hidden="true">${escapeHtml(roomVisualModel.courier.tokenLabel)}</div>`
+        : "";
       return `
         <button
           type="button"
@@ -2456,9 +2011,7 @@ function renderOfficeCanvas() {
             <div class="room-stage">
               <div class="avatar avatar--${escapeHtml(roomVisualModel.avatar.spriteKey)} avatar-accent-${escapeHtml(
                 accentToken
-              )} ${formatMotionClass(
-                roomVisualModel.avatar.motionState
-              )}">
+              )} ${formatMotionClass(roomVisualModel.avatar.motionState)}">
                 <div class="avatar-ring"></div>
                 <div class="avatar-body avatar-character">
                   <div class="avatar-head"></div>
@@ -2471,6 +2024,7 @@ function renderOfficeCanvas() {
                 <div class="thought-bubble__label">${escapeHtml(roomVisualModel.bubble.label)}</div>
                 <div class="thought-bubble__text">${escapeHtml(roomVisualModel.bubble.text)}</div>
               </div>
+              ${roomCourierHtml}
             </div>
 
             <div class="room-now">
@@ -2482,131 +2036,10 @@ function renderOfficeCanvas() {
     })
     .join("");
 
-  const officeBoardSummaryHtml = officeViewBoardSummary
-    ? `
-      <section class="office-board-summary ${hasGlobalAlert ? "has-global-alert" : ""}">
-        <p class="eyebrow">Company board summary</p>
-        <strong>${escapeHtml(
-          officeViewBoardSummary.headline || "Company board is clear for normal monitoring."
-        )}</strong>
-        <div class="card-tags office-board-summary-counts">
-          ${Array.isArray(officeViewBoardSummary.key_counts)
-            ? officeViewBoardSummary.key_counts
-                .map(
-                  (entry) => {
-                    const label = entry && typeof entry.label === "string" ? entry.label : "";
-                    const normalizedLabel = normalizeToken(label);
-                    const targetOpportunityId = normalizedLabel.startsWith("blocked")
-                      ? firstBlockedOpportunity
-                      : normalizedLabel.startsWith("approvals")
-                      ? firstApprovalOpportunity
-                      : normalizedLabel.startsWith("active")
-                      ? firstActiveOpportunity
-                      : null;
-                    const pillLabel = escapeHtml(`${entry.label}: ${entry.value}`);
-                    if (targetOpportunityId) {
-                      return `<button type="button" class="priority-pill office-summary-action" data-type="opportunity" data-id="${escapeHtml(targetOpportunityId)}" data-action-kind="opportunity-focus" aria-label="${escapeHtml(`Focus related opportunity for ${entry.label}`)}" title="${escapeHtml("Focus related opportunity")}">${pillLabel}</button>`;
-                    }
-                    return `<span class="priority-pill">${pillLabel}</span>`;
-                  }
-                )
-                .join("")
-            : ""}
-        </div>
-        ${
-          officeViewBoardSummary.alert_text
-            ? alertFocusOpportunityId
-              ? `<button type="button" class="muted office-board-summary-alert office-summary-action office-summary-alert-action" data-type="opportunity" data-id="${escapeHtml(alertFocusOpportunityId)}" data-action-kind="opportunity-focus" aria-label="${escapeHtml("Focus related opportunity from board alert")}" title="${escapeHtml("Focus related opportunity")}">${escapeHtml(officeViewBoardSummary.alert_text)}</button>`
-              : `<p class="muted office-board-summary-alert">${escapeHtml(officeViewBoardSummary.alert_text)}</p>`
-            : ""
-        }
-      </section>
-    `
-    : "";
-
-  const handoffRowsHtml = officeViewHandoffs.length
-    ? officeViewHandoffs
-        .map((handoff, index) => {
-          const hasOpportunityTarget =
-            Boolean(handoff && handoff.opportunity_id) && Boolean(findOpportunityById(handoff.opportunity_id));
-          const toAgentTarget = handoff && handoff.to_zone ? zoneRoleById.get(handoff.to_zone) : null;
-          const fromAgentTarget =
-            handoff && handoff.from_zone ? zoneRoleById.get(handoff.from_zone) : null;
-          const targetType = hasOpportunityTarget
-            ? "opportunity"
-            : toAgentTarget || fromAgentTarget
-            ? "agent"
-            : null;
-          const targetId = hasOpportunityTarget
-            ? handoff.opportunity_id
-            : toAgentTarget || fromAgentTarget || null;
-          const isActionable = Boolean(targetType && targetId);
-          const actionKind = targetType === "opportunity" ? "opportunity-focus" : "agent-focus";
-          const actionTitle = `Focus related ${describeOfficeActionKind(targetType)}`;
-          const actionLabel = `Focus ${describeOfficeActionKind(targetType)} from ${handoff.from_zone} to ${handoff.to_zone}`;
-          return `
-            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""} ${handoff.status === "blocked" || /(approval|blocked|urgent)/i.test(handoff && typeof handoff.label === "string" ? handoff.label : "") ? "is-urgent-handoff" : ""} ${isActionable ? "is-actionable" : ""}" ${isActionable ? `data-action-kind="${escapeHtml(actionKind)}"` : ""}>
-              ${
-                isActionable
-                  ? `<button type="button" class="office-handoff-action" data-type="${escapeHtml(targetType)}" data-id="${escapeHtml(targetId)}" data-action-kind="${escapeHtml(actionKind)}" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionTitle)}">`
-                  : '<div class="office-handoff-action is-static">'
-              }
-                <div class="office-handoff-route">
-                  <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
-                  <span class="office-handoff-arrow" aria-hidden="true">→</span>
-                  <span class="office-handoff-to">${escapeHtml(handoff.to_zone)}</span>
-                </div>
-                <span class="office-handoff-label">${escapeHtml(handoff.label)}</span>
-              ${isActionable ? "</button>" : "</div>"}
-            </li>
-          `;
-        })
-        .join("")
-    : '<li class="office-handoff-row is-idle"><span class="office-handoff-label">No active handoffs right now.</span></li>';
-
-  const opportunityRailHtml = opportunities.length
-    ? opportunities
-        .map((entry) => {
-          const cardVm = buildOpportunityCardV1Model(entry);
-          const laneStage = mapStatusToLaneStage(entry.current_status);
-          const laneShiftClass = activeTransitions.laneShiftOpportunities.has(entry.opportunity_id)
-            ? "has-lane-shift"
-            : "";
-          const metadataChips = [
-            `<span class="priority-pill opportunity-meta-chip opportunity-owner-chip">${escapeHtml(
-              `Owner lane: ${cardVm.owner_lane_label}`
-            )}</span>`,
-          ];
-          if (cardVm.is_selected) {
-            metadataChips.push(
-              '<span class="priority-pill opportunity-meta-chip opportunity-selected-chip">Selected</span>'
-            );
-          } else if (entry.capital_fit) {
-            metadataChips.push(
-              `<small class="opportunity-capital-fit capital-fit-${escapeHtml(entry.capital_fit.stance)}">${escapeHtml(
-                `Capital: ${formatCapitalFitLabel(entry.capital_fit.stance)}`
-              )}</small>`
-            );
-          }
-          return `
-            <button type="button" class="opportunity-chip ${formatLaneClass(laneStage)} ${laneShiftClass} ${cardVm.is_selected ? "is-selected" : ""}" data-type="opportunity" data-id="${escapeHtml(entry.opportunity_id)}">
-              <strong>${escapeHtml(cardVm.primary_id)}</strong>
-              <span class="status-pill ${formatStatusClass(entry.current_status)}">${escapeHtml(entry.current_status)}</span>
-              <p class="muted opportunity-line-clamp opportunity-summary-line">${escapeHtml(cardVm.summary_line)}</p>
-              <p class="opportunity-line-clamp opportunity-action-line">${escapeHtml(cardVm.action_line)}</p>
-              <div class="card-tags opportunity-chip-meta">${metadataChips
-                .slice(0, V1_BOARD_CONTRACT.maxOpportunityMetadataChips)
-                .join("")}</div>
-            </button>
-          `;
-        })
-        .join("")
-    : `<div class="empty-state">No active opportunities loaded.</div>`;
-
   elements.officeCanvas.innerHTML = `
     ${floorBanner}
-    <div class="office-layout-wrap">
-      <div class="office-layout office-floorplan">
+    <div class="office-floor-surface">
+      <div class="office-room-grid">
         ${zonesHtml}
       </div>
       <div class="floor-courier-overlay hidden" aria-hidden="true">
@@ -2793,12 +2226,22 @@ function renderDetailForOpportunity(entry) {
   const executionState = entry.operational_execution || null;
   const marketState = entry.operational_market || null;
   const routeState = entry.operational_route || null;
+  const intakePriorityState = entry.operational_intake_priority || null;
   const sellthroughState = entry.operational_sellthrough || null;
   const capacityState = entry.operational_capacity || null;
+  const qualityState = entry.operational_opportunity_quality || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    sellthroughState &&
+    qualityState &&
+    new Set(["quality_uncertain", "quality_weak"]).has(qualityState.opportunity_quality_state) &&
+    qualityState.opportunity_quality_next_step
+      ? qualityState.opportunity_quality_next_step
+      : intakePriorityState &&
+    new Set(["priority_now", "priority_defer"]).has(intakePriorityState.intake_priority_state) &&
+    intakePriorityState.intake_priority_next_step
+      ? intakePriorityState.intake_priority_next_step
+      : sellthroughState &&
     new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
       sellthroughState.sellthrough_state
     ) &&
@@ -2880,8 +2323,23 @@ function renderDetailForOpportunity(entry) {
       <h3>What happens next</h3>
       <ul class="detail-list">
         <li>Next action: ${escapeHtml(nextAction)}</li>
+        <li>Intake priority: ${escapeHtml(
+          intakePriorityState
+            ? `${intakePriorityState.intake_priority_label} (rank ${intakePriorityState.intake_priority_rank == null ? "n/a" : intakePriorityState.intake_priority_rank})`
+            : "Intake priority is not derived."
+        )}</li>
         <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
+        <li>Intake priority step: ${escapeHtml(
+          intakePriorityState
+            ? intakePriorityState.intake_priority_next_step
+            : "No intake-priority action is required."
+        )}</li>
+        <li>Quality proof step: ${escapeHtml(
+          qualityState
+            ? qualityState.opportunity_quality_next_step
+            : "No quality-proof step is derived."
+        )}</li>
         <li>Sell-through relief step: ${escapeHtml(
           sellthroughState
             ? sellthroughState.sellthrough_next_step
@@ -2893,7 +2351,17 @@ function renderDetailForOpportunity(entry) {
             : "No capacity relief action is required."
         )}</li>
         <li>What would change this: ${escapeHtml(
-          sellthroughState &&
+          qualityState &&
+          new Set(["quality_promising", "quality_uncertain", "quality_weak"]).has(
+            qualityState.opportunity_quality_state
+          )
+            ? qualityState.opportunity_quality_upgrade_condition
+            : intakePriorityState &&
+          new Set(["priority_now", "priority_defer", "priority_soon", "priority_later"]).has(
+            intakePriorityState.intake_priority_state
+          )
+            ? "Changes when higher-priority items move or this opportunity state changes."
+            : sellthroughState &&
           new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
             sellthroughState.sellthrough_state
           )
@@ -2924,6 +2392,16 @@ function renderDetailForOpportunity(entry) {
         )}</li>
         <li>Recommendation reasoning: ${escapeHtml(
           recommendation ? recommendation.recommendation_reason : "No recommendation reason available."
+        )}</li>
+        <li>Priority reasoning: ${escapeHtml(
+          intakePriorityState
+            ? intakePriorityState.intake_priority_reason
+            : "Intake priority reasoning is not derived."
+        )}</li>
+        <li>Opportunity quality: ${escapeHtml(
+          qualityState
+            ? `${qualityState.opportunity_quality_label}: ${qualityState.opportunity_quality_reason}`
+            : "Opportunity quality is not derived."
         )}</li>
         <li>Route: ${escapeHtml(
           routeState
@@ -3818,5 +3296,6 @@ elements.refreshButton.addEventListener("click", () => {
 
 loadSnapshot();
 window.setInterval(loadSnapshot, 30000);
+
 
 

@@ -18,10 +18,12 @@ test("lane-card click routes agent selection to dominant opportunity when presen
   assert.match(source, /setSelection\("opportunity", node\.dataset\.dominantOpportunityId\)/);
 });
 
-test("lane cards include explicit ownership micro-label", () => {
+test("office room render is compressed around avatar, bubble, and summary", () => {
   const source = readUiAppSource();
-  assert.match(source, /presence-owner-label/);
-  assert.match(source, /Owned by this lane/);
+  assert.match(source, /class="office-room"/);
+  assert.match(source, /class="room-stage"/);
+  assert.match(source, /class="thought-bubble/);
+  assert.match(source, /class="room-now"/);
 });
 
 test("lane-specific deterministic empty-state copy is defined", () => {
@@ -49,14 +51,14 @@ test("opportunity cards branch action line between blocked and next", () => {
 
 test("opportunity cards include owner-lane chip copy", () => {
   const source = readUiAppSource();
-  assert.match(source, /Owner lane: \$\{cardVm\.owner_lane_label\}/);
-  assert.match(source, /opportunity-owner-chip/);
+  assert.match(source, /owner_lane_label:/);
+  assert.match(source, /formatLaneLabel\(mapStatusToLaneStage\(entry\.current_status\)\)/);
 });
 
 test("selected opportunity card includes explicit selected salience marker", () => {
   const source = readUiAppSource();
-  assert.match(source, /opportunity-selected-chip/);
-  assert.match(source, />Selected</);
+  assert.match(source, /is_selected:/);
+  assert.match(source, /state\.selected\.type === "opportunity"/);
 });
 
 test("detail opportunity sections render in fixed newcomer-readable order", () => {
@@ -93,16 +95,16 @@ test("office canvas rendering consumes office_view projection", () => {
   const source = readUiAppSource();
   assert.match(source, /state\.snapshot\.office\.office_view/);
   assert.match(source, /officeViewZones/);
-  assert.match(source, /officeViewHandoffs/);
-  assert.match(source, /officeViewBoardSummary/);
+  assert.match(source, /presenceByZone/);
+  assert.match(source, /getPrimaryHandoff\(state\.snapshot\)/);
 });
 
-test("office canvas emits stable zone and role labels", () => {
+test("office canvas emits stable zone and role labels for the simplified floor", () => {
   const source = readUiAppSource();
   assert.match(source, /zone\.title \|\| "Office zone"/);
   assert.match(source, /zone\.role_label/);
   assert.match(source, /zone\.avatar_label/);
-  assert.match(source, /Role: \$\{agentName\}/);
+  assert.match(source, /room-role-label room-title/);
 });
 
 test("office canvas conditionally renders blocker and approval chips", () => {
@@ -113,11 +115,11 @@ test("office canvas conditionally renders blocker and approval chips", () => {
   assert.match(source, /office-chip-approval/);
 });
 
-test("office canvas renders company board summary panel", () => {
+test("office canvas keeps the top floor banner minimal", () => {
   const source = readUiAppSource();
-  assert.match(source, /Company board summary/);
-  assert.match(source, /office-board-summary/);
-  assert.match(source, /officeViewBoardSummary\.key_counts/);
+  assert.match(source, /Operations floor/);
+  assert.match(source, /Living office/);
+  assert.match(source, /floor-banner-compact/);
 });
 
 test("office canvas derives emphasis context from existing selection state", () => {
@@ -128,52 +130,43 @@ test("office canvas derives emphasis context from existing selection state", () 
   assert.match(source, /zone\.role_label === selected\.id/);
 });
 
-test("office canvas applies contextual emphasis hooks to zones and handoff rows", () => {
+test("office canvas applies contextual emphasis hooks to zones only", () => {
   const source = readUiAppSource();
   assert.match(source, /is-context-zone/);
   assert.match(source, /is-context-dim/);
-  assert.match(source, /is-context-related/);
-  assert.match(source, /is-context-primary/);
 });
 
-test("office canvas applies urgency hooks using existing zone and handoff semantics", () => {
+test("office canvas applies urgency hooks using existing zone semantics", () => {
   const source = readUiAppSource();
   assert.match(source, /is-urgent-zone/);
   assert.match(source, /visualState === "blocked"/);
   assert.match(source, /visualState === "needs_approval"/);
-  assert.match(source, /is-urgent-handoff/);
-  assert.match(source, /handoff\.status === "blocked"/);
+  assert.match(source, /zone\.blocker_text/);
+  assert.match(source, /zone\.approval_text/);
 });
 
-test("office canvas allows urgency and selection context hooks to coexist", () => {
+test("office canvas allows urgency and selection context hooks to coexist on room tiles", () => {
   const source = readUiAppSource();
   assert.match(source, /is-context-zone/);
   assert.match(source, /is-urgent-zone/);
-  assert.match(source, /is-context-primary/);
-  assert.match(source, /is-urgent-handoff/);
-  assert.match(source, /has-global-alert/);
+  assert.match(source, /zone-card zone-room/);
+  assert.match(source, /room-chip/);
 });
 
-test("office handoff rows map clicks into existing selection targets", () => {
+test("office floor renders a single courier token and overlay from runtime handoff state", () => {
   const source = readUiAppSource();
-  assert.match(source, /const hasOpportunityTarget =/);
-  assert.match(source, /Boolean\(handoff && handoff\.opportunity_id\) && Boolean\(findOpportunityById\(handoff\.opportunity_id\)\)/);
-  assert.match(source, /zoneRoleById\.get\(handoff\.to_zone\)/);
-  assert.match(source, /class=\"office-handoff-row[\s\S]*is-actionable/);
-  assert.match(source, /class=\"office-handoff-action\" data-type=\"\$\{escapeHtml\(targetType\)\}\" data-id=\"\$\{escapeHtml\(targetId\)\}\"/);
-  assert.match(source, /data-action-kind=\"\$\{escapeHtml\(actionKind\)\}\"/);
-  assert.match(source, /aria-label=\"\$\{escapeHtml\(actionLabel\)\}\"/);
-  assert.match(source, /'<div class=\"office-handoff-action is-static\">'/);
+  assert.match(source, /getCourierRenderModel/);
+  assert.match(source, /roomVisualModel\.courier\.active/);
+  assert.match(source, /class=\"courier-token/);
+  assert.match(source, /floor-courier-overlay hidden/);
 });
 
-test("office board summary emits click-through hooks using existing opportunity focus", () => {
+test("office floor wrapper uses the simplified room-grid shell", () => {
   const source = readUiAppSource();
-  assert.match(source, /alertFocusOpportunityId/);
-  assert.match(source, /office-summary-action/);
-  assert.match(source, /data-type=\"opportunity\" data-id=\"\$\{escapeHtml\(targetOpportunityId\)\}\"/);
-  assert.match(source, /data-action-kind=\"opportunity-focus\"/);
-  assert.match(source, /title=\"\$\{escapeHtml\(\"Focus related opportunity\"\)\}\"/);
-  assert.match(source, /return `<span class=\"priority-pill\">\$\{pillLabel\}<\/span>`/);
+  assert.match(source, /class=\"office-floor-surface\"/);
+  assert.match(source, /class=\"office-room-grid\"/);
+  assert.doesNotMatch(source, /office-layout-wrap/);
+  assert.doesNotMatch(source, /office-board-summary/);
 });
 
 test("selection reconciliation preserves valid target and falls back deterministically", () => {
