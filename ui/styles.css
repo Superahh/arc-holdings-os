@@ -483,6 +483,18 @@ h2 {
   font-size: 0.78rem;
 }
 
+.office-board-summary.has-global-alert {
+  border-color: rgba(163, 52, 52, 0.24);
+  background:
+    linear-gradient(180deg, rgba(252, 245, 242, 0.92), rgba(255, 252, 245, 0.9)),
+    rgba(255, 252, 245, 0.9);
+}
+
+.office-board-summary.has-global-alert .office-board-summary-alert {
+  color: rgba(112, 30, 30, 0.9);
+  font-weight: 600;
+}
+
 .office-handoffs-panel {
   margin-top: 18px;
   border: 1px solid rgba(20, 35, 34, 0.16);
@@ -538,6 +550,15 @@ h2 {
 
 .office-handoff-row.is-context-dim {
   opacity: 0.72;
+}
+
+.office-handoff-row.is-urgent-handoff {
+  border-color: rgba(163, 52, 52, 0.38);
+  box-shadow: 0 8px 14px rgba(20, 35, 34, 0.06);
+}
+
+.office-handoff-row.is-context-dim.is-urgent-handoff {
+  opacity: 0.94;
 }
 
 .office-handoff-route {
@@ -760,6 +781,25 @@ h2 {
 
 .zone-card.is-context-dim .office-chip {
   opacity: 0.98;
+}
+
+.zone-card.is-urgent-zone {
+  box-shadow:
+    0 20px 30px rgba(28, 38, 35, 0.1),
+    0 0 0 2px rgba(163, 52, 52, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.zone-card.visual-state-needs_approval.is-urgent-zone {
+  box-shadow:
+    0 20px 30px rgba(92, 73, 18, 0.12),
+    0 0 0 2px rgba(124, 99, 30, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36);
+}
+
+.zone-card.is-context-dim.is-urgent-zone {
+  opacity: 0.95;
+  filter: saturate(0.96);
 }
 
 .opportunity-chip.is-selected {

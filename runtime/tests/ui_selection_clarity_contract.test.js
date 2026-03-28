@@ -135,3 +135,21 @@ test("office canvas applies contextual emphasis hooks to zones and handoff rows"
   assert.match(source, /is-context-related/);
   assert.match(source, /is-context-primary/);
 });
+
+test("office canvas applies urgency hooks using existing zone and handoff semantics", () => {
+  const source = readUiAppSource();
+  assert.match(source, /is-urgent-zone/);
+  assert.match(source, /visualState === "blocked"/);
+  assert.match(source, /visualState === "needs_approval"/);
+  assert.match(source, /is-urgent-handoff/);
+  assert.match(source, /handoff\.status === "blocked"/);
+});
+
+test("office canvas allows urgency and selection context hooks to coexist", () => {
+  const source = readUiAppSource();
+  assert.match(source, /is-context-zone/);
+  assert.match(source, /is-urgent-zone/);
+  assert.match(source, /is-context-primary/);
+  assert.match(source, /is-urgent-handoff/);
+  assert.match(source, /has-global-alert/);
+});

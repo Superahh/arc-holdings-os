@@ -1804,6 +1804,11 @@ function renderOfficeCanvas() {
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
   const selectionContext = deriveOfficeSelectionContext(officeViewZones, officeViewHandoffs);
   const flowEventsHtml = renderFlowEvents(activeTransitions);
+  const hasGlobalAlert = Boolean(
+    officeViewBoardSummary &&
+      typeof officeViewBoardSummary.alert_text === "string" &&
+      officeViewBoardSummary.alert_text.trim()
+  );
 
   const floorBanner = `
     <div class="floor-banner">
@@ -1855,6 +1860,14 @@ function renderOfficeCanvas() {
         selectionContext.hasMeaningfulSelectionContext &&
         selectionContext.dominantZoneId === zone.id;
       const isContextDim = selectionContext.hasMeaningfulSelectionContext && !isContextZone;
+      const hasBlockerText =
+        zone.blocker_text && typeof zone.blocker_text === "string" && zone.blocker_text.trim();
+      const hasApprovalText =
+        zone.approval_text && typeof zone.approval_text === "string" && zone.approval_text.trim();
+      const isUrgentZone =
+        visualState === "blocked" ||
+        visualState === "needs_approval" ||
+        Boolean(hasBlockerText || hasApprovalText);
       const accentToken = (presence && presence.accent_token) || "slate";
       const avatarMonogram =
         (zone.avatar_label || agentName || "AG")
@@ -1862,18 +1875,16 @@ function renderOfficeCanvas() {
           .map((part) => part.slice(0, 1).toUpperCase())
           .join("")
           .slice(0, 3) || "AG";
-      const blockerChip =
-        zone.blocker_text && typeof zone.blocker_text === "string" && zone.blocker_text.trim()
-          ? `<span class="priority-pill office-chip office-chip-blocked">Blocked: ${escapeHtml(
-              zone.blocker_text
-            )}</span>`
-          : "";
-      const approvalChip =
-        zone.approval_text && typeof zone.approval_text === "string" && zone.approval_text.trim()
-          ? `<span class="priority-pill office-chip office-chip-approval">Needs approval: ${escapeHtml(
-              zone.approval_text
-            )}</span>`
-          : "";
+      const blockerChip = hasBlockerText
+        ? `<span class="priority-pill office-chip office-chip-blocked">Blocked: ${escapeHtml(
+            zone.blocker_text
+          )}</span>`
+        : "";
+      const approvalChip = hasApprovalText
+        ? `<span class="priority-pill office-chip office-chip-approval">Needs approval: ${escapeHtml(
+            zone.approval_text
+          )}</span>`
+        : "";
 
       return `
         <button
@@ -1882,7 +1893,7 @@ function renderOfficeCanvas() {
             normalizeToken(zone.id)
           )} ${formatVisualStateFamilyClass(visualState)} ${formatVisualStateClass(
             visualState
-          )} ${isSelected ? "is-selected" : ""} ${isContextZone ? "is-context-zone" : ""} ${isContextDim ? "is-context-dim" : ""} ${signalClasses}"
+          )} ${isSelected ? "is-selected" : ""} ${isContextZone ? "is-context-zone" : ""} ${isContextDim ? "is-context-dim" : ""} ${isUrgentZone ? "is-urgent-zone" : ""} ${signalClasses}"
           data-type="agent"
           data-id="${escapeHtml(agentName)}"
           data-zone-id="${escapeHtml(zone.id)}"
@@ -1951,7 +1962,7 @@ function renderOfficeCanvas() {
 
   const officeBoardSummaryHtml = officeViewBoardSummary
     ? `
-      <section class="office-board-summary">
+      <section class="office-board-summary ${hasGlobalAlert ? "has-global-alert" : ""}">
         <p class="eyebrow">Company board summary</p>
         <strong>${escapeHtml(
           officeViewBoardSummary.headline || "Company board is clear for normal monitoring."
@@ -1979,7 +1990,7 @@ function renderOfficeCanvas() {
     ? officeViewHandoffs
         .map(
           (handoff, index) => `
-            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""}">
+            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""} ${handoff.status === "blocked" || /(approval|blocked|urgent)/i.test(handoff && typeof handoff.label === "string" ? handoff.label : "") ? "is-urgent-handoff" : ""}">
               <div class="office-handoff-route">
                 <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
                 <span class="office-handoff-arrow" aria-hidden="true">→</span>
