@@ -2044,6 +2044,14 @@ h2 {
   border-radius: 18px;
 }
 
+.detail-section h3 {
+  margin: 0 0 10px;
+}
+
+.detail-section-now h3 {
+  font-size: 1.05rem;
+}
+
 .detail-hero {
   display: grid;
   gap: 10px;
@@ -2072,6 +2080,11 @@ h2 {
 .history-list {
   margin: 12px 0 0;
   padding-left: 18px;
+}
+
+.detail-section-support {
+  border-color: rgba(20, 35, 34, 0.1);
+  background: rgba(255, 252, 245, 0.74);
 }
 
 .movement-intent-list {

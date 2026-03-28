@@ -6,6 +6,7 @@ const DECISION_SUCCESS_MESSAGE_MS = 9000;
 const V1_BOARD_CONTRACT = {
   maxVisibleHandoffs: 3,
   maxOpportunityMetadataChips: 2,
+  maxDetailHeroChips: 2,
   laneCardKeys: [
     "avatar",
     "lane_label",
@@ -364,6 +365,56 @@ function renderCurrentFocusStrip(focus) {
         <p class="eyebrow">Next step or blocker</p>
         <strong>${escapeHtml(focus.nextStep)}</strong>
       </div>
+    </section>
+  `;
+}
+
+function buildWhyThisMattersNow({
+  isBlocked,
+  needsApproval,
+  dueBy,
+  handoffTarget,
+  fallbackReason,
+}) {
+  if (isBlocked) {
+    return "Work is blocked, so ownership cannot progress until the blocker clears.";
+  }
+  if (needsApproval) {
+    return "Approval is required before this can move to the next owner lane.";
+  }
+  if (dueBy) {
+    return `Handoff urgency: this should move by ${formatTimestamp(dueBy)}${handoffTarget ? ` to ${handoffTarget}` : ""}.`;
+  }
+  return fallbackReason || "Keeping this moving prevents idle queue time between lanes.";
+}
+
+function normalizeOneLineSummary(value, fallback) {
+  const raw = String(value || "").trim();
+  return raw || fallback;
+}
+
+function renderSupportContextSection(capitalStrategy, capitalFit) {
+  if (!capitalStrategy) {
+    return `
+      <section class="detail-section detail-section-support">
+        <h3>Support context</h3>
+        <p class="muted">No active support posture is changing this lane right now.</p>
+      </section>
+    `;
+  }
+  return `
+    <section class="detail-section detail-section-support">
+      <h3>Support context</h3>
+      <ul class="detail-list">
+        <li>Capital mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
+        <li>Posture reason: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
+        ${
+          capitalFit
+            ? `<li>Opportunity fit: ${escapeHtml(formatCapitalFitLabel(capitalFit.stance))}</li>
+               <li>Fit rationale: ${escapeHtml(capitalFit.reason || "No fit note available.")}</li>`
+            : ""
+        }
+      </ul>
     </section>
   `;
 }
@@ -2055,7 +2106,7 @@ function renderDetailForOpportunity(entry) {
   const capitalFit = entry.capital_fit;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
-  const nextStep =
+  const nextAction =
     workflow && workflow.purchase_recommendation_blocked
       ? "Blocked by: purchase recommendation remains blocked."
       : entry.latest_task
@@ -2063,63 +2114,74 @@ function renderDetailForOpportunity(entry) {
         : handoff
           ? handoff.next_action
           : "Reviewing owned queue.";
+  const dueBy = entry.latest_task ? entry.latest_task.due_by : handoff ? handoff.due_by : null;
+  const nextOwner = entry.latest_task ? entry.latest_task.owner : handoff ? handoff.to_agent : ownerAgent;
+  const whyThisMattersNow = buildWhyThisMattersNow({
+    isBlocked: Boolean(workflow && workflow.purchase_recommendation_blocked),
+    needsApproval: normalizeToken(entry.current_status) === "awaiting_approval",
+    dueBy,
+    handoffTarget: nextOwner,
+    fallbackReason: "This is the lane-owned item, so clarity here keeps the company flow moving.",
+  });
+  const heroChips = [
+    `<span class="priority-pill ${formatStatusClass(entry.priority)}">${escapeHtml(entry.priority)} priority</span>`,
+    `<span class="priority-pill">${escapeHtml(formatLaneLabel(mapStatusToLaneStage(entry.current_status)))}</span>`,
+    workflow && workflow.purchase_recommendation_blocked
+      ? `<span class="alert-pill ${formatStatusClass("blocked")}">purchase blocked</span>`
+      : "",
+  ].filter(Boolean);
   const currentFocus = buildCurrentFocusModel({
     ownedBy: ownerPresence ? ownerPresence.zone_label : ownerAgent || "Unassigned",
     opportunityId: entry.opportunity_id,
     visualState: ownerPresence ? ownerPresence.visual_state : "idle",
-    nextStep,
+    nextStep: nextAction,
   });
 
   elements.detailPanel.innerHTML = `
     ${renderCurrentFocusStrip(currentFocus)}
-    <section class="detail-section">
+    <section class="detail-section detail-section-now">
+      <h3>Now</h3>
       <div class="detail-hero">
         <div class="detail-title-row">
           <div>
-            <p class="eyebrow">Selected opportunity</p>
+            <p class="eyebrow">Selected entity</p>
             <strong>${escapeHtml(entry.opportunity_id)}</strong>
           </div>
           <span class="status-pill ${formatStatusClass(entry.current_status)}">${escapeHtml(entry.current_status)}</span>
         </div>
-        <p>${escapeHtml(record ? record.device_summary : "No OpportunityRecord artifact found yet.")}</p>
-        <div class="detail-metrics">
-          <div class="metric"><span>Ask</span><strong>${formatCurrency(record ? record.ask_price_usd : null)}</strong></div>
-          <div class="metric"><span>Value range</span><strong>${
-            record ? `${formatCurrency(record.estimated_value_range_usd[0])} to ${formatCurrency(record.estimated_value_range_usd[1])}` : "N/A"
-          }</strong></div>
-          <div class="metric"><span>Recommendation</span><strong>${escapeHtml(entry.recommendation || "N/A")}</strong></div>
-          <div class="metric"><span>Priority</span><strong>${escapeHtml(entry.priority)}</strong></div>
-        </div>
+        <p>${escapeHtml(normalizeOneLineSummary(record ? record.device_summary : "", "No OpportunityRecord artifact found yet."))}</p>
         <div class="card-tags">
-          <span class="priority-pill ${formatStatusClass(entry.priority)}">${escapeHtml(entry.priority)} priority</span>
-          <span class="priority-pill">${escapeHtml(record ? record.confidence : workflow && workflow.confidence ? workflow.confidence : "unknown")} confidence</span>
-          <span class="priority-pill">${escapeHtml(formatLaneLabel(mapStatusToLaneStage(entry.current_status)))}</span>
-          ${
-            workflow && workflow.purchase_recommendation_blocked
-              ? `<span class="alert-pill ${formatStatusClass("blocked")}">purchase blocked</span>`
-              : ""
-          }
+          ${heroChips.slice(0, V1_BOARD_CONTRACT.maxDetailHeroChips).join("")}
         </div>
       </div>
     </section>
 
+    <section class="detail-section detail-section-now">
+      <h3>Why this matters now</h3>
+      <p>${escapeHtml(whyThisMattersNow)}</p>
+    </section>
+
     <section class="detail-section">
-      <h3>Handoff and approval</h3>
+      <h3>What happens next</h3>
       <ul class="detail-list">
-        <li>Next action: ${escapeHtml(entry.latest_task ? entry.latest_task.next_action : handoff ? handoff.next_action : "N/A")}</li>
-        <li>Next owner: ${escapeHtml(entry.latest_task ? entry.latest_task.owner : handoff ? handoff.to_agent : "N/A")}</li>
-        <li>Due by: ${escapeHtml(formatTimestamp(entry.latest_task ? entry.latest_task.due_by : handoff ? handoff.due_by : null))}</li>
-        <li>Approval status: ${escapeHtml(queue ? queue.status : ticket ? "draft" : "none")}</li>
-        <li>Exposure: ${formatCurrency(ticket ? ticket.max_exposure_usd : null)}</li>
+        <li>Next action: ${escapeHtml(nextAction)}</li>
+        <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
+        <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
       </ul>
     </section>
 
     <section class="detail-section">
-      <h3>Verification and risk</h3>
+      <h3>Evidence</h3>
       <ul class="detail-list">
+        <li>Recommendation reasoning: ${escapeHtml(entry.recommendation || "No recommendation yet.")}</li>
+        <li>Pricing context: Ask ${formatCurrency(record ? record.ask_price_usd : null)} vs value range ${
+          record ? `${formatCurrency(record.estimated_value_range_usd[0])} to ${formatCurrency(record.estimated_value_range_usd[1])}` : "N/A"
+        }.</li>
+        <li>Confidence: ${escapeHtml(record ? record.confidence : workflow && workflow.confidence ? workflow.confidence : "unknown")}</li>
+        <li>Verification notes: ${escapeHtml(record && record.notes ? record.notes : "No verification notes available.")}</li>
         ${
           risks.length
-            ? risks.map((risk) => `<li>${escapeHtml(risk)}</li>`).join("")
+            ? risks.map((risk) => `<li>Risk: ${escapeHtml(risk)}</li>`).join("")
             : "<li>No contract risk list available.</li>"
         }
       </ul>
@@ -2136,46 +2198,9 @@ function renderDetailForOpportunity(entry) {
       }
     </section>
 
-    ${
-      capitalStrategy
-        ? `
-          <section class="detail-section">
-            <h3>Capital strategy context</h3>
-            <ul class="detail-list">
-              <li>Company mode: ${escapeHtml(capitalStrategy.capital_mode)}</li>
-              <li>Opportunity fit: ${escapeHtml(
-                capitalFit ? formatCapitalFitLabel(capitalFit.stance) : "N/A"
-              )}</li>
-              <li>Capital rationale: ${escapeHtml(capitalStrategy.capital_mode_reason)}</li>
-              <li>Fit rationale: ${escapeHtml(capitalFit ? capitalFit.reason : "No fit note available.")}</li>
-              <li>Priority fit: ${escapeHtml(
-                capitalStrategy.approved_strategy_priorities
-                  .slice(0, 3)
-                  .map((item) => formatStrategyLabel(item))
-                  .join(", ")
-              )}</li>
-            </ul>
-            <div class="card-tags" style="margin-top:12px;">
-              ${capitalStrategy.recommended_avoidances
-                .slice(0, 2)
-                .map((item) => `<span class="task-chip">${escapeHtml(item)}</span>`)
-                .join("")}
-            </div>
-          </section>
-        `
-        : ""
-    }
-
     <section class="detail-section">
-      <h3>Movement intents</h3>
-      ${renderMovementIntentList(
-        movementIntents,
-        "No movement intent is currently derived for this opportunity."
-      )}
-    </section>
-
-    <section class="detail-section">
-      <h3>Status history</h3>
+      <h3>History</h3>
+      <p class="eyebrow">Status history</p>
       ${
         history.length
           ? `<ul class="history-list">${history
@@ -2195,7 +2220,14 @@ function renderDetailForOpportunity(entry) {
               .join("")}</ul>`
           : `<div class="empty-state">No lifecycle history recorded.</div>`
       }
+      <p class="eyebrow" style="margin-top:14px;">Movement intents</p>
+      ${renderMovementIntentList(
+        movementIntents,
+        "No movement intent is currently derived for this opportunity."
+      )}
     </section>
+
+    ${renderSupportContextSection(capitalStrategy, capitalFit)}
   `;
 
   bindMovementIntentControls();
@@ -2203,6 +2235,17 @@ function renderDetailForOpportunity(entry) {
 
 function renderDetailForLaneEmpty(card) {
   const presence = findPresenceByAgent(card.agent);
+  const movementIntents = movementIntentsForAgent(card.agent);
+  const role = describeRole(card.agent);
+  const capitalStrategy = card.agent === "CEO Agent" ? state.snapshot.capital_strategy : null;
+  const whyThisMattersNow = buildWhyThisMattersNow({
+    isBlocked: Boolean(card.blocker),
+    needsApproval: normalizeToken(presence ? presence.visual_state : "idle") === "needs_approval",
+    dueBy: null,
+    handoffTarget: null,
+    fallbackReason:
+      "This lane is clear, so the next qualifying handoff should be easy to spot.",
+  });
   const currentFocus = buildCurrentFocusModel({
     ownedBy: presence ? presence.zone_label : card.agent,
     opportunityId: "None",
@@ -2212,10 +2255,11 @@ function renderDetailForLaneEmpty(card) {
   elements.detailPanel.innerHTML = `
     ${renderCurrentFocusStrip(currentFocus)}
     <section class="detail-section">
+      <h3>Now</h3>
       <div class="detail-hero">
         <div class="detail-title-row">
           <div>
-            <p class="eyebrow">Lane status</p>
+            <p class="eyebrow">Selected entity</p>
             <strong>${escapeHtml(presence ? presence.zone_label : card.agent)}</strong>
           </div>
           <span class="status-pill ${formatStatusClass(currentFocus.visualState)}">${escapeHtml(
@@ -2225,7 +2269,48 @@ function renderDetailForLaneEmpty(card) {
         <p>${escapeHtml(getLaneEmptyCopy(card.agent))}</p>
       </div>
     </section>
+
+    <section class="detail-section">
+      <h3>Why this matters now</h3>
+      <p>${escapeHtml(whyThisMattersNow)}</p>
+    </section>
+
+    <section class="detail-section">
+      <h3>What happens next</h3>
+      <ul class="detail-list">
+        <li>Next action: ${escapeHtml(getLaneEmptyCopy(card.agent))}</li>
+        <li>Due context: ${escapeHtml(formatTimestamp(null))}</li>
+        <li>Owner or handoff target: ${escapeHtml(presence ? presence.zone_label : card.agent)}</li>
+      </ul>
+    </section>
+
+    <section class="detail-section">
+      <h3>Evidence</h3>
+      <ul class="detail-list">
+        <li>Verification notes: ${escapeHtml(presence && presence.bubble_text ? presence.bubble_text : "No lane notes available.")}</li>
+        <li>Risks: ${escapeHtml(card.blocker || "No active blocker in this lane.")}</li>
+        <li>Recommendation reasoning: ${escapeHtml(card.active_task || "Waiting on new owned work.")}</li>
+        <li>Role responsibility: ${escapeHtml(role.responsibility)}</li>
+      </ul>
+    </section>
+
+    <section class="detail-section">
+      <h3>History</h3>
+      <ul class="detail-list">
+        <li>Last update: ${escapeHtml(formatTimestamp(card.updated_at))}</li>
+        <li>Focused opportunity: ${escapeHtml(card.opportunity_id || "None")}</li>
+      </ul>
+      <p class="eyebrow" style="margin-top:14px;">Movement intents</p>
+      ${renderMovementIntentList(
+        movementIntents,
+        "No movement intents currently route through this lane."
+      )}
+    </section>
+
+    ${renderSupportContextSection(capitalStrategy, null)}
   `;
+
+  bindMovementIntentControls();
 }
 
 function renderDetailForAgent(card) {

@@ -58,3 +58,33 @@ test("selected opportunity card includes explicit selected salience marker", () 
   assert.match(source, /opportunity-selected-chip/);
   assert.match(source, />Selected</);
 });
+
+test("detail opportunity sections render in fixed newcomer-readable order", () => {
+  const source = readUiAppSource();
+  assert.match(
+    source,
+    /<h3>Now<\/h3>[\s\S]*<h3>Why this matters now<\/h3>[\s\S]*<h3>What happens next<\/h3>[\s\S]*<h3>Evidence<\/h3>[\s\S]*<h3>History<\/h3>/
+  );
+});
+
+test("detail lane-empty sections keep same hierarchy and include why-this-matters", () => {
+  const source = readUiAppSource();
+  assert.match(source, /function renderDetailForLaneEmpty/);
+  assert.match(source, /<h3>Why this matters now<\/h3>/);
+  assert.match(source, /<h3>What happens next<\/h3>/);
+  assert.match(source, /<h3>Support context<\/h3>/);
+});
+
+test("detail hero chip density is capped at two", () => {
+  const source = readUiAppSource();
+  assert.match(source, /maxDetailHeroChips: 2/);
+  assert.match(source, /heroChips\.slice\(0, V1_BOARD_CONTRACT\.maxDetailHeroChips\)/);
+});
+
+test("support context renders below operational sections", () => {
+  const source = readUiAppSource();
+  assert.match(
+    source,
+    /<h3>History<\/h3>[\s\S]*\$\{renderSupportContextSection\(capitalStrategy, capitalFit\)\}/
+  );
+});
