@@ -23,6 +23,7 @@ const {
 } = require("./contracts");
 
 const TERMINAL_OPPORTUNITY_STATES = new Set(["closed", "rejected"]);
+const CAPITAL_STRATEGY_BOARD_HISTORY_LIMIT = 4;
 
 function toIso(value) {
   if (typeof value === "string" && !Number.isNaN(Date.parse(value))) {
@@ -550,7 +551,9 @@ function buildCapitalStrategyBoardHistory(capitalControls, currentSnapshot) {
     ];
   }
 
-  const recentEntries = state.ledger.slice(-4);
+  const recentEntries = state.ledger
+    .slice(-CAPITAL_STRATEGY_BOARD_HISTORY_LIMIT)
+    .sort((a, b) => Date.parse(a.timestamp || 0) - Date.parse(b.timestamp || 0));
   return recentEntries.map((entry, index) => {
     const isLatest = index === recentEntries.length - 1;
     if (isLatest) {

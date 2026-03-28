@@ -415,3 +415,58 @@ test("buildUiSnapshot surfaces bounded capital board history from recent ledger 
     );
   }
 });
+
+test("buildUiSnapshot caps capital board history to the latest four snapshots in chronological order", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  runBootstrapAction({
+    statePath: env.capitalStatePath,
+    accountId: "arc-main-usd",
+    now: "2026-03-25T19:05:00.000Z",
+    force: false,
+  });
+
+  const movements = [
+    { action: "deposit", amountUsd: 1600, opportunityId: null, approvalTicketId: null, now: "2026-03-25T19:06:00.000Z" },
+    { action: "reserve", amountUsd: 200, opportunityId: "opp-2026-03-25-001", approvalTicketId: "apr-ui-001", now: "2026-03-25T19:07:00.000Z" },
+    { action: "release_reserve", amountUsd: 100, opportunityId: "opp-2026-03-25-001", approvalTicketId: "apr-ui-001", now: "2026-03-25T19:08:00.000Z" },
+    { action: "adjustment", amountUsd: 50, opportunityId: null, approvalTicketId: null, now: "2026-03-25T19:09:00.000Z" },
+    { action: "withdraw", amountUsd: 75, opportunityId: null, approvalTicketId: null, now: "2026-03-25T19:10:00.000Z" },
+  ];
+
+  for (const movement of movements) {
+    runMovementAction({
+      statePath: env.capitalStatePath,
+      action: movement.action,
+      amountUsd: movement.amountUsd,
+      requestedBy: "owner_operator",
+      performedBy: "owner_operator",
+      authorizedBy: "owner_operator",
+      reason: `Board history coverage for ${movement.action}.`,
+      notes: "",
+      opportunityId: movement.opportunityId,
+      approvalTicketId: movement.approvalTicketId,
+      requestId: null,
+      now: movement.now,
+    });
+  }
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    capitalStatePath: env.capitalStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:11:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  assert.equal(snapshot.capital_strategy.board_history.length, 4);
+  assert.deepEqual(
+    snapshot.capital_strategy.board_history.map((entry) => entry.timestamp),
+    [
+      "2026-03-25T19:07:00.000Z",
+      "2026-03-25T19:08:00.000Z",
+      "2026-03-25T19:09:00.000Z",
+      "2026-03-25T19:10:00.000Z",
+    ]
+  );
+});

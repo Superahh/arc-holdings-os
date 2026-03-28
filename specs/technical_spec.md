@@ -214,6 +214,8 @@ In v1, Board History:
 - does not affect ranking, routing, approvals, or money movement
 - does not modify `capital_fit`
 - does not require a generic event or persistence framework
+- is bounded to the most recent `4` posture snapshots
+- is ordered chronologically within that bounded window, oldest to newest
 
 Each history entry should remain narrow and explainable.
 
@@ -223,7 +225,7 @@ Suggested entry fields:
 - `capital_mode`
 - `rationale_snapshot`
 
-If explicit change events are not already available from runtime truth, the system may present recent capital posture snapshots in chronological order rather than inventing synthetic transition events.
+If explicit change events are not already available from runtime truth, the system may present the last `4` capital posture snapshots in chronological order rather than inventing synthetic transition events.
 
 ## Approval model
 
