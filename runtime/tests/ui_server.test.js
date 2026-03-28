@@ -147,9 +147,28 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
       snapshot.workflow.opportunities[0].operational_recommendation.actionability,
       "gated"
     );
+    const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+    assert.equal(typeof recommendation.recommendation_reason, "string");
+    assert.equal(recommendation.recommendation_reason.trim().length > 0, true);
+    assert.equal(typeof recommendation.next_action, "string");
+    assert.equal(recommendation.next_action.trim().length > 0, true);
+    assert.equal(typeof recommendation.change_condition, "string");
+    assert.equal(recommendation.change_condition.trim().length > 0, true);
+    assert.notEqual(
+      recommendation.recommendation_reason.trim().toLowerCase(),
+      recommendation.next_action.trim().toLowerCase()
+    );
+    assert.notEqual(
+      recommendation.recommendation_reason.trim().toLowerCase(),
+      recommendation.change_condition.trim().toLowerCase()
+    );
+    assert.notEqual(
+      recommendation.next_action.trim().toLowerCase(),
+      recommendation.change_condition.trim().toLowerCase()
+    );
     assert.match(
       snapshot.workflow.opportunities[0].operational_recommendation.change_condition,
-      /IMEI proof and carrier verification/i
+      /verification|approval|resolve|gate/i
     );
 
     const decisionResponse = await request(server, "/api/approval-decision", {

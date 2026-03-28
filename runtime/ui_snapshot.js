@@ -127,6 +127,189 @@ function sortOpportunities(entries) {
   });
 }
 
+function normalizeRecommendationCopy(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function recommendationCopyKey(value) {
+  return normalizeRecommendationCopy(value).toLowerCase();
+}
+
+function compactToken(value) {
+  return normalizeRecommendationCopy(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function reasonParrotsLabel(reason, label) {
+  const reasonToken = compactToken(reason);
+  const labelToken = compactToken(label);
+  if (!reasonToken || !labelToken) {
+    return false;
+  }
+  if (reasonToken === labelToken) {
+    return true;
+  }
+  return reasonToken === `recommendation${labelToken}` || reasonToken === `${labelToken}recommendation`;
+}
+
+function buildRecommendationReasonCopy(context) {
+  if (context.recommendationType === "buy_now") {
+    return "Verification is clear and there is no active gate blocking execution.";
+  }
+  if (context.recommendationType === "buy_after_verification") {
+    if (context.verificationPending && context.workflowBlocked) {
+      return "Upside is viable, but verification evidence and approval clearance are both still open.";
+    }
+    if (context.verificationPending) {
+      return "Upside is viable, but verification evidence is still open.";
+    }
+    if (context.workflowBlocked) {
+      return "Upside is viable, but approval clearance is still open.";
+    }
+    return "Upside is viable, but a concrete gate must clear before execution.";
+  }
+  if (context.recommendationType === "skip") {
+    return "Current evidence supports rejecting this opportunity instead of spending more cycles.";
+  }
+  if (context.recommendationType === "part_out_only") {
+    return "The parts path is stronger than a whole-unit resale path at current assumptions.";
+  }
+  if (context.recommendationType === "repair_if_cost_holds") {
+    return "Repair-and-resale is only viable if repair cost stays inside the expected bound.";
+  }
+  if (context.recommendationType === "wait_for_better_price") {
+    if (typeof context.askPrice === "number" && typeof context.valueCeiling === "number") {
+      return `Current ask (${context.askPrice} USD) is above the viable entry ceiling (${context.valueCeiling} USD).`;
+    }
+    return "Current entry price is above the viable threshold for this thesis.";
+  }
+  return "Evidence remains structurally incomplete or conflicting for a safe narrow-path decision.";
+}
+
+function buildRecommendationFallbackNextAction(context) {
+  if (context.recommendationType === "buy_now") {
+    return "Move this acquisition into approval flow and prep execution handoff.";
+  }
+  if (context.recommendationType === "buy_after_verification") {
+    if (context.verificationPending && context.workflowBlocked) {
+      return "Collect missing verification proof and clear approval gate before execution.";
+    }
+    if (context.verificationPending) {
+      return "Collect missing IMEI and carrier verification evidence now.";
+    }
+    if (context.workflowBlocked) {
+      return "Resolve approval gate so execution can proceed.";
+    }
+    return "Clear the open gate identified in workflow before execution.";
+  }
+  if (context.recommendationType === "skip") {
+    return "Close this opportunity and stop active pursuit.";
+  }
+  if (context.recommendationType === "part_out_only") {
+    return "Route to part-out workflow and avoid whole-unit resale assumptions.";
+  }
+  if (context.recommendationType === "repair_if_cost_holds") {
+    return "Confirm repair quote before committing to acquisition.";
+  }
+  if (context.recommendationType === "wait_for_better_price") {
+    return "Re-engage only at target entry price and monitor for movement.";
+  }
+  return "Run focused owner review on the strongest unresolved conflict.";
+}
+
+function buildRecommendationChangeCondition(context) {
+  if (context.recommendationType === "buy_now") {
+    return "Change only if new disqualifying verification, approval, or pricing risk appears.";
+  }
+  if (context.recommendationType === "buy_after_verification") {
+    if (context.verificationPending && context.workflowBlocked) {
+      return "Change when verification and approval gates resolve; proceed if both clear, otherwise re-route.";
+    }
+    if (context.verificationPending) {
+      return "Change when IMEI proof and carrier verification resolve; proceed if clear, otherwise re-route.";
+    }
+    if (context.workflowBlocked) {
+      return "Change when approval gate resolves; proceed if approved, otherwise re-route.";
+    }
+    return "Change when the open gate resolves into either clear execution or rejection.";
+  }
+  if (context.recommendationType === "skip") {
+    return "Change only if materially contradictory evidence overturns the current reject case.";
+  }
+  if (context.recommendationType === "part_out_only") {
+    return "Change if whole-unit economics improve enough to beat projected part-out return.";
+  }
+  if (context.recommendationType === "repair_if_cost_holds") {
+    return "Change when repair quote confirms in-range viability or breaks above the cost bound.";
+  }
+  if (context.recommendationType === "wait_for_better_price") {
+    if (typeof context.askPrice === "number" && typeof context.valueCeiling === "number") {
+      return `Change when ask falls from ${context.askPrice} USD to ${context.valueCeiling} USD or below.`;
+    }
+    return "Change when entry price moves into the viable range.";
+  }
+  return "Change when the core evidence conflict collapses into a clear path decision.";
+}
+
+function hardenRecommendationVisibleCopy(input) {
+  const reasonAlternates = {
+    buy_now: "No verification or approval gate remains on the current execution path.",
+    buy_after_verification: "This remains a likely buy once the open gate is resolved.",
+    skip: "Current signals are strong enough to stop pursuit now.",
+    part_out_only: "Parts disposition currently dominates whole-unit return.",
+    repair_if_cost_holds: "Repair viability depends on holding the cost cap.",
+    wait_for_better_price: "Price must improve before this becomes executable.",
+    manual_review: "No narrow gate can safely resolve the current evidence conflict.",
+  };
+  const changeAlternates = {
+    buy_now: "Change if a new blocker appears.",
+    buy_after_verification: "Change when the current gate resolves to clear or reject.",
+    skip: "Change if contradictory evidence materially improves the case.",
+    part_out_only: "Change if whole-unit return overtakes the parts case.",
+    repair_if_cost_holds: "Change if confirmed repair cost misses the target bound.",
+    wait_for_better_price: "Change when price enters target range.",
+    manual_review: "Change once the core conflict resolves into a single path.",
+  };
+
+  let reason = normalizeRecommendationCopy(input.reason);
+  let nextAction = normalizeRecommendationCopy(input.nextAction);
+  let changeCondition = normalizeRecommendationCopy(input.changeCondition);
+  if (!reason) {
+    reason = reasonAlternates[input.recommendationType];
+  }
+  if (!nextAction) {
+    nextAction = buildRecommendationFallbackNextAction(input.context);
+  }
+  if (!changeCondition) {
+    changeCondition = changeAlternates[input.recommendationType];
+  }
+
+  if (reasonParrotsLabel(reason, input.label)) {
+    reason = reasonAlternates[input.recommendationType];
+  }
+
+  if (recommendationCopyKey(reason) === recommendationCopyKey(nextAction)) {
+    if (input.hasExplicitAction) {
+      reason = reasonAlternates[input.recommendationType];
+    } else {
+      nextAction = buildRecommendationFallbackNextAction(input.context);
+      if (recommendationCopyKey(reason) === recommendationCopyKey(nextAction)) {
+        reason = reasonAlternates[input.recommendationType];
+      }
+    }
+  }
+  if (recommendationCopyKey(reason) === recommendationCopyKey(changeCondition)) {
+    changeCondition = changeAlternates[input.recommendationType];
+  }
+  if (recommendationCopyKey(nextAction) === recommendationCopyKey(changeCondition)) {
+    changeCondition = changeAlternates[input.recommendationType];
+  }
+
+  return { reason, nextAction, changeCondition };
+}
+
 function deriveOperationalRecommendation(entry) {
   const opportunityRecord =
     entry && entry.contract_bundle ? entry.contract_bundle.opportunity_record : null;
@@ -183,51 +366,13 @@ function deriveOperationalRecommendation(entry) {
     manual_review: "Manual review",
   };
 
-  const fallbackNextActionByType = {
-    buy_now: "Submit acquisition for approval and prepare execution handoff.",
-    buy_after_verification: "Request missing verification evidence from seller.",
-    skip: "Close this opportunity and route sourcing to stronger alternatives.",
-    part_out_only: "Route to part-out path and avoid full-resale assumptions.",
-    repair_if_cost_holds: "Confirm repair quote before committing to acquisition.",
-    wait_for_better_price: "Re-engage seller at target price and hold acquisition.",
-    manual_review: "Escalate for owner review with current evidence bundle.",
-  };
-
-  const fallbackReasonByType = {
-    buy_now: "Verification and economics support immediate acquisition flow.",
-    buy_after_verification:
-      workflowBlocked || verificationPending
-        ? "Recommendation is blocked until verification evidence clears."
-        : "Acquisition should proceed only after missing verification is resolved.",
-    skip: "Current economics or risk posture do not support acquisition.",
-    part_out_only: "Part-out economics are stronger than full resale for this unit.",
-    repair_if_cost_holds: "Repair-and-resale works only if repair cost remains within estimate.",
-    wait_for_better_price: "Current ask sits above the modeled value ceiling.",
-    manual_review: "Signals are incomplete or conflicting and need owner review.",
-  };
-
-  const fallbackChangeConditionByType = {
-    buy_now: "Change if new verification risk or pricing deterioration appears.",
-    buy_after_verification:
-      "Change when IMEI proof and carrier verification are both confirmed.",
-    skip: "Change if seller price drops or stronger verification reduces risk.",
-    part_out_only: "Change if full-resale net overtakes part-out return.",
-    repair_if_cost_holds: "Change if repair quote exceeds planned threshold.",
-    wait_for_better_price: "Change if ask moves inside the value range.",
-    manual_review: "Change when missing evidence is captured or owner decision lands.",
-  };
-
   const existingAction =
     (latestTask && latestTask.next_action) ||
     (handoffPacket && handoffPacket.next_action) ||
     (queueItem && queueItem.ticket && queueItem.ticket.reasoning_summary) ||
     "";
-  const changeCondition =
-    recommendationType === "wait_for_better_price" &&
-    typeof askPrice === "number" &&
-    typeof valueCeiling === "number"
-      ? `Change if ask falls from ${askPrice} USD to ${valueCeiling} USD or below.`
-      : fallbackChangeConditionByType[recommendationType];
+  const hasExplicitAction =
+    existingAction && typeof existingAction === "string" && existingAction.trim();
 
   let primaryDriver = "ambiguous_evidence";
   let blockingType = "ambiguity";
@@ -258,15 +403,34 @@ function deriveOperationalRecommendation(entry) {
     actionability = "watching";
   }
 
+  const recommendationContext = {
+    recommendationType,
+    primaryDriver,
+    blockingType,
+    actionability,
+    workflowBlocked,
+    verificationPending,
+    askPrice,
+    valueCeiling,
+  };
+  const normalizedCopy = hardenRecommendationVisibleCopy({
+    recommendationType,
+    label: recommendationLabels[recommendationType],
+    reason: buildRecommendationReasonCopy(recommendationContext),
+    nextAction: hasExplicitAction
+      ? existingAction.trim()
+      : buildRecommendationFallbackNextAction(recommendationContext),
+    changeCondition: buildRecommendationChangeCondition(recommendationContext),
+    hasExplicitAction: Boolean(hasExplicitAction),
+    context: recommendationContext,
+  });
+
   return {
     recommendation_type: recommendationType,
     recommendation_label: recommendationLabels[recommendationType],
-    recommendation_reason: fallbackReasonByType[recommendationType],
-    next_action:
-      existingAction && typeof existingAction === "string" && existingAction.trim()
-        ? existingAction.trim()
-        : fallbackNextActionByType[recommendationType],
-    change_condition: changeCondition,
+    recommendation_reason: normalizedCopy.reason,
+    next_action: normalizedCopy.nextAction,
+    change_condition: normalizedCopy.changeCondition,
     primary_driver: primaryDriver,
     blocking_type: blockingType,
     actionability,

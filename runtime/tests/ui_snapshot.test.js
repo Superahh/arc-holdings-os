@@ -113,6 +113,38 @@ function mutateSeededRecommendationInputs(env, mutateFn) {
   fs.writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
 }
 
+function normalizeTextKey(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function compactTextToken(value) {
+  return normalizeTextKey(value).replace(/[^a-z0-9]+/g, "");
+}
+
+function assertRecommendationTextContract(recommendation) {
+  assert.equal(typeof recommendation.recommendation_reason, "string");
+  assert.equal(recommendation.recommendation_reason.trim().length > 0, true);
+  assert.equal(typeof recommendation.next_action, "string");
+  assert.equal(recommendation.next_action.trim().length > 0, true);
+  assert.equal(typeof recommendation.change_condition, "string");
+  assert.equal(recommendation.change_condition.trim().length > 0, true);
+
+  const reasonKey = normalizeTextKey(recommendation.recommendation_reason);
+  const actionKey = normalizeTextKey(recommendation.next_action);
+  const changeKey = normalizeTextKey(recommendation.change_condition);
+  assert.notEqual(reasonKey, actionKey, "reason and next_action should not duplicate");
+  assert.notEqual(reasonKey, changeKey, "reason and change_condition should not duplicate");
+  assert.notEqual(actionKey, changeKey, "next_action and change_condition should not duplicate");
+
+  const labelToken = compactTextToken(recommendation.recommendation_label);
+  const reasonToken = compactTextToken(recommendation.recommendation_reason);
+  assert.notEqual(reasonToken, labelToken, "reason should not trivially restate the label");
+  assert.notEqual(reasonToken, `recommendation${labelToken}`, "reason should not parrot the label");
+}
+
 test("buildUiSnapshot composes contract-driven shell data from runtime state", () => {
   const env = seedFixtureEnvironment();
 
@@ -153,6 +185,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(recommendation.next_action.length > 0, true);
   assert.equal(typeof recommendation.change_condition, "string");
   assert.equal(recommendation.change_condition.length > 0, true);
+  assertRecommendationTextContract(recommendation);
   assert.equal(typeof recommendation.primary_driver, "string");
   assert.equal(recommendation.primary_driver.length > 0, true);
   assert.equal(typeof recommendation.blocking_type, "string");
@@ -160,6 +193,18 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(typeof recommendation.actionability, "string");
   assert.equal(recommendation.actionability.length > 0, true);
   assert.equal(recommendation.recommendation_type, "buy_after_verification");
+  const explicitAction =
+    (snapshot.workflow.opportunities[0].latest_task &&
+      snapshot.workflow.opportunities[0].latest_task.next_action) ||
+    (snapshot.workflow.opportunities[0].contract_bundle.handoff_packet &&
+      snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action) ||
+    (snapshot.workflow.opportunities[0].queue_item &&
+      snapshot.workflow.opportunities[0].queue_item.ticket &&
+      snapshot.workflow.opportunities[0].queue_item.ticket.reasoning_summary) ||
+    "";
+  if (explicitAction && explicitAction.trim()) {
+    assert.equal(recommendation.next_action, explicitAction.trim());
+  }
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -736,6 +781,29 @@ test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with d
     assert.equal(recommendation.primary_driver, scenario.expected.primary_driver, scenario.name);
     assert.equal(recommendation.blocking_type, scenario.expected.blocking_type, scenario.name);
     assert.equal(recommendation.actionability, scenario.expected.actionability, scenario.name);
+    assertRecommendationTextContract(recommendation);
+    if (scenario.expected.type === "buy_now") {
+      assert.match(recommendation.recommendation_reason, /verification|gate/i, scenario.name);
+      assert.match(recommendation.change_condition, /disqualifying|risk|blocker/i, scenario.name);
+    } else if (scenario.expected.type === "buy_after_verification") {
+      assert.match(recommendation.recommendation_reason, /verification|approval|gate|open/i, scenario.name);
+      assert.match(recommendation.change_condition, /resolve|verification|approval|proceed|re-route/i, scenario.name);
+    } else if (scenario.expected.type === "skip") {
+      assert.match(recommendation.recommendation_reason, /reject|stop|evidence/i, scenario.name);
+      assert.match(recommendation.change_condition, /contradictory|overturn/i, scenario.name);
+    } else if (scenario.expected.type === "part_out_only") {
+      assert.match(recommendation.recommendation_reason, /parts|whole-unit/i, scenario.name);
+      assert.match(recommendation.change_condition, /whole-unit|part-out|economics/i, scenario.name);
+    } else if (scenario.expected.type === "repair_if_cost_holds") {
+      assert.match(recommendation.recommendation_reason, /repair|cost|bound|viable/i, scenario.name);
+      assert.match(recommendation.change_condition, /repair|quote|cost|bound/i, scenario.name);
+    } else if (scenario.expected.type === "wait_for_better_price") {
+      assert.match(recommendation.recommendation_reason, /ask|price|ceiling|entry/i, scenario.name);
+      assert.match(recommendation.change_condition, /ask|falls|below|price|range/i, scenario.name);
+    } else if (scenario.expected.type === "manual_review") {
+      assert.match(recommendation.recommendation_reason, /conflict|incomplete|safe|decision|evidence/i, scenario.name);
+      assert.match(recommendation.change_condition, /conflict|resolves|path/i, scenario.name);
+    }
     observedTypes.add(recommendation.recommendation_type);
   }
 
@@ -831,6 +899,84 @@ test("buildUiSnapshot recommendation tie-breaks stay deterministic at near-bound
       fixtureCase.expectedProvenance.actionability,
       fixtureCase.name
     );
+    assertRecommendationTextContract(recommendation);
+  }
+});
+
+test("buildUiSnapshot recommendation text remains collision-safe in adversarial wording contexts", () => {
+  const cases = [
+    {
+      name: "buy_after_verification_with_approval_and_verification_language",
+      expectedType: "buy_after_verification",
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: false,
+        };
+        artifactOutput.handoff_packet.next_action =
+          "Clear approval hold and gather missing IMEI and carrier evidence.";
+      },
+      checks: (recommendation) => {
+        assert.match(recommendation.recommendation_reason, /verification|approval|open/i);
+        assert.match(recommendation.change_condition, /verification|approval|resolve/i);
+      },
+    },
+    {
+      name: "repair_if_cost_holds_with_nearby_missing_evidence",
+      expectedType: "repair_if_cost_holds",
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "repair_and_resale";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: false,
+        };
+        artifactOutput.handoff_packet.next_action = "Collect missing evidence while confirming repair quote.";
+      },
+      checks: (recommendation) => {
+        assert.match(recommendation.recommendation_reason, /repair|cost|bound/i);
+        assert.match(recommendation.change_condition, /repair|quote|cost|bound/i);
+      },
+    },
+    {
+      name: "manual_review_with_partial_conflicting_path_signals",
+      expectedType: "manual_review",
+      mutate: ({ workflowRecord, artifactOutput }) => {
+        artifactOutput.opportunity_record = null;
+        workflowRecord.recommendation = null;
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+        };
+        artifactOutput.handoff_packet.next_action =
+          "Review conflicting path assumptions before selecting execution path.";
+      },
+      checks: (recommendation) => {
+        assert.match(recommendation.recommendation_reason, /conflict|incomplete|safe|decision|evidence/i);
+        assert.match(recommendation.change_condition, /conflict|resolves|path/i);
+      },
+    },
+  ];
+
+  for (const fixtureCase of cases) {
+    const env = seedFixtureEnvironment({ enqueueApproval: false });
+    mutateSeededRecommendationInputs(env, fixtureCase.mutate);
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+    assert.equal(recommendation.recommendation_type, fixtureCase.expectedType, fixtureCase.name);
+    assertRecommendationTextContract(recommendation);
+    fixtureCase.checks(recommendation);
   }
 });
 
