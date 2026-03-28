@@ -523,11 +523,38 @@ h2 {
 }
 
 .office-handoff-row.is-actionable {
-  cursor: pointer;
+  cursor: default;
 }
 
 .office-handoff-row.is-actionable:hover {
   border-color: rgba(20, 35, 34, 0.3);
+}
+
+.office-handoff-action {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.office-handoff-action:not(.is-static) {
+  cursor: pointer;
+}
+
+.office-handoff-action:not(.is-static):active {
+  transform: translateY(0.5px);
+}
+
+.office-handoff-action:not(.is-static):focus-visible,
+.office-summary-action:focus-visible {
+  outline: 2px solid rgba(47, 107, 79, 0.55);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 
 .office-handoff-row.is-active {
@@ -571,10 +598,19 @@ h2 {
 
 .office-summary-action {
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 button.office-summary-action {
   border: none;
+}
+
+button.office-summary-action:hover {
+  background: rgba(20, 35, 34, 0.08);
+}
+
+button.office-summary-action:active {
+  transform: translateY(0.5px);
 }
 
 .office-summary-alert-action {

@@ -1789,6 +1789,16 @@ function renderHandoffOverlay(renderableHandoffs) {
   overlay.classList.remove("hidden");
 }
 
+function describeOfficeActionKind(type) {
+  if (type === "opportunity") {
+    return "opportunity";
+  }
+  if (type === "agent") {
+    return "connected zone";
+  }
+  return "context";
+}
+
 function renderOfficeCanvas() {
   const officeView = state.snapshot.office.office_view || null;
   const officeViewZones = officeView && Array.isArray(officeView.zones) ? officeView.zones : [];
@@ -2009,7 +2019,7 @@ function renderOfficeCanvas() {
                       : null;
                     const pillLabel = escapeHtml(`${entry.label}: ${entry.value}`);
                     if (targetOpportunityId) {
-                      return `<button type="button" class="priority-pill office-summary-action" data-type="opportunity" data-id="${escapeHtml(targetOpportunityId)}">${pillLabel}</button>`;
+                      return `<button type="button" class="priority-pill office-summary-action" data-type="opportunity" data-id="${escapeHtml(targetOpportunityId)}" data-action-kind="opportunity-focus" aria-label="${escapeHtml(`Focus related opportunity for ${entry.label}`)}" title="${escapeHtml("Focus related opportunity")}">${pillLabel}</button>`;
                     }
                     return `<span class="priority-pill">${pillLabel}</span>`;
                   }
@@ -2020,7 +2030,7 @@ function renderOfficeCanvas() {
         ${
           officeViewBoardSummary.alert_text
             ? alertFocusOpportunityId
-              ? `<button type="button" class="muted office-board-summary-alert office-summary-action office-summary-alert-action" data-type="opportunity" data-id="${escapeHtml(alertFocusOpportunityId)}">${escapeHtml(officeViewBoardSummary.alert_text)}</button>`
+              ? `<button type="button" class="muted office-board-summary-alert office-summary-action office-summary-alert-action" data-type="opportunity" data-id="${escapeHtml(alertFocusOpportunityId)}" data-action-kind="opportunity-focus" aria-label="${escapeHtml("Focus related opportunity from board alert")}" title="${escapeHtml("Focus related opportunity")}">${escapeHtml(officeViewBoardSummary.alert_text)}</button>`
               : `<p class="muted office-board-summary-alert">${escapeHtml(officeViewBoardSummary.alert_text)}</p>`
             : ""
         }
@@ -2030,18 +2040,41 @@ function renderOfficeCanvas() {
 
   const handoffRowsHtml = officeViewHandoffs.length
     ? officeViewHandoffs
-        .map(
-          (handoff, index) => `
-            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""} ${handoff.status === "blocked" || /(approval|blocked|urgent)/i.test(handoff && typeof handoff.label === "string" ? handoff.label : "") ? "is-urgent-handoff" : ""} ${(handoff && handoff.opportunity_id && findOpportunityById(handoff.opportunity_id)) || (handoff && handoff.to_zone && zoneRoleById.get(handoff.to_zone)) || (handoff && handoff.from_zone && zoneRoleById.get(handoff.from_zone)) ? "is-actionable" : ""}" ${(handoff && handoff.opportunity_id && findOpportunityById(handoff.opportunity_id)) ? `data-type="opportunity" data-id="${escapeHtml(handoff.opportunity_id)}"` : (handoff && handoff.to_zone && zoneRoleById.get(handoff.to_zone)) ? `data-type="agent" data-id="${escapeHtml(zoneRoleById.get(handoff.to_zone))}"` : (handoff && handoff.from_zone && zoneRoleById.get(handoff.from_zone)) ? `data-type="agent" data-id="${escapeHtml(zoneRoleById.get(handoff.from_zone))}"` : ""}>
-              <div class="office-handoff-route">
-                <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
-                <span class="office-handoff-arrow" aria-hidden="true">→</span>
-                <span class="office-handoff-to">${escapeHtml(handoff.to_zone)}</span>
-              </div>
-              <span class="office-handoff-label">${escapeHtml(handoff.label)}</span>
+        .map((handoff, index) => {
+          const hasOpportunityTarget =
+            Boolean(handoff && handoff.opportunity_id) && Boolean(findOpportunityById(handoff.opportunity_id));
+          const toAgentTarget = handoff && handoff.to_zone ? zoneRoleById.get(handoff.to_zone) : null;
+          const fromAgentTarget =
+            handoff && handoff.from_zone ? zoneRoleById.get(handoff.from_zone) : null;
+          const targetType = hasOpportunityTarget
+            ? "opportunity"
+            : toAgentTarget || fromAgentTarget
+            ? "agent"
+            : null;
+          const targetId = hasOpportunityTarget
+            ? handoff.opportunity_id
+            : toAgentTarget || fromAgentTarget || null;
+          const isActionable = Boolean(targetType && targetId);
+          const actionKind = targetType === "opportunity" ? "opportunity-focus" : "agent-focus";
+          const actionTitle = `Focus related ${describeOfficeActionKind(targetType)}`;
+          const actionLabel = `Focus ${describeOfficeActionKind(targetType)} from ${handoff.from_zone} to ${handoff.to_zone}`;
+          return `
+            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"} ${selectionContext.hasMeaningfulSelectionContext && selectionContext.relatedHandoffIndexes.has(index) ? "is-context-related" : ""} ${index === selectionContext.primaryHandoffIndex ? "is-context-primary" : ""} ${selectionContext.hasMeaningfulSelectionContext && !selectionContext.relatedHandoffIndexes.has(index) ? "is-context-dim" : ""} ${handoff.status === "blocked" || /(approval|blocked|urgent)/i.test(handoff && typeof handoff.label === "string" ? handoff.label : "") ? "is-urgent-handoff" : ""} ${isActionable ? "is-actionable" : ""}" ${isActionable ? `data-action-kind="${escapeHtml(actionKind)}"` : ""}>
+              ${
+                isActionable
+                  ? `<button type="button" class="office-handoff-action" data-type="${escapeHtml(targetType)}" data-id="${escapeHtml(targetId)}" data-action-kind="${escapeHtml(actionKind)}" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionTitle)}">`
+                  : '<div class="office-handoff-action is-static">'
+              }
+                <div class="office-handoff-route">
+                  <span class="office-handoff-from">${escapeHtml(handoff.from_zone)}</span>
+                  <span class="office-handoff-arrow" aria-hidden="true">→</span>
+                  <span class="office-handoff-to">${escapeHtml(handoff.to_zone)}</span>
+                </div>
+                <span class="office-handoff-label">${escapeHtml(handoff.label)}</span>
+              ${isActionable ? "</button>" : "</div>"}
             </li>
-          `
-        )
+          `;
+        })
         .join("")
     : '<li class="office-handoff-row is-idle"><span class="office-handoff-label">No active handoffs right now.</span></li>';
 
@@ -2992,4 +3025,5 @@ elements.refreshButton.addEventListener("click", () => {
 
 loadSnapshot();
 window.setInterval(loadSnapshot, 30000);
+
 

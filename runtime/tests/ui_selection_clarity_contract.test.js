@@ -156,10 +156,14 @@ test("office canvas allows urgency and selection context hooks to coexist", () =
 
 test("office handoff rows map clicks into existing selection targets", () => {
   const source = readUiAppSource();
-  assert.match(source, /handoff\.opportunity_id && findOpportunityById\(handoff\.opportunity_id\)/);
+  assert.match(source, /const hasOpportunityTarget =/);
+  assert.match(source, /Boolean\(handoff && handoff\.opportunity_id\) && Boolean\(findOpportunityById\(handoff\.opportunity_id\)\)/);
   assert.match(source, /zoneRoleById\.get\(handoff\.to_zone\)/);
   assert.match(source, /class=\"office-handoff-row[\s\S]*is-actionable/);
-  assert.match(source, /data-type=\"opportunity\" data-id=\"\$\{escapeHtml\(handoff\.opportunity_id\)\}\"/);
+  assert.match(source, /class=\"office-handoff-action\" data-type=\"\$\{escapeHtml\(targetType\)\}\" data-id=\"\$\{escapeHtml\(targetId\)\}\"/);
+  assert.match(source, /data-action-kind=\"\$\{escapeHtml\(actionKind\)\}\"/);
+  assert.match(source, /aria-label=\"\$\{escapeHtml\(actionLabel\)\}\"/);
+  assert.match(source, /'<div class=\"office-handoff-action is-static\">'/);
 });
 
 test("office board summary emits click-through hooks using existing opportunity focus", () => {
@@ -167,4 +171,7 @@ test("office board summary emits click-through hooks using existing opportunity 
   assert.match(source, /alertFocusOpportunityId/);
   assert.match(source, /office-summary-action/);
   assert.match(source, /data-type=\"opportunity\" data-id=\"\$\{escapeHtml\(targetOpportunityId\)\}\"/);
+  assert.match(source, /data-action-kind=\"opportunity-focus\"/);
+  assert.match(source, /title=\"\$\{escapeHtml\(\"Focus related opportunity\"\)\}\"/);
+  assert.match(source, /return `<span class=\"priority-pill\">\$\{pillLabel\}<\/span>`/);
 });
