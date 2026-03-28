@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-node tools/run_automation_pack.js
