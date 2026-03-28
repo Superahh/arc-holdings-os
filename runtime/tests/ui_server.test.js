@@ -124,6 +124,22 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.office.movement_intents.length >= 1, true);
     assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
     assert.equal(snapshot.office.handoff_signals[0].to_zone_id, "verification-bay");
+    assert.equal(snapshot.office.handoff_signals[0].handoff_state, "handoff_blocked");
+    assert.equal(
+      typeof snapshot.office.handoff_signals[0].current_owner_action === "string" &&
+        snapshot.office.handoff_signals[0].current_owner_action.length > 0,
+      true
+    );
+    assert.equal(
+      typeof snapshot.office.handoff_signals[0].next_owner === "string" &&
+        snapshot.office.handoff_signals[0].next_owner.length > 0,
+      true
+    );
+    assert.equal(
+      typeof snapshot.office.handoff_signals[0].handoff_clear_condition === "string" &&
+        snapshot.office.handoff_signals[0].handoff_clear_condition.length > 0,
+      true
+    );
     assert.equal(snapshot.office.route_hints[0].to_zone_id, "verification-bay");
     assert.equal(snapshot.office.route_hints[0].source, "handoff_signal");
     assert.equal(snapshot.office.events[0].type, "approval_waiting");
@@ -175,6 +191,7 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
       "gated"
     );
     const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+    const execution = snapshot.workflow.opportunities[0].operational_execution;
     assert.equal(typeof recommendation.recommendation_reason, "string");
     assert.equal(recommendation.recommendation_reason.trim().length > 0, true);
     assert.equal(typeof recommendation.next_action, "string");
@@ -196,6 +213,19 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.match(
       snapshot.workflow.opportunities[0].operational_recommendation.change_condition,
       /verification|approval|resolve|gate/i
+    );
+    assert.equal(
+      typeof execution.execution_state === "string" && execution.execution_state.length > 0,
+      true
+    );
+    assert.equal(
+      typeof execution.execution_next_step === "string" && execution.execution_next_step.length > 0,
+      true
+    );
+    assert.equal(
+      typeof execution.execution_clear_condition === "string" &&
+        execution.execution_clear_condition.length > 0,
+      true
     );
 
     const decisionResponse = await request(server, "/api/approval-decision", {

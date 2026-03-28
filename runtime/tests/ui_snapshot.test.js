@@ -29,6 +29,19 @@ const ALLOWED_RECOMMENDATION_TYPES = new Set([
   "hold_for_info",
   "reject_now",
 ]);
+const ALLOWED_HANDOFF_STATES = new Set([
+  "handoff_ready",
+  "handoff_blocked",
+  "handoff_waiting",
+  "handoff_return_required",
+]);
+const ALLOWED_EXECUTION_STATES = new Set([
+  "execution_ready",
+  "execution_waiting_intake",
+  "execution_waiting_parts",
+  "execution_blocked",
+  "execution_not_applicable",
+]);
 
 function loadGoldenFixture() {
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
@@ -142,6 +155,34 @@ function assertRecommendationTextContract(recommendation) {
   assert.notEqual(reasonToken, `recommendation${labelToken}`, "reason should not parrot the label");
 }
 
+function assertHandoffTextContract(handoff) {
+  assert.equal(typeof handoff.handoff_state, "string");
+  assert.equal(ALLOWED_HANDOFF_STATES.has(handoff.handoff_state), true);
+  assert.equal(typeof handoff.handoff_label, "string");
+  assert.equal(handoff.handoff_label.trim().length > 0, true);
+  assert.equal(typeof handoff.handoff_reason, "string");
+  assert.equal(handoff.handoff_reason.trim().length > 0, true);
+  assert.equal(typeof handoff.current_owner_action, "string");
+  assert.equal(handoff.current_owner_action.trim().length > 0, true);
+  assert.equal(typeof handoff.next_owner, "string");
+  assert.equal(handoff.next_owner.trim().length > 0, true);
+  assert.equal(typeof handoff.handoff_clear_condition, "string");
+  assert.equal(handoff.handoff_clear_condition.trim().length > 0, true);
+}
+
+function assertExecutionTextContract(execution) {
+  assert.equal(typeof execution.execution_state, "string");
+  assert.equal(ALLOWED_EXECUTION_STATES.has(execution.execution_state), true);
+  assert.equal(typeof execution.execution_label, "string");
+  assert.equal(execution.execution_label.trim().length > 0, true);
+  assert.equal(typeof execution.execution_reason, "string");
+  assert.equal(execution.execution_reason.trim().length > 0, true);
+  assert.equal(typeof execution.execution_next_step, "string");
+  assert.equal(execution.execution_next_step.trim().length > 0, true);
+  assert.equal(typeof execution.execution_clear_condition, "string");
+  assert.equal(execution.execution_clear_condition.trim().length > 0, true);
+}
+
 test("buildUiSnapshot composes contract-driven shell data from runtime state", () => {
   const env = seedFixtureEnvironment();
 
@@ -177,7 +218,11 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
     "opp-2026-03-25-001"
   );
   const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+  const handoff = snapshot.workflow.opportunities[0].operational_handoff;
+  const execution = snapshot.workflow.opportunities[0].operational_execution;
   assert.ok(recommendation);
+  assert.ok(handoff);
+  assert.ok(execution);
   assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
   assert.equal(typeof recommendation.recommendation_label, "string");
   assert.equal(recommendation.recommendation_label.length > 0, true);
@@ -195,6 +240,10 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(typeof recommendation.actionability, "string");
   assert.equal(recommendation.actionability.length > 0, true);
   assert.equal(recommendation.recommendation_type, "buy_after_verification");
+  assertHandoffTextContract(handoff);
+  assert.equal(handoff.handoff_state, "handoff_blocked");
+  assertExecutionTextContract(execution);
+  assert.equal(execution.execution_state, "execution_blocked");
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -211,6 +260,11 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.presence[1].visual_state, "blocked");
   assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
   assert.equal(snapshot.office.handoff_signals[0].to_agent, "Risk and Compliance Agent");
+  assert.equal(snapshot.office.handoff_signals[0].handoff_state, handoff.handoff_state);
+  assert.equal(
+    snapshot.office.handoff_signals[0].current_owner_action,
+    handoff.current_owner_action
+  );
   assert.equal(snapshot.office.handoff_signals[0].from_zone_id, "company-floor");
   assert.equal(snapshot.office.handoff_signals[0].to_zone_id, "verification-bay");
   assert.equal(snapshot.office.route_hints[0].from_zone_id, "company-floor");
@@ -881,6 +935,259 @@ test("buildUiSnapshot recommendation fallback remains non-blank with incomplete 
   assert.equal(recommendation.recommendation_reason.trim().length > 0, true);
   assert.equal(recommendation.next_action.trim().length > 0, true);
   assert.equal(recommendation.change_condition.trim().length > 0, true);
+});
+
+test("buildUiSnapshot handoff mapping covers ready blocked waiting and return-required states", () => {
+  const scenarios = [
+    {
+      name: "handoff_ready",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "handoff_blocked",
+      enqueueApproval: true,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: false,
+          response_status: "pending",
+        };
+      },
+    },
+    {
+      name: "handoff_waiting",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+          response_status: "pending",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "handoff_return_required",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: scenario.enqueueApproval });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities[0];
+    const handoff = opportunity.operational_handoff;
+    const signal = snapshot.office.handoff_signals[0];
+    assertHandoffTextContract(handoff);
+    assert.equal(handoff.handoff_state, scenario.name, scenario.name);
+    assert.equal(opportunity.handoff_state, scenario.name, scenario.name);
+    assert.equal(signal.handoff_state, scenario.name, scenario.name);
+    assert.equal(signal.current_owner_action, handoff.current_owner_action, scenario.name);
+    assert.equal(signal.next_owner, handoff.next_owner, scenario.name);
+    assert.equal(signal.handoff_clear_condition, handoff.handoff_clear_condition, scenario.name);
+  }
+});
+
+test("buildUiSnapshot handoff action and clear condition remain deterministic", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  mutateSeededRecommendationInputs(env, ({ workflowRecord, opportunityRecord }) => {
+    opportunityRecord.recommendation = "acquire";
+    opportunityRecord.recommended_path = "resale_as_is";
+    workflowRecord.purchase_recommendation_blocked = false;
+    workflowRecord.seller_verification = {
+      imei_proof_verified: true,
+      carrier_status_verified: true,
+      response_status: "verified",
+    };
+  });
+
+  const first = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_handoff;
+  const second = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_handoff;
+
+  assert.equal(first.current_owner_action, second.current_owner_action);
+  assert.equal(first.handoff_clear_condition, second.handoff_clear_condition);
+  assert.equal(first.next_owner, second.next_owner);
+});
+
+test("buildUiSnapshot execution mapping covers ready waiting-intake waiting-parts blocked and not-applicable states", () => {
+  const scenarios = [
+    {
+      name: "execution_ready",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "execution_waiting_intake",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "awaiting_seller_verification";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+          response_status: "pending",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "execution_waiting_parts",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "repair_and_resale";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "execution_blocked",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+      },
+    },
+    {
+      name: "execution_not_applicable",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "researching";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: scenario.enqueueApproval });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities[0];
+    const execution = opportunity.operational_execution;
+    assertExecutionTextContract(execution);
+    assert.equal(execution.execution_state, scenario.name, scenario.name);
+    assert.equal(opportunity.execution_state, scenario.name, scenario.name);
+  }
+});
+
+test("buildUiSnapshot execution next step and clear condition remain deterministic", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  mutateSeededRecommendationInputs(env, ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+    opportunityRecord.recommendation = "acquire";
+    opportunityRecord.recommended_path = "resale_as_is";
+    workflowRecord.current_status = "approved";
+    workflowRecord.purchase_recommendation_blocked = false;
+    workflowRecord.seller_verification = {
+      imei_proof_verified: true,
+      carrier_status_verified: true,
+      response_status: "verified",
+    };
+    artifactOutput.handoff_packet.blocking_items = [];
+  });
+
+  const first = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_execution;
+  const second = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_execution;
+
+  assert.equal(first.execution_next_step, second.execution_next_step);
+  assert.equal(first.execution_clear_condition, second.execution_clear_condition);
 });
 
 test("buildUiSnapshot preserves repeated consecutive same-mode entries in capital board history", () => {

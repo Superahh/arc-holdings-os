@@ -890,10 +890,12 @@ function buildLaneCardV1Model(presence, card, topOpportunity) {
 
 function buildOpportunityCardV1Model(entry) {
   const record = entry.contract_bundle && entry.contract_bundle.opportunity_record;
-  const handoff = entry.contract_bundle && entry.contract_bundle.handoff_packet;
+  const handoffPacket = entry.contract_bundle && entry.contract_bundle.handoff_packet;
   const workflow = entry.workflow_record || null;
   const recommendation = entry.operational_recommendation || null;
-  const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
+  const handoff = entry.operational_handoff || null;
+  const execution = entry.operational_execution || null;
+  const ownerAgent = opportunityTaskOwner(entry) || (handoffPacket && handoffPacket.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const isBlocked = Boolean(
     (workflow && workflow.purchase_recommendation_blocked) || normalizeToken(entry.current_status) === "blocked"
@@ -901,7 +903,7 @@ function buildOpportunityCardV1Model(entry) {
   const nextAction = recommendation
     ? recommendation.next_action
     : (entry.latest_task && entry.latest_task.next_action) ||
-      (handoff && handoff.next_action) ||
+      (handoffPacket && handoffPacket.next_action) ||
       "Awaiting workflow update.";
 
   return {
@@ -913,7 +915,13 @@ function buildOpportunityCardV1Model(entry) {
             ? recommendation.recommendation_reason
             : "purchase recommendation remains blocked."
         }`
-      : `Next: ${nextAction}`,
+      : `Next: ${
+          execution && execution.execution_next_step
+            ? execution.execution_next_step
+            : handoff && handoff.current_owner_action
+              ? handoff.current_owner_action
+              : nextAction
+        }`,
     owner_lane_label: ownerPresence
       ? ownerPresence.zone_label
       : formatLaneLabel(mapStatusToLaneStage(entry.current_status)),
@@ -2438,11 +2446,17 @@ function renderDetailForOpportunity(entry) {
   const capitalStrategy = state.snapshot.capital_strategy;
   const capitalFit = entry.capital_fit;
   const recommendation = entry.operational_recommendation || null;
+  const handoffState = entry.operational_handoff || null;
+  const executionState = entry.operational_execution || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    recommendation && recommendation.next_action
-      ? recommendation.next_action
+    executionState && executionState.execution_next_step
+      ? executionState.execution_next_step
+      : handoffState && handoffState.current_owner_action
+        ? handoffState.current_owner_action
+      : recommendation && recommendation.next_action
+        ? recommendation.next_action
       : workflow && workflow.purchase_recommendation_blocked
         ? "Blocked by: purchase recommendation remains blocked."
         : entry.latest_task
@@ -2451,7 +2465,9 @@ function renderDetailForOpportunity(entry) {
           ? handoff.next_action
           : "Reviewing owned queue.";
   const dueBy = entry.latest_task ? entry.latest_task.due_by : handoff ? handoff.due_by : null;
-  const nextOwner = entry.latest_task ? entry.latest_task.owner : handoff ? handoff.to_agent : ownerAgent;
+  const nextOwner =
+    (handoffState && handoffState.next_owner) ||
+    (entry.latest_task ? entry.latest_task.owner : handoff ? handoff.to_agent : ownerAgent);
   const whyThisMattersNow = buildWhyThisMattersNow({
     isBlocked: Boolean(workflow && workflow.purchase_recommendation_blocked),
     needsApproval: normalizeToken(entry.current_status) === "awaiting_approval",
@@ -2500,11 +2516,15 @@ function renderDetailForOpportunity(entry) {
     <section class="detail-section">
       <h3>What happens next</h3>
       <ul class="detail-list">
-        <li>Next action: ${escapeHtml(recommendation ? recommendation.next_action : nextAction)}</li>
+        <li>Next action: ${escapeHtml(nextAction)}</li>
         <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
         <li>What would change this: ${escapeHtml(
-          recommendation
+          executionState
+            ? executionState.execution_clear_condition
+            : handoffState
+            ? handoffState.handoff_clear_condition
+            : recommendation
             ? recommendation.change_condition
             : "Change when new verification, pricing, or owner decision updates this item."
         )}</li>
@@ -2519,6 +2539,11 @@ function renderDetailForOpportunity(entry) {
         )}</li>
         <li>Recommendation reasoning: ${escapeHtml(
           recommendation ? recommendation.recommendation_reason : "No recommendation reason available."
+        )}</li>
+        <li>Execution: ${escapeHtml(
+          executionState
+            ? `${executionState.execution_label}: ${executionState.execution_reason}`
+            : "Execution readiness is not derived."
         )}</li>
         <li>Pricing context: Ask ${formatCurrency(record ? record.ask_price_usd : null)} vs value range ${
           record ? `${formatCurrency(record.estimated_value_range_usd[0])} to ${formatCurrency(record.estimated_value_range_usd[1])}` : "N/A"

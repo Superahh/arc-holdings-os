@@ -449,6 +449,239 @@ function deriveOperationalRecommendation(entry) {
   };
 }
 
+function deriveOperationalHandoff(entry) {
+  const packet =
+    entry &&
+    entry.contract_bundle &&
+    entry.contract_bundle.handoff_packet &&
+    typeof entry.contract_bundle.handoff_packet === "object"
+      ? entry.contract_bundle.handoff_packet
+      : null;
+  const latestTask = entry && entry.latest_task ? entry.latest_task : null;
+  const workflowRecord = entry && entry.workflow_record ? entry.workflow_record : null;
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const currentStatus = entry ? entry.current_status : "";
+  const queueItem = entry && entry.queue_item ? entry.queue_item : null;
+
+  const verification = workflowRecord ? workflowRecord.seller_verification : null;
+  const verificationPending = Boolean(
+    verification &&
+      (!verification.imei_proof_verified || !verification.carrier_status_verified)
+  );
+  const verificationResponseStatus =
+    verification && typeof verification.response_status === "string"
+      ? verification.response_status.toLowerCase()
+      : "";
+  const verificationFailed = new Set([
+    "failed",
+    "rejected",
+    "invalid",
+    "blacklisted",
+    "fraud_suspected",
+  ]).has(verificationResponseStatus);
+  const workflowBlocked = Boolean(
+    workflowRecord && workflowRecord.purchase_recommendation_blocked
+  );
+  const queuePending = Boolean(queueItem && queueItem.status === "pending");
+  const terminalStatus = TERMINAL_OPPORTUNITY_STATES.has(normalizeRecommendationCopy(currentStatus).toLowerCase());
+  const hasBlockingItems = Boolean(
+    packet && Array.isArray(packet.blocking_items) && packet.blocking_items.length > 0
+  );
+  const blockerText =
+    (recommendation && recommendation.blocker_text) ||
+    (workflowBlocked ? canonicalizeBlockerText("purchase_recommendation_blocked") : null) ||
+    (verificationPending ? canonicalizeBlockerText("verification_pending") : null) ||
+    null;
+  const blockerClass =
+    recommendation && typeof recommendation.blocker_class === "string"
+      ? recommendation.blocker_class
+      : null;
+  const softWaitingBlocker = new Set([
+    "verification_pending",
+    "approval_queue_waiting",
+    "decision_input_missing",
+  ]).has(blockerClass);
+  const criticalReturn = Boolean(
+    terminalStatus ||
+      verificationFailed ||
+      (recommendation && recommendation.recommendation_state === "reject_now")
+  );
+  const explicitCurrentAction =
+    (latestTask && latestTask.next_action) ||
+    (recommendation && recommendation.next_action) ||
+    (packet && packet.next_action) ||
+    "";
+  const currentOwner =
+    (latestTask && latestTask.owner) ||
+    (packet && packet.from_agent) ||
+    (packet && packet.to_agent) ||
+    "Owner review";
+
+  let handoffState = "handoff_ready";
+  if (criticalReturn) {
+    handoffState = "handoff_return_required";
+  } else if ((blockerText && !softWaitingBlocker) || workflowBlocked || hasBlockingItems) {
+    handoffState = "handoff_blocked";
+  } else if (
+    verificationPending ||
+    queuePending ||
+    softWaitingBlocker ||
+    !normalizeRecommendationCopy(explicitCurrentAction)
+  ) {
+    handoffState = "handoff_waiting";
+  }
+
+  const handoffLabels = {
+    handoff_ready: "Handoff ready",
+    handoff_blocked: "Handoff blocked",
+    handoff_waiting: "Handoff waiting",
+    handoff_return_required: "Return required",
+  };
+  const defaultNextOwner =
+    handoffState === "handoff_return_required"
+      ? (packet && packet.from_agent) || currentOwner
+      : (packet && packet.to_agent) || (latestTask && latestTask.owner) || currentOwner;
+
+  let handoffReason = "Packet is actionable for ownership transfer.";
+  let clearCondition = "Clears when next owner accepts handoff and starts execution.";
+  if (handoffState === "handoff_blocked") {
+    handoffReason = blockerText || "Transfer is blocked by unresolved blockers.";
+    clearCondition = blockerText
+      ? `Clears when blocker resolves: ${blockerText}`
+      : "Clears when blocker is resolved and packet is re-confirmed.";
+  } else if (handoffState === "handoff_waiting") {
+    handoffReason = verificationPending
+      ? "Waiting on verification evidence before transfer."
+      : queuePending
+        ? "Waiting on owner approval decision before transfer."
+        : "Waiting on explicit owner action before transfer.";
+    clearCondition = verificationPending
+      ? "Clears when IMEI proof and carrier status are both verified."
+      : queuePending
+        ? "Clears when owner approval resolves to approve or reject."
+        : "Clears when current owner publishes explicit next action.";
+  } else if (handoffState === "handoff_return_required") {
+    handoffReason = blockerText || canonicalizeBlockerText("non_viable_fit");
+    clearCondition = "Clears when previous owner reclaims and republishes a viable packet.";
+  }
+
+  return {
+    handoff_state: handoffState,
+    handoff_label: handoffLabels[handoffState],
+    handoff_reason: handoffReason,
+    current_owner_action:
+      normalizeRecommendationCopy(explicitCurrentAction) ||
+      "Publish explicit owner action for this handoff.",
+    next_owner: defaultNextOwner,
+    handoff_clear_condition: clearCondition,
+  };
+}
+
+function deriveOperationalExecution(entry) {
+  const opportunityRecord =
+    entry &&
+    entry.contract_bundle &&
+    entry.contract_bundle.opportunity_record &&
+    typeof entry.contract_bundle.opportunity_record === "object"
+      ? entry.contract_bundle.opportunity_record
+      : null;
+  const workflowRecord = entry && entry.workflow_record ? entry.workflow_record : null;
+  const queueItem = entry && entry.queue_item ? entry.queue_item : null;
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const handoff = entry && entry.operational_handoff ? entry.operational_handoff : null;
+  const currentStatus = entry && typeof entry.current_status === "string" ? entry.current_status : "";
+
+  const recommendedPath = opportunityRecord ? opportunityRecord.recommended_path : null;
+  const verification = workflowRecord ? workflowRecord.seller_verification : null;
+  const verificationComplete = Boolean(
+    verification &&
+      verification.imei_proof_verified === true &&
+      verification.carrier_status_verified === true
+  );
+  const workflowBlocked = Boolean(
+    workflowRecord && workflowRecord.purchase_recommendation_blocked
+  );
+  const queuePending = Boolean(queueItem && queueItem.status === "pending");
+  const terminalStatus = TERMINAL_OPPORTUNITY_STATES.has(
+    normalizeRecommendationCopy(currentStatus).toLowerCase()
+  );
+
+  let executionState = "execution_waiting_intake";
+  if (terminalStatus || (recommendation && recommendation.recommendation_state === "reject_now")) {
+    executionState = "execution_not_applicable";
+  } else if (recommendedPath === "repair_and_resale") {
+    executionState = "execution_waiting_parts";
+  } else if (
+    workflowBlocked ||
+    (handoff &&
+      (handoff.handoff_state === "handoff_blocked" ||
+        handoff.handoff_state === "handoff_return_required"))
+  ) {
+    executionState = "execution_blocked";
+  } else if (
+    recommendation &&
+    recommendation.recommendation_state === "approve_now" &&
+    (!handoff || handoff.handoff_state === "handoff_ready") &&
+    !queuePending &&
+    (verificationComplete || new Set(["approved", "acquired"]).has(currentStatus))
+  ) {
+    executionState = "execution_ready";
+  }
+
+  const executionLabels = {
+    execution_ready: "Execution ready",
+    execution_waiting_intake: "Waiting intake",
+    execution_waiting_parts: "Waiting parts",
+    execution_blocked: "Execution blocked",
+    execution_not_applicable: "Not applicable",
+  };
+
+  let executionReason = "Execution intake prerequisites are not complete yet.";
+  let executionNextStep = "Prepare intake task and route execution ownership.";
+  let executionClearCondition = "Clears when intake owner accepts and starts execution work.";
+
+  if (executionState === "execution_ready") {
+    executionReason = "Approval, recommendation, and handoff prerequisites are clear.";
+    executionNextStep = `Start execution intake with ${(handoff && handoff.next_owner) || "Operations Coordinator Agent"}.`;
+    executionClearCondition = "Clears when execution intake task is started.";
+  } else if (executionState === "execution_waiting_parts") {
+    executionReason = "Repair path needs parts and quote confirmation before execution.";
+    executionNextStep = "Open parts intake and confirm repair quote coverage.";
+    executionClearCondition = "Clears when required parts and quote are confirmed.";
+  } else if (executionState === "execution_blocked") {
+    const blockerText =
+      (recommendation && recommendation.blocker_text) ||
+      canonicalizeBlockerText("purchase_recommendation_blocked");
+    executionReason = blockerText;
+    executionNextStep = "Resolve blocker, then reopen execution intake.";
+    executionClearCondition = `Clears when blocker resolves: ${blockerText}`;
+  } else if (executionState === "execution_not_applicable") {
+    executionReason = "Current decision path does not proceed to execution.";
+    executionNextStep = "Close execution prep and maintain audit notes.";
+    executionClearCondition = "Clears only if decision path changes back to executable.";
+  } else if (queuePending) {
+    executionReason = "Waiting on owner approval decision before intake.";
+    executionNextStep = "Resolve approval ticket and keep intake owner on standby.";
+    executionClearCondition = "Clears when approval resolves to approve.";
+  } else if (!verificationComplete) {
+    executionReason = "Waiting on verification completion before intake.";
+    executionNextStep = "Collect remaining verification evidence and re-check readiness.";
+    executionClearCondition = "Clears when IMEI proof and carrier status are both verified.";
+  } else if (handoff && handoff.handoff_state === "handoff_waiting") {
+    executionReason = "Waiting on handoff intake ownership confirmation.";
+    executionNextStep = `Confirm intake acceptance with ${handoff.next_owner}.`;
+    executionClearCondition = "Clears when next owner confirms intake ownership.";
+  }
+
+  return {
+    execution_state: executionState,
+    execution_label: executionLabels[executionState],
+    execution_reason: executionReason,
+    execution_next_step: executionNextStep,
+    execution_clear_condition: executionClearCondition,
+  };
+}
+
 function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaitingTasks) {
   const ids = new Set([
     ...Object.keys(workflowState.opportunities || {}),
@@ -537,6 +770,21 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
         : null,
     };
     entry.operational_recommendation = deriveOperationalRecommendation(entry);
+    const handoff = deriveOperationalHandoff(entry);
+    entry.handoff_state = handoff.handoff_state;
+    entry.handoff_label = handoff.handoff_label;
+    entry.handoff_reason = handoff.handoff_reason;
+    entry.current_owner_action = handoff.current_owner_action;
+    entry.next_owner = handoff.next_owner;
+    entry.handoff_clear_condition = handoff.handoff_clear_condition;
+    entry.operational_handoff = handoff;
+    const execution = deriveOperationalExecution(entry);
+    entry.execution_state = execution.execution_state;
+    entry.execution_label = execution.execution_label;
+    entry.execution_reason = execution.execution_reason;
+    entry.execution_next_step = execution.execution_next_step;
+    entry.execution_clear_condition = execution.execution_clear_condition;
+    entry.operational_execution = execution;
     if (entry.contract_bundle && entry.contract_bundle.approval_ticket) {
       entry.contract_bundle.approval_ticket = {
         ...entry.contract_bundle.approval_ticket,
@@ -1940,15 +2188,45 @@ function buildOfficeHandoffSignals(opportunities) {
     if (typeof packet.from_agent !== "string" || typeof packet.to_agent !== "string") {
       continue;
     }
+    const operationalHandoff = entry.operational_handoff || null;
+    const baseBlockingCount = Array.isArray(packet.blocking_items) ? packet.blocking_items.length : 0;
+    const blockingCount =
+      operationalHandoff &&
+      (operationalHandoff.handoff_state === "handoff_blocked" ||
+        operationalHandoff.handoff_state === "handoff_return_required")
+        ? Math.max(1, baseBlockingCount)
+        : baseBlockingCount;
     signals.push({
       opportunity_id: entry.opportunity_id,
       from_agent: packet.from_agent,
-      to_agent: packet.to_agent,
+      to_agent:
+        (operationalHandoff && operationalHandoff.next_owner) || packet.to_agent,
       from_zone_id: getPresenceBlueprint(packet.from_agent).zone_id,
-      to_zone_id: getPresenceBlueprint(packet.to_agent).zone_id,
-      next_action: packet.next_action,
+      to_zone_id: getPresenceBlueprint(
+        (operationalHandoff && operationalHandoff.next_owner) || packet.to_agent
+      ).zone_id,
+      next_action:
+        (operationalHandoff && operationalHandoff.current_owner_action) || packet.next_action,
       due_by: packet.due_by,
-      blocking_count: Array.isArray(packet.blocking_items) ? packet.blocking_items.length : 0,
+      blocking_count: blockingCount,
+      handoff_state: operationalHandoff ? operationalHandoff.handoff_state : "handoff_ready",
+      handoff_label: operationalHandoff ? operationalHandoff.handoff_label : "Handoff ready",
+      handoff_reason:
+        operationalHandoff
+          ? operationalHandoff.handoff_reason
+          : "Ownership transfer packet is in progress.",
+      current_owner_action:
+        operationalHandoff
+          ? operationalHandoff.current_owner_action
+          : packet.next_action,
+      next_owner:
+        operationalHandoff && operationalHandoff.next_owner
+          ? operationalHandoff.next_owner
+          : packet.to_agent,
+      handoff_clear_condition:
+        operationalHandoff
+          ? operationalHandoff.handoff_clear_condition
+          : "Clears when next owner accepts and executes.",
       source_stale: Boolean(entry.latest_artifact && entry.latest_artifact.is_stale),
     });
   }
@@ -2030,13 +2308,18 @@ function buildOfficeViewModel(
   const handoffs = (officeHandoffSignals || []).map((signal) => ({
     opportunity_id: signal.opportunity_id || null,
     from_agent: signal.from_agent || null,
-    to_agent: signal.to_agent || null,
+    to_agent: signal.next_owner || signal.to_agent || null,
     from_zone: signal.from_zone_id,
     to_zone: signal.to_zone_id,
-    status: signal.blocking_count > 0 ? "blocked" : "active",
+    status:
+      signal.handoff_state === "handoff_blocked" ||
+      signal.handoff_state === "handoff_return_required" ||
+      signal.blocking_count > 0
+        ? "blocked"
+        : "active",
     label:
-      signal.next_action && typeof signal.next_action === "string"
-        ? signal.next_action
+      signal.current_owner_action && typeof signal.current_owner_action === "string"
+        ? `${signal.handoff_label || "Handoff"}: ${signal.current_owner_action}`
         : "Ownership transfer in progress.",
   }));
 

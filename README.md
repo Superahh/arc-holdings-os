@@ -10,6 +10,16 @@ Core philosophy:
 - durable context
 - tight iteration loops
 
+## Current runtime slice (v1)
+
+The current UI/runtime slice is an operator-facing workflow shell that derives deterministic decision text per opportunity for:
+
+- recommendation readiness
+- handoff actionability
+- execution readiness
+
+No new lanes or visual systems are introduced in this slice. Existing UI locations are reused for clearer operator actions.
+
 ## What this repo is for
 
 Use this repo to:
@@ -19,6 +29,40 @@ Use this repo to:
 - design office simulation as a view of true company state
 - produce reusable prompt assets that emit contract-shaped outputs
 - evaluate quality and log revisions
+
+## How it works (runtime + UI)
+
+1. Runtime ingests workflow state, approval queue items, and latest run artifacts.
+2. Runtime builds a UI snapshot in `runtime/ui_snapshot.js`.
+3. Snapshot derivation computes compact operational fields for recommendation, handoff, and execution.
+4. UI reads those fields and renders text only in existing cards/panels.
+5. Approval/verification/handoff/execution wording remains deterministic and blocker-aware.
+
+### Current workflow semantics (decision stack)
+
+- `operational_recommendation`: whether to proceed, wait, hold, or reject.
+- `operational_handoff`: whether ownership transfer is ready, blocked, waiting, or must return.
+- `operational_execution`: whether execution can start now, is waiting on intake/parts, is blocked, or is not applicable.
+
+### Current execution readiness model (v1)
+
+- `execution_ready`: execution can start now.
+- `execution_waiting_intake`: execution path is valid, but approval/verification/intake acceptance is still pending.
+- `execution_waiting_parts`: repair path needs parts/quote readiness.
+- `execution_blocked`: hard blocker prevents execution (canonical blocker text reused).
+- `execution_not_applicable`: reject/terminal path, execution should not start.
+
+### Snapshot payload additions used by UI
+
+Per opportunity, snapshot now includes:
+
+- `execution_state`
+- `execution_label`
+- `execution_reason`
+- `execution_next_step`
+- `execution_clear_condition`
+
+Execution fields are also grouped under `operational_execution` for direct UI consumption.
 
 ## Operating loop
 
@@ -79,6 +123,12 @@ Or run each command separately:
 ```powershell
 node runtime/tests/run_all_tests.js
 node tools/check_markdown_links.js --root .
+```
+
+Runtime/UI validation relevant to this slice:
+
+```powershell
+node --test runtime/tests/ui_snapshot.test.js runtime/tests/ui_server.test.js
 ```
 
 Run the visible UI shell:
