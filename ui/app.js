@@ -908,7 +908,11 @@ function buildOpportunityCardV1Model(entry) {
     primary_id: entry.opportunity_id,
     summary_line: (record && record.device_summary) || entry.source || "No summary available.",
     action_line: isBlocked
-      ? "Blocked by: purchase recommendation remains blocked."
+      ? `Blocked by: ${
+          recommendation && recommendation.recommendation_reason
+            ? recommendation.recommendation_reason
+            : "purchase recommendation remains blocked."
+        }`
       : `Next: ${nextAction}`,
     owner_lane_label: ownerPresence
       ? ownerPresence.zone_label
@@ -2437,9 +2441,11 @@ function renderDetailForOpportunity(entry) {
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
-    workflow && workflow.purchase_recommendation_blocked
-      ? "Blocked by: purchase recommendation remains blocked."
-      : entry.latest_task
+    recommendation && recommendation.next_action
+      ? recommendation.next_action
+      : workflow && workflow.purchase_recommendation_blocked
+        ? "Blocked by: purchase recommendation remains blocked."
+        : entry.latest_task
         ? entry.latest_task.next_action
         : handoff
           ? handoff.next_action
@@ -3024,7 +3030,7 @@ function renderApprovalQueue() {
                 </div>
                 <span class="status-pill ${formatStatusClass(item.status)}">${escapeHtml(item.status)}</span>
               </div>
-              <p class="queue-meta">${escapeHtml(item.ticket.reasoning_summary)}</p>
+              <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(item.ticket.reasoning_summary, "Approval packet summary pending."))}</p>
               <div class="detail-meta">
                 <div class="detail-meta-item"><span>Exposure</span><strong>${formatCurrency(item.ticket.max_exposure_usd)}</strong></div>
                 <div class="detail-meta-item"><span>Required by</span><strong>${escapeHtml(formatTimestamp(item.ticket.required_by))}</strong></div>

@@ -130,7 +130,7 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     assert.equal(snapshot.office.events[0].source, "approval_queue");
     assert.equal(snapshot.office.events[0].lane_stage, "approval");
     assert.equal(snapshot.office.flow_events[0].action, "status_update");
-    assert.match(snapshot.office.presence[1].bubble_text, /purchase recommendation remains blocked/i);
+    assert.match(snapshot.office.presence[1].bubble_text, /approval blocker: purchase recommendation is blocked/i);
     assert.ok(snapshot.office.office_view);
     assert.equal(Array.isArray(snapshot.office.office_view.zones), true);
     assert.equal(snapshot.office.office_view.zones.length, 4);
@@ -156,6 +156,10 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
     );
     assert.equal(
       snapshot.workflow.opportunities[0].operational_recommendation.recommendation_type,
+      "buy_after_verification"
+    );
+    assert.equal(
+      snapshot.workflow.opportunities[0].operational_recommendation.recommendation_state,
       "buy_after_verification"
     );
     assert.equal(

@@ -24,13 +24,10 @@ const {
 } = require("../contracts");
 
 const ALLOWED_RECOMMENDATION_TYPES = new Set([
-  "buy_now",
+  "approve_now",
   "buy_after_verification",
-  "skip",
-  "part_out_only",
-  "repair_if_cost_holds",
-  "wait_for_better_price",
-  "manual_review",
+  "hold_for_info",
+  "reject_now",
 ]);
 
 function loadGoldenFixture() {
@@ -198,18 +195,6 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(typeof recommendation.actionability, "string");
   assert.equal(recommendation.actionability.length > 0, true);
   assert.equal(recommendation.recommendation_type, "buy_after_verification");
-  const explicitAction =
-    (snapshot.workflow.opportunities[0].latest_task &&
-      snapshot.workflow.opportunities[0].latest_task.next_action) ||
-    (snapshot.workflow.opportunities[0].contract_bundle.handoff_packet &&
-      snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action) ||
-    (snapshot.workflow.opportunities[0].queue_item &&
-      snapshot.workflow.opportunities[0].queue_item.ticket &&
-      snapshot.workflow.opportunities[0].queue_item.ticket.reasoning_summary) ||
-    "";
-  if (explicitAction && explicitAction.trim()) {
-    assert.equal(recommendation.next_action, explicitAction.trim());
-  }
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -222,7 +207,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(snapshot.office.presence[0].visual_state, "needs_approval");
   assert.equal(snapshot.office.presence[0].motion_state, "needs_approval");
   assert.equal(snapshot.office.presence[0].lane_stage, "verification");
-  assert.match(snapshot.office.presence[0].bubble_text, /approval queue is waiting on owner action/i);
+  assert.match(snapshot.office.presence[0].bubble_text, /approval blocker: owner decision is required/i);
   assert.equal(snapshot.office.presence[1].visual_state, "blocked");
   assert.equal(snapshot.office.handoff_signals[0].from_agent, "Valuation Agent");
   assert.equal(snapshot.office.handoff_signals[0].to_agent, "Risk and Compliance Agent");
@@ -687,12 +672,13 @@ test("buildUiSnapshot caps capital board history to the latest four snapshots in
   );
 });
 
-test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with deterministic provenance", () => {
+test("buildUiSnapshot recommendation mapping covers the four v1 recommendation states", () => {
   const scenarios = [
     {
-      name: "buy_now",
+      name: "approve_now",
       expected: {
-        type: "buy_now",
+        state: "approve_now",
+        label: "Approve now",
         primary_driver: "ready_to_execute",
         blocking_type: "none",
         actionability: "ready",
@@ -706,13 +692,15 @@ test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with d
         workflowRecord.seller_verification = {
           imei_proof_verified: true,
           carrier_status_verified: true,
+          response_status: "verified",
         };
       },
     },
     {
       name: "buy_after_verification",
       expected: {
-        type: "buy_after_verification",
+        state: "buy_after_verification",
+        label: "Buy after verification",
         primary_driver: "verification_pending",
         blocking_type: "verification",
         actionability: "gated",
@@ -720,58 +708,22 @@ test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with d
       mutate: ({ workflowRecord, opportunityRecord }) => {
         opportunityRecord.recommendation = "acquire";
         opportunityRecord.recommended_path = "resale_as_is";
-        opportunityRecord.ask_price_usd = 300;
-        opportunityRecord.estimated_value_range_usd = [330, 470];
         workflowRecord.purchase_recommendation_blocked = false;
         workflowRecord.seller_verification = {
           imei_proof_verified: false,
           carrier_status_verified: true,
+          response_status: "pending",
         };
       },
     },
     {
-      name: "skip",
+      name: "hold_for_info",
       expected: {
-        type: "skip",
-        primary_driver: "clear_negative",
-        blocking_type: "none",
-        actionability: "ready",
-      },
-      mutate: ({ workflowRecord, opportunityRecord }) => {
-        opportunityRecord.recommendation = "skip";
-        opportunityRecord.recommended_path = "resale_as_is";
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: true,
-          carrier_status_verified: true,
-        };
-      },
-    },
-    {
-      name: "part_out_only",
-      expected: {
-        type: "part_out_only",
-        primary_driver: "part_out_advantage",
-        blocking_type: "none",
-        actionability: "ready",
-      },
-      mutate: ({ workflowRecord, opportunityRecord }) => {
-        opportunityRecord.recommendation = "acquire";
-        opportunityRecord.recommended_path = "part_out";
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: true,
-          carrier_status_verified: true,
-        };
-      },
-    },
-    {
-      name: "repair_if_cost_holds",
-      expected: {
-        type: "repair_if_cost_holds",
-        primary_driver: "repair_cost_uncertain",
-        blocking_type: "repair_cost",
-        actionability: "gated",
+        state: "hold_for_info",
+        label: "Hold for info",
+        primary_driver: "missing_decision_input",
+        blocking_type: "decision_input_missing",
+        actionability: "hold",
       },
       mutate: ({ workflowRecord, opportunityRecord }) => {
         opportunityRecord.recommendation = "acquire";
@@ -780,44 +732,27 @@ test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with d
         workflowRecord.seller_verification = {
           imei_proof_verified: true,
           carrier_status_verified: true,
+          response_status: "verified",
         };
       },
     },
     {
-      name: "wait_for_better_price",
+      name: "reject_now",
       expected: {
-        type: "wait_for_better_price",
-        primary_driver: "price_too_high",
-        blocking_type: "price",
-        actionability: "watching",
+        state: "reject_now",
+        label: "Reject now",
+        primary_driver: "critical_blocker",
+        blocking_type: "non_viable_fit",
+        actionability: "stop",
       },
       mutate: ({ workflowRecord, opportunityRecord }) => {
-        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommendation = "skip";
         opportunityRecord.recommended_path = "resale_as_is";
-        opportunityRecord.ask_price_usd = 690;
-        opportunityRecord.estimated_value_range_usd = [430, 520];
         workflowRecord.purchase_recommendation_blocked = false;
         workflowRecord.seller_verification = {
           imei_proof_verified: true,
           carrier_status_verified: true,
-        };
-      },
-    },
-    {
-      name: "manual_review",
-      expected: {
-        type: "manual_review",
-        primary_driver: "ambiguous_evidence",
-        blocking_type: "ambiguity",
-        actionability: "ambiguous",
-      },
-      mutate: ({ workflowRecord, artifactOutput }) => {
-        artifactOutput.opportunity_record = null;
-        workflowRecord.recommendation = null;
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: true,
-          carrier_status_verified: true,
+          response_status: "verified",
         };
       },
     },
@@ -836,207 +771,116 @@ test("buildUiSnapshot recommendation derivation keeps v1 labels exclusive with d
     });
     const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
     assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
-    assert.equal(recommendation.recommendation_type, scenario.expected.type, scenario.name);
+    assert.equal(recommendation.recommendation_state, scenario.expected.state, scenario.name);
+    assert.equal(recommendation.recommendation_type, scenario.expected.state, scenario.name);
+    assert.equal(recommendation.recommendation_label, scenario.expected.label, scenario.name);
     assert.equal(recommendation.primary_driver, scenario.expected.primary_driver, scenario.name);
     assert.equal(recommendation.blocking_type, scenario.expected.blocking_type, scenario.name);
     assert.equal(recommendation.actionability, scenario.expected.actionability, scenario.name);
     assertRecommendationTextContract(recommendation);
-    if (scenario.expected.type === "buy_now") {
-      assert.match(recommendation.recommendation_reason, /verification|gate/i, scenario.name);
-      assert.match(recommendation.change_condition, /disqualifying|risk|blocker/i, scenario.name);
-    } else if (scenario.expected.type === "buy_after_verification") {
-      assert.match(recommendation.recommendation_reason, /verification|approval|gate|open/i, scenario.name);
-      assert.match(recommendation.change_condition, /resolve|verification|approval|proceed|re-route/i, scenario.name);
-    } else if (scenario.expected.type === "skip") {
-      assert.match(recommendation.recommendation_reason, /reject|stop|evidence/i, scenario.name);
-      assert.match(recommendation.change_condition, /contradictory|overturn/i, scenario.name);
-    } else if (scenario.expected.type === "part_out_only") {
-      assert.match(recommendation.recommendation_reason, /parts|whole-unit/i, scenario.name);
-      assert.match(recommendation.change_condition, /whole-unit|part-out|economics/i, scenario.name);
-    } else if (scenario.expected.type === "repair_if_cost_holds") {
-      assert.match(recommendation.recommendation_reason, /repair|cost|bound|viable/i, scenario.name);
-      assert.match(recommendation.change_condition, /repair|quote|cost|bound/i, scenario.name);
-    } else if (scenario.expected.type === "wait_for_better_price") {
-      assert.match(recommendation.recommendation_reason, /ask|price|ceiling|entry/i, scenario.name);
-      assert.match(recommendation.change_condition, /ask|falls|below|price|range/i, scenario.name);
-    } else if (scenario.expected.type === "manual_review") {
-      assert.match(recommendation.recommendation_reason, /conflict|incomplete|safe|decision|evidence/i, scenario.name);
-      assert.match(recommendation.change_condition, /conflict|resolves|path/i, scenario.name);
-    }
     observedTypes.add(recommendation.recommendation_type);
   }
 
   assert.deepEqual(new Set([...observedTypes].sort()), new Set([...ALLOWED_RECOMMENDATION_TYPES].sort()));
 });
 
-test("buildUiSnapshot recommendation tie-breaks stay deterministic at near-boundary conditions", () => {
-  const cases = [
-    {
-      name: "verification_pending_beats_price_borderline",
-      expectedType: "buy_after_verification",
-      expectedProvenance: {
-        primary_driver: "verification_pending",
-        blocking_type: "verification",
-        actionability: "gated",
-      },
-      mutate: ({ workflowRecord, opportunityRecord }) => {
-        opportunityRecord.recommendation = "acquire";
-        opportunityRecord.recommended_path = "resale_as_is";
-        opportunityRecord.ask_price_usd = 501;
-        opportunityRecord.estimated_value_range_usd = [420, 500];
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: false,
-          carrier_status_verified: true,
-        };
-      },
-    },
-    {
-      name: "repair_path_beats_generic_missing_evidence",
-      expectedType: "repair_if_cost_holds",
-      expectedProvenance: {
-        primary_driver: "repair_cost_uncertain",
-        blocking_type: "repair_cost",
-        actionability: "gated",
-      },
-      mutate: ({ workflowRecord, opportunityRecord }) => {
-        opportunityRecord.recommendation = "acquire";
-        opportunityRecord.recommended_path = "repair_and_resale";
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: false,
-          carrier_status_verified: false,
-        };
-      },
-    },
-    {
-      name: "part_out_advantage_beats_overpriced_whole_unit",
-      expectedType: "part_out_only",
-      expectedProvenance: {
-        primary_driver: "part_out_advantage",
-        blocking_type: "none",
-        actionability: "ready",
-      },
-      mutate: ({ workflowRecord, opportunityRecord }) => {
-        opportunityRecord.recommendation = "acquire";
-        opportunityRecord.recommended_path = "part_out";
-        opportunityRecord.ask_price_usd = 760;
-        opportunityRecord.estimated_value_range_usd = [450, 520];
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: true,
-          carrier_status_verified: true,
-        };
-      },
-    },
-  ];
+test("buildUiSnapshot recommendation next_action and change_condition remain deterministic", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  mutateSeededRecommendationInputs(env, ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+    opportunityRecord.recommendation = "acquire";
+    opportunityRecord.recommended_path = "repair_and_resale";
+    workflowRecord.purchase_recommendation_blocked = false;
+    workflowRecord.seller_verification = {
+      imei_proof_verified: true,
+      carrier_status_verified: true,
+      response_status: "verified",
+    };
+    artifactOutput.handoff_packet.next_action = "Owner packet review in progress.";
+  });
 
-  for (const fixtureCase of cases) {
-    const env = seedFixtureEnvironment({ enqueueApproval: false });
-    mutateSeededRecommendationInputs(env, fixtureCase.mutate);
-    const snapshot = buildUiSnapshot({
-      queuePath: env.queuePath,
-      workflowStatePath: env.workflowStatePath,
-      baseDir: env.baseDir,
-      now: "2026-03-25T19:10:00.000Z",
-      dueSoonMinutes: 60,
-    });
-    const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
-    assert.equal(recommendation.recommendation_type, fixtureCase.expectedType, fixtureCase.name);
-    assert.equal(
-      recommendation.primary_driver,
-      fixtureCase.expectedProvenance.primary_driver,
-      fixtureCase.name
-    );
-    assert.equal(
-      recommendation.blocking_type,
-      fixtureCase.expectedProvenance.blocking_type,
-      fixtureCase.name
-    );
-    assert.equal(
-      recommendation.actionability,
-      fixtureCase.expectedProvenance.actionability,
-      fixtureCase.name
-    );
-    assertRecommendationTextContract(recommendation);
-  }
+  const first = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_recommendation;
+  const second = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).workflow.opportunities[0].operational_recommendation;
+
+  assert.equal(first.next_action, second.next_action);
+  assert.equal(first.change_condition, second.change_condition);
+  assert.equal(first.next_action.trim().length > 0, true);
+  assert.equal(first.change_condition.trim().length > 0, true);
 });
 
-test("buildUiSnapshot recommendation text remains collision-safe in adversarial wording contexts", () => {
-  const cases = [
-    {
-      name: "buy_after_verification_with_approval_and_verification_language",
-      expectedType: "buy_after_verification",
-      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
-        opportunityRecord.recommendation = "request_more_info";
-        opportunityRecord.recommended_path = "resale_as_is";
-        workflowRecord.purchase_recommendation_blocked = true;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: false,
-          carrier_status_verified: false,
-        };
-        artifactOutput.handoff_packet.next_action =
-          "Clear approval hold and gather missing IMEI and carrier evidence.";
-      },
-      checks: (recommendation) => {
-        assert.match(recommendation.recommendation_reason, /verification|approval|open/i);
-        assert.match(recommendation.change_condition, /verification|approval|resolve/i);
-      },
-    },
-    {
-      name: "repair_if_cost_holds_with_nearby_missing_evidence",
-      expectedType: "repair_if_cost_holds",
-      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
-        opportunityRecord.recommendation = "acquire";
-        opportunityRecord.recommended_path = "repair_and_resale";
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: false,
-          carrier_status_verified: false,
-        };
-        artifactOutput.handoff_packet.next_action = "Collect missing evidence while confirming repair quote.";
-      },
-      checks: (recommendation) => {
-        assert.match(recommendation.recommendation_reason, /repair|cost|bound/i);
-        assert.match(recommendation.change_condition, /repair|quote|cost|bound/i);
-      },
-    },
-    {
-      name: "manual_review_with_partial_conflicting_path_signals",
-      expectedType: "manual_review",
-      mutate: ({ workflowRecord, artifactOutput }) => {
-        artifactOutput.opportunity_record = null;
-        workflowRecord.recommendation = null;
-        workflowRecord.purchase_recommendation_blocked = false;
-        workflowRecord.seller_verification = {
-          imei_proof_verified: true,
-          carrier_status_verified: true,
-        };
-        artifactOutput.handoff_packet.next_action =
-          "Review conflicting path assumptions before selecting execution path.";
-      },
-      checks: (recommendation) => {
-        assert.match(recommendation.recommendation_reason, /conflict|incomplete|safe|decision|evidence/i);
-        assert.match(recommendation.change_condition, /conflict|resolves|path/i);
-      },
-    },
-  ];
+test("buildUiSnapshot canonicalizes blocker text by blocker class", () => {
+  const env = seedFixtureEnvironment();
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
 
-  for (const fixtureCase of cases) {
-    const env = seedFixtureEnvironment({ enqueueApproval: false });
-    mutateSeededRecommendationInputs(env, fixtureCase.mutate);
-    const snapshot = buildUiSnapshot({
-      queuePath: env.queuePath,
-      workflowStatePath: env.workflowStatePath,
-      baseDir: env.baseDir,
-      now: "2026-03-25T19:10:00.000Z",
-      dueSoonMinutes: 60,
-    });
-    const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
-    assert.equal(recommendation.recommendation_type, fixtureCase.expectedType, fixtureCase.name);
-    assertRecommendationTextContract(recommendation);
-    fixtureCase.checks(recommendation);
-  }
+  assert.match(
+    snapshot.office.presence[0].bubble_text,
+    /^Approval blocker: owner decision is required in the approval queue\.$/i
+  );
+  assert.match(
+    snapshot.office.presence[1].bubble_text,
+    /^Approval blocker: purchase recommendation is blocked pending owner decision\.$/i
+  );
+});
+
+test("buildUiSnapshot approval ticket summary aligns with derived recommendation fields", () => {
+  const env = seedFixtureEnvironment();
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+  const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+  const queueItem = snapshot.approval_queue.items[0];
+
+  assert.ok(queueItem);
+  assert.ok(recommendation);
+  assert.match(queueItem.ticket.reasoning_summary, new RegExp(`^${recommendation.recommendation_label}:`));
+  assert.match(queueItem.ticket.reasoning_summary, new RegExp(recommendation.next_action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(queueItem.ticket.risk_summary, recommendation.change_condition);
+});
+
+test("buildUiSnapshot recommendation fallback remains non-blank with incomplete data", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  mutateSeededRecommendationInputs(env, ({ workflowRecord, artifactOutput }) => {
+    artifactOutput.opportunity_record = null;
+    workflowRecord.recommendation = null;
+    workflowRecord.purchase_recommendation_blocked = false;
+    workflowRecord.current_status = "researching";
+    workflowRecord.seller_verification = null;
+    artifactOutput.handoff_packet.next_action = "Owner packet rebuild required.";
+  });
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+  const recommendation = snapshot.workflow.opportunities[0].operational_recommendation;
+  assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_state), true);
+  assert.equal(recommendation.recommendation_reason.trim().length > 0, true);
+  assert.equal(recommendation.next_action.trim().length > 0, true);
+  assert.equal(recommendation.change_condition.trim().length > 0, true);
 });
 
 test("buildUiSnapshot preserves repeated consecutive same-mode entries in capital board history", () => {

@@ -142,6 +142,20 @@ function compactToken(value) {
   return normalizeRecommendationCopy(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function canonicalizeBlockerText(blockerClass) {
+  const canonical = {
+    approval_queue_waiting: "Approval blocker: owner decision is required in the approval queue.",
+    purchase_recommendation_blocked:
+      "Approval blocker: purchase recommendation is blocked pending owner decision.",
+    verification_pending:
+      "Verification blocker: IMEI proof and carrier status must both be verified.",
+    verification_failed: "Critical blocker: seller verification failed.",
+    non_viable_fit: "Critical blocker: current fit is non-viable for this opportunity.",
+    decision_input_missing: "Decision blocker: required non-verification inputs are missing.",
+  };
+  return canonical[blockerClass] || "Decision blocker: unresolved blocker requires owner review.";
+}
+
 function reasonParrotsLabel(reason, label) {
   const reasonToken = compactToken(reason);
   const labelToken = compactToken(label);
@@ -155,156 +169,126 @@ function reasonParrotsLabel(reason, label) {
 }
 
 function buildRecommendationReasonCopy(context) {
-  if (context.recommendationType === "buy_now") {
-    return "Verification is clear and there is no active gate blocking execution.";
-  }
-  if (context.recommendationType === "buy_after_verification") {
-    if (context.verificationPending && context.workflowBlocked) {
-      return "Upside is viable, but verification evidence and approval clearance are both still open.";
+  if (context.recommendationState === "reject_now") {
+    if (context.blockerClass === "verification_failed") {
+      return "Seller verification failed on a critical check, so this path is not viable.";
     }
-    if (context.verificationPending) {
-      return "Upside is viable, but verification evidence is still open.";
+    return "Current fit is non-viable, so this opportunity should be rejected now.";
+  }
+  if (context.recommendationState === "approve_now") {
+    return "Verification evidence is sufficient and no blocking gate remains.";
+  }
+  if (context.recommendationState === "buy_after_verification") {
+    if (context.hasApprovalGate) {
+      return "Upside is acceptable, but verification is incomplete and approval remains blocked.";
     }
-    if (context.workflowBlocked) {
-      return "Upside is viable, but approval clearance is still open.";
-    }
-    return "Upside is viable, but a concrete gate must clear before execution.";
+    return "Upside is acceptable, but required verification evidence is still incomplete.";
   }
-  if (context.recommendationType === "skip") {
-    return "Current evidence supports rejecting this opportunity instead of spending more cycles.";
+  if (context.hasApprovalGate) {
+    return "Potential upside exists, but explicit approval input is still missing.";
   }
-  if (context.recommendationType === "part_out_only") {
-    return "The parts path is stronger than a whole-unit resale path at current assumptions.";
+  if (context.missingRepairQuote) {
+    return "Potential upside exists, but repair-cost decision input is still missing.";
   }
-  if (context.recommendationType === "repair_if_cost_holds") {
-    return "Repair-and-resale is only viable if repair cost stays inside the expected bound.";
+  if (context.missingOpportunityPacket) {
+    return "Potential upside exists, but core opportunity inputs are missing from the packet.";
   }
-  if (context.recommendationType === "wait_for_better_price") {
-    if (typeof context.askPrice === "number" && typeof context.valueCeiling === "number") {
-      return `Current ask (${context.askPrice} USD) is above the viable entry ceiling (${context.valueCeiling} USD).`;
-    }
-    return "Current entry price is above the viable threshold for this thesis.";
-  }
-  return "Evidence remains structurally incomplete or conflicting for a safe narrow-path decision.";
+  return "Potential upside exists, but required non-verification decision inputs are missing.";
 }
 
 function buildRecommendationFallbackNextAction(context) {
-  if (context.recommendationType === "buy_now") {
-    return "Move this acquisition into approval flow and prep execution handoff.";
+  if (context.recommendationState === "reject_now") {
+    return "Reject the ticket and close active pursuit for this opportunity.";
   }
-  if (context.recommendationType === "buy_after_verification") {
-    if (context.verificationPending && context.workflowBlocked) {
-      return "Collect missing verification proof and clear approval gate before execution.";
+  if (context.recommendationState === "approve_now") {
+    return "Approve now and hand off to execution under the current plan.";
+  }
+  if (context.recommendationState === "buy_after_verification") {
+    if (context.hasApprovalGate) {
+      return "Collect missing verification proof, then clear approval to proceed.";
     }
-    if (context.verificationPending) {
-      return "Collect missing IMEI and carrier verification evidence now.";
-    }
-    if (context.workflowBlocked) {
-      return "Resolve approval gate so execution can proceed.";
-    }
-    return "Clear the open gate identified in workflow before execution.";
+    return "Collect missing IMEI proof and carrier status evidence before approval.";
   }
-  if (context.recommendationType === "skip") {
-    return "Close this opportunity and stop active pursuit.";
+  if (context.hasApprovalGate) {
+    return "Resolve the approval gate with an explicit owner decision.";
   }
-  if (context.recommendationType === "part_out_only") {
-    return "Route to part-out workflow and avoid whole-unit resale assumptions.";
+  if (context.missingRepairQuote) {
+    return "Capture a repair quote and update the decision packet.";
   }
-  if (context.recommendationType === "repair_if_cost_holds") {
-    return "Confirm repair quote before committing to acquisition.";
+  if (context.missingOpportunityPacket) {
+    return "Rebuild a complete opportunity packet before deciding.";
   }
-  if (context.recommendationType === "wait_for_better_price") {
-    return "Re-engage only at target entry price and monitor for movement.";
-  }
-  return "Run focused owner review on the strongest unresolved conflict.";
+  return "Collect the missing decision inputs and rerun recommendation review.";
 }
 
 function buildRecommendationChangeCondition(context) {
-  if (context.recommendationType === "buy_now") {
-    return "Change only if new disqualifying verification, approval, or pricing risk appears.";
+  if (context.recommendationState === "reject_now") {
+    return "Change only if new contradictory evidence clears the critical blocker.";
   }
-  if (context.recommendationType === "buy_after_verification") {
-    if (context.verificationPending && context.workflowBlocked) {
-      return "Change when verification and approval gates resolve; proceed if both clear, otherwise re-route.";
+  if (context.recommendationState === "approve_now") {
+    return "Change only if a new critical blocker appears before execution.";
+  }
+  if (context.recommendationState === "buy_after_verification") {
+    if (context.hasApprovalGate) {
+      return "Change when verification completes and owner approval is explicitly granted.";
     }
-    if (context.verificationPending) {
-      return "Change when IMEI proof and carrier verification resolve; proceed if clear, otherwise re-route.";
-    }
-    if (context.workflowBlocked) {
-      return "Change when approval gate resolves; proceed if approved, otherwise re-route.";
-    }
-    return "Change when the open gate resolves into either clear execution or rejection.";
+    return "Change when IMEI proof and carrier status are both verified.";
   }
-  if (context.recommendationType === "skip") {
-    return "Change only if materially contradictory evidence overturns the current reject case.";
+  if (context.hasApprovalGate) {
+    return "Change when owner approval resolves to approve or reject.";
   }
-  if (context.recommendationType === "part_out_only") {
-    return "Change if whole-unit economics improve enough to beat projected part-out return.";
+  if (context.missingRepairQuote) {
+    return "Change when repair quote evidence is added and reviewed.";
   }
-  if (context.recommendationType === "repair_if_cost_holds") {
-    return "Change when repair quote confirms in-range viability or breaks above the cost bound.";
-  }
-  if (context.recommendationType === "wait_for_better_price") {
-    if (typeof context.askPrice === "number" && typeof context.valueCeiling === "number") {
-      return `Change when ask falls from ${context.askPrice} USD to ${context.valueCeiling} USD or below.`;
-    }
-    return "Change when entry price moves into the viable range.";
-  }
-  return "Change when the core evidence conflict collapses into a clear path decision.";
+  return "Change when missing non-verification decision inputs are provided.";
 }
 
 function hardenRecommendationVisibleCopy(input) {
   const reasonAlternates = {
-    buy_now: "No verification or approval gate remains on the current execution path.",
-    buy_after_verification: "This remains a likely buy once the open gate is resolved.",
-    skip: "Current signals are strong enough to stop pursuit now.",
-    part_out_only: "Parts disposition currently dominates whole-unit return.",
-    repair_if_cost_holds: "Repair viability depends on holding the cost cap.",
-    wait_for_better_price: "Price must improve before this becomes executable.",
-    manual_review: "No narrow gate can safely resolve the current evidence conflict.",
+    approve_now: "All required evidence gates are clear for immediate approval.",
+    buy_after_verification: "Recommendation remains positive once verification is complete.",
+    hold_for_info: "Potentially viable, but required decision inputs are still missing.",
+    reject_now: "Current evidence is strong enough to reject now.",
   };
   const changeAlternates = {
-    buy_now: "Change if a new blocker appears.",
-    buy_after_verification: "Change when the current gate resolves to clear or reject.",
-    skip: "Change if contradictory evidence materially improves the case.",
-    part_out_only: "Change if whole-unit return overtakes the parts case.",
-    repair_if_cost_holds: "Change if confirmed repair cost misses the target bound.",
-    wait_for_better_price: "Change when price enters target range.",
-    manual_review: "Change once the core conflict resolves into a single path.",
+    approve_now: "Change if a new critical blocker appears.",
+    buy_after_verification: "Change when required verification fully clears.",
+    hold_for_info: "Change when required non-verification inputs are supplied.",
+    reject_now: "Change if contradictory evidence clears the reject blocker.",
   };
 
   let reason = normalizeRecommendationCopy(input.reason);
   let nextAction = normalizeRecommendationCopy(input.nextAction);
   let changeCondition = normalizeRecommendationCopy(input.changeCondition);
   if (!reason) {
-    reason = reasonAlternates[input.recommendationType];
+    reason = reasonAlternates[input.recommendationState];
   }
   if (!nextAction) {
     nextAction = buildRecommendationFallbackNextAction(input.context);
   }
   if (!changeCondition) {
-    changeCondition = changeAlternates[input.recommendationType];
+    changeCondition = changeAlternates[input.recommendationState];
   }
 
   if (reasonParrotsLabel(reason, input.label)) {
-    reason = reasonAlternates[input.recommendationType];
+    reason = reasonAlternates[input.recommendationState];
   }
 
   if (recommendationCopyKey(reason) === recommendationCopyKey(nextAction)) {
     if (input.hasExplicitAction) {
-      reason = reasonAlternates[input.recommendationType];
+      reason = reasonAlternates[input.recommendationState];
     } else {
       nextAction = buildRecommendationFallbackNextAction(input.context);
       if (recommendationCopyKey(reason) === recommendationCopyKey(nextAction)) {
-        reason = reasonAlternates[input.recommendationType];
+        reason = reasonAlternates[input.recommendationState];
       }
     }
   }
   if (recommendationCopyKey(reason) === recommendationCopyKey(changeCondition)) {
-    changeCondition = changeAlternates[input.recommendationType];
+    changeCondition = changeAlternates[input.recommendationState];
   }
   if (recommendationCopyKey(nextAction) === recommendationCopyKey(changeCondition)) {
-    changeCondition = changeAlternates[input.recommendationType];
+    changeCondition = changeAlternates[input.recommendationState];
   }
 
   return { reason, nextAction, changeCondition };
@@ -324,116 +308,144 @@ function deriveOperationalRecommendation(entry) {
     (workflowRecord && workflowRecord.recommendation) ||
     null;
   const recommendedPath = opportunityRecord ? opportunityRecord.recommended_path : null;
+  const currentStatus = entry ? entry.current_status : null;
   const askPrice = opportunityRecord ? opportunityRecord.ask_price_usd : null;
   const valueRange = opportunityRecord ? opportunityRecord.estimated_value_range_usd : null;
   const valueCeiling =
     Array.isArray(valueRange) && typeof valueRange[1] === "number" ? valueRange[1] : null;
+  const missingOpportunityPacket = !opportunityRecord;
+  const missingRepairQuote = recommendedPath === "repair_and_resale";
   const workflowBlocked = Boolean(
     workflowRecord && workflowRecord.purchase_recommendation_blocked
   );
+  const hasApprovalGate =
+    workflowBlocked || Boolean(queueItem && queueItem.status === "pending");
   const verification = workflowRecord ? workflowRecord.seller_verification : null;
-  const verificationPending = Boolean(
+  const verificationComplete = Boolean(
     verification &&
-      (!verification.imei_proof_verified || !verification.carrier_status_verified)
+      verification.imei_proof_verified === true &&
+      verification.carrier_status_verified === true
+  );
+  const verificationResponseStatus =
+    verification && typeof verification.response_status === "string"
+      ? verification.response_status.toLowerCase()
+      : "";
+  const verificationFailed = new Set([
+    "failed",
+    "rejected",
+    "invalid",
+    "blacklisted",
+    "fraud_suspected",
+  ]).has(verificationResponseStatus);
+  const verificationPending = Boolean(
+    !verificationComplete &&
+      (verification ||
+        currentStatus === "awaiting_seller_verification" ||
+        rawRecommendation === "request_more_info")
   );
   const overpriced =
     typeof askPrice === "number" &&
     typeof valueCeiling === "number" &&
     askPrice > valueCeiling;
+  const nonViableFit =
+    rawRecommendation === "skip" || recommendedPath === "part_out" || overpriced;
+  const criticalBlocker = verificationFailed || nonViableFit;
+  const missingDecisionInputs =
+    missingOpportunityPacket ||
+    missingRepairQuote ||
+    rawRecommendation == null ||
+    (hasApprovalGate && !verificationPending);
+  const blockerCount = [
+    criticalBlocker,
+    verificationPending,
+    hasApprovalGate,
+    missingDecisionInputs,
+  ].filter(Boolean).length;
 
-  let recommendationType = "manual_review";
-  if (rawRecommendation === "skip") {
-    recommendationType = "skip";
-  } else if (recommendedPath === "part_out") {
-    recommendationType = "part_out_only";
-  } else if (recommendedPath === "repair_and_resale") {
-    recommendationType = "repair_if_cost_holds";
-  } else if (rawRecommendation === "request_more_info" || workflowBlocked || verificationPending) {
-    recommendationType = "buy_after_verification";
-  } else if (rawRecommendation === "acquire" && overpriced) {
-    recommendationType = "wait_for_better_price";
-  } else if (rawRecommendation === "acquire") {
-    recommendationType = "buy_now";
+  let recommendationState = "hold_for_info";
+  if (criticalBlocker) {
+    recommendationState = "reject_now";
+  } else if (
+    rawRecommendation === "acquire" &&
+    !verificationPending &&
+    !hasApprovalGate &&
+    blockerCount === 0
+  ) {
+    recommendationState = "approve_now";
+  } else if (verificationPending) {
+    recommendationState = "buy_after_verification";
   }
 
   const recommendationLabels = {
-    buy_now: "Buy now",
+    reject_now: "Reject now",
+    approve_now: "Approve now",
     buy_after_verification: "Buy after verification",
-    skip: "Skip",
-    part_out_only: "Part-out only",
-    repair_if_cost_holds: "Repair if cost holds",
-    wait_for_better_price: "Wait for better price",
-    manual_review: "Manual review",
+    hold_for_info: "Hold for info",
   };
 
-  const existingAction =
-    (latestTask && latestTask.next_action) ||
-    (handoffPacket && handoffPacket.next_action) ||
-    (queueItem && queueItem.ticket && queueItem.ticket.reasoning_summary) ||
-    "";
-  const hasExplicitAction =
-    existingAction && typeof existingAction === "string" && existingAction.trim();
-
-  let primaryDriver = "ambiguous_evidence";
-  let blockingType = "ambiguity";
-  let actionability = "ambiguous";
-  if (recommendationType === "buy_now") {
+  let primaryDriver = "missing_decision_input";
+  let blockingType = "decision_input_missing";
+  let actionability = "hold";
+  let blockerClass = "decision_input_missing";
+  if (recommendationState === "approve_now") {
     primaryDriver = "ready_to_execute";
     blockingType = "none";
     actionability = "ready";
-  } else if (recommendationType === "buy_after_verification") {
+    blockerClass = "none";
+  } else if (recommendationState === "buy_after_verification") {
     primaryDriver = "verification_pending";
-    blockingType = verificationPending ? "verification" : workflowBlocked ? "approval" : "verification";
+    blockingType = "verification";
     actionability = "gated";
-  } else if (recommendationType === "skip") {
-    primaryDriver = "clear_negative";
-    blockingType = "none";
-    actionability = "ready";
-  } else if (recommendationType === "part_out_only") {
-    primaryDriver = "part_out_advantage";
-    blockingType = "none";
-    actionability = "ready";
-  } else if (recommendationType === "repair_if_cost_holds") {
-    primaryDriver = "repair_cost_uncertain";
-    blockingType = "repair_cost";
-    actionability = "gated";
-  } else if (recommendationType === "wait_for_better_price") {
-    primaryDriver = "price_too_high";
-    blockingType = "price";
-    actionability = "watching";
+    blockerClass = "verification_pending";
+  } else if (recommendationState === "reject_now") {
+    primaryDriver = "critical_blocker";
+    blockingType = verificationFailed ? "verification_failed" : "non_viable_fit";
+    actionability = "stop";
+    blockerClass = verificationFailed ? "verification_failed" : "non_viable_fit";
+  } else if (hasApprovalGate) {
+    primaryDriver = "approval_pending";
+    blockingType = "approval";
+    actionability = "hold";
+    blockerClass = workflowBlocked
+      ? "purchase_recommendation_blocked"
+      : "approval_queue_waiting";
   }
 
   const recommendationContext = {
-    recommendationType,
+    recommendationState,
     primaryDriver,
     blockingType,
     actionability,
-    workflowBlocked,
+    hasApprovalGate,
     verificationPending,
+    missingOpportunityPacket,
+    missingRepairQuote,
+    blockerClass,
     askPrice,
     valueCeiling,
   };
   const normalizedCopy = hardenRecommendationVisibleCopy({
-    recommendationType,
-    label: recommendationLabels[recommendationType],
+    recommendationState,
+    label: recommendationLabels[recommendationState],
     reason: buildRecommendationReasonCopy(recommendationContext),
-    nextAction: hasExplicitAction
-      ? existingAction.trim()
-      : buildRecommendationFallbackNextAction(recommendationContext),
+    nextAction: buildRecommendationFallbackNextAction(recommendationContext),
     changeCondition: buildRecommendationChangeCondition(recommendationContext),
-    hasExplicitAction: Boolean(hasExplicitAction),
+    hasExplicitAction: false,
     context: recommendationContext,
   });
 
   return {
-    recommendation_type: recommendationType,
-    recommendation_label: recommendationLabels[recommendationType],
+    recommendation_state: recommendationState,
+    recommendation_type: recommendationState,
+    recommendation_label: recommendationLabels[recommendationState],
     recommendation_reason: normalizedCopy.reason,
     next_action: normalizedCopy.nextAction,
     change_condition: normalizedCopy.changeCondition,
     primary_driver: primaryDriver,
     blocking_type: blockingType,
     actionability,
+    blocker_class: blockerClass,
+    blocker_text: blockerClass === "none" ? null : canonicalizeBlockerText(blockerClass),
   };
 }
 
@@ -525,6 +537,17 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
         : null,
     };
     entry.operational_recommendation = deriveOperationalRecommendation(entry);
+    if (entry.contract_bundle && entry.contract_bundle.approval_ticket) {
+      entry.contract_bundle.approval_ticket = {
+        ...entry.contract_bundle.approval_ticket,
+        reasoning_summary: normalizeRecommendationCopy(
+          buildApprovalReasoningSummary(entry.operational_recommendation)
+        ),
+        risk_summary: normalizeRecommendationCopy(
+          buildApprovalRiskSummary(entry.operational_recommendation)
+        ),
+      };
+    }
     entries.push(entry);
   }
 
@@ -533,6 +556,43 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
 
 function findOpportunityByStatuses(opportunities, statuses) {
   return opportunities.find((entry) => statuses.has(entry.current_status)) || null;
+}
+
+function buildApprovalReasoningSummary(recommendation) {
+  if (!recommendation) {
+    return "Hold for info: recommendation packet is incomplete. Next: compile missing decision inputs.";
+  }
+  return `${recommendation.recommendation_label}: ${recommendation.recommendation_reason} Next: ${recommendation.next_action}`;
+}
+
+function buildApprovalRiskSummary(recommendation) {
+  if (!recommendation) {
+    return "Change when required decision inputs are added and reviewed.";
+  }
+  return recommendation.change_condition;
+}
+
+function alignApprovalQueueItemsWithRecommendations(queueItems, opportunitiesById) {
+  return (queueItems || []).map((item) => {
+    if (!item || !item.ticket) {
+      return item;
+    }
+    const recommendation =
+      item.opportunity_id && opportunitiesById.has(item.opportunity_id)
+        ? opportunitiesById.get(item.opportunity_id).operational_recommendation || null
+        : null;
+    const ticket = {
+      ...item.ticket,
+      reasoning_summary: normalizeRecommendationCopy(
+        buildApprovalReasoningSummary(recommendation)
+      ),
+      risk_summary: normalizeRecommendationCopy(buildApprovalRiskSummary(recommendation)),
+    };
+    return {
+      ...item,
+      ticket,
+    };
+  });
 }
 
 function buildAgentStatusCards(opportunities, attention, queueTotals, nowIso) {
@@ -572,7 +632,7 @@ function buildAgentStatusCards(opportunities, attention, queueTotals, nowIso) {
       (pendingQueueOpportunity && pendingQueueOpportunity.opportunity_id) ||
       (topTask && topTask.opportunity_id) ||
       null,
-    blocker: queueTotals.pending > 0 ? "Approval queue is waiting on owner action." : null,
+    blocker: queueTotals.pending > 0 ? canonicalizeBlockerText("approval_queue_waiting") : null,
     urgency: queueTotals.pending > 0 ? "high" : mapTaskUrgency(topTask),
     updated_at: nowIso,
   };
@@ -594,7 +654,7 @@ function buildAgentStatusCards(opportunities, attention, queueTotals, nowIso) {
     opportunity_id: riskOpportunity ? riskOpportunity.opportunity_id : null,
     blocker:
       riskOpportunity && riskOpportunity.workflow_record && riskOpportunity.workflow_record.purchase_recommendation_blocked
-        ? "Purchase recommendation remains blocked."
+        ? canonicalizeBlockerText("purchase_recommendation_blocked")
         : null,
     urgency: mapTaskUrgency(riskTask),
     updated_at: nowIso,
@@ -622,7 +682,7 @@ function buildAgentStatusCards(opportunities, attention, queueTotals, nowIso) {
       blockedOperationsOpportunity &&
       blockedOperationsOpportunity.workflow_record &&
       blockedOperationsOpportunity.workflow_record.purchase_recommendation_blocked
-        ? "Current opportunity is blocked before purchase."
+        ? canonicalizeBlockerText("purchase_recommendation_blocked")
         : null,
     urgency:
       operationsExecutionOpportunity
@@ -2090,6 +2150,22 @@ function buildUiSnapshot(options = {}) {
     kpis,
     statusSnapshot.attention
   );
+  const opportunitiesById = new Map(
+    annotatedOpportunities.map((entry) => [entry.opportunity_id, entry])
+  );
+  const sortedQueueItems = [...queue.items].sort((a, b) => {
+    if (a.status === "pending" && b.status !== "pending") {
+      return -1;
+    }
+    if (a.status !== "pending" && b.status === "pending") {
+      return 1;
+    }
+    return Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0);
+  });
+  const queueItems = alignApprovalQueueItemsWithRecommendations(
+    sortedQueueItems,
+    opportunitiesById
+  );
 
   return {
     schema_version: "v1",
@@ -2105,15 +2181,7 @@ function buildUiSnapshot(options = {}) {
     approval_queue: {
       updated_at: queue.updated_at,
       totals: queueTotals,
-      items: [...queue.items].sort((a, b) => {
-        if (a.status === "pending" && b.status !== "pending") {
-          return -1;
-        }
-        if (a.status !== "pending" && b.status === "pending") {
-          return 1;
-        }
-        return Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0);
-      }),
+      items: queueItems,
     },
     workflow: {
       updated_at: workflowState.updated_at,
