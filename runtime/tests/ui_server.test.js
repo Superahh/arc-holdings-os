@@ -248,6 +248,17 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
         route.operator_route_next_step.length > 0,
       true
     );
+    const queueItem = snapshot.approval_queue.items[0];
+    assert.equal(typeof queueItem.approve_consequence, "string");
+    assert.equal(queueItem.approve_consequence.trim().length > 0, true);
+    assert.equal(typeof queueItem.reject_consequence, "string");
+    assert.equal(queueItem.reject_consequence.trim().length > 0, true);
+    assert.equal(typeof queueItem.more_info_consequence, "string");
+    assert.equal(queueItem.more_info_consequence.trim().length > 0, true);
+    assert.equal(typeof queueItem.resume_owner, "string");
+    assert.equal(queueItem.resume_owner.trim().length > 0, true);
+    assert.equal(typeof queueItem.resume_condition, "string");
+    assert.equal(queueItem.resume_condition.trim().length > 0, true);
 
     const decisionResponse = await request(server, "/api/approval-decision", {
       method: "POST",

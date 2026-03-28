@@ -19,6 +19,7 @@ The current UI/runtime slice is an operator-facing workflow shell that derives d
 - execution readiness
 - monetization readiness
 - compact operator route summary
+- approval decision consequences
 
 No new lanes or visual systems are introduced in this slice. Existing UI locations are reused for clearer operator actions.
 
@@ -36,7 +37,7 @@ Use this repo to:
 
 1. Runtime ingests workflow state, approval queue items, and latest run artifacts.
 2. Runtime builds a UI snapshot in `runtime/ui_snapshot.js`.
-3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, and operator route summary.
+3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, operator route summary, and approval consequences.
 4. UI reads those fields and renders text only in existing cards/panels.
 5. Approval/verification/handoff/execution/market wording remains deterministic and blocker-aware.
 
@@ -47,6 +48,7 @@ Use this repo to:
 - `operational_execution`: whether execution can start now, is waiting on intake/parts, is blocked, or is not applicable.
 - `operational_market`: whether market action can start now, is waiting on pricing/listing, is blocked, or is not applicable.
 - `operational_route`: compact operator-facing route that synthesizes recommendation + handoff + execution + market.
+- approval queue items include deterministic decision-consequence summaries so approve/reject/more-info outcomes are explicit before action.
 
 ### Current execution readiness model (v1)
 
@@ -94,6 +96,14 @@ Per opportunity, snapshot also includes route summary fields:
 - `operator_route_next_step`
 
 Route fields are also grouped under `operational_route` for direct UI consumption.
+
+Per approval queue ticket item, snapshot now also includes:
+
+- `approve_consequence`
+- `reject_consequence`
+- `more_info_consequence`
+- `resume_owner`
+- `resume_condition`
 
 ## Operating loop
 

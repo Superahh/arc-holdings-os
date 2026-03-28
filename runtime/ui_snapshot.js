@@ -1061,15 +1061,95 @@ function buildApprovalRiskSummary(recommendation) {
   return recommendation.change_condition;
 }
 
+function deriveApprovalConsequences(opportunityEntry = null) {
+  const recommendation =
+    opportunityEntry && opportunityEntry.operational_recommendation
+      ? opportunityEntry.operational_recommendation
+      : null;
+  const handoff =
+    opportunityEntry && opportunityEntry.operational_handoff
+      ? opportunityEntry.operational_handoff
+      : null;
+  const execution =
+    opportunityEntry && opportunityEntry.operational_execution
+      ? opportunityEntry.operational_execution
+      : null;
+  const market =
+    opportunityEntry && opportunityEntry.operational_market
+      ? opportunityEntry.operational_market
+      : null;
+  const route =
+    opportunityEntry && opportunityEntry.operational_route
+      ? opportunityEntry.operational_route
+      : null;
+
+  const fallbackResumeOwner =
+    (handoff && handoff.next_owner) ||
+    (execution &&
+    (execution.execution_state === "execution_ready" ||
+      execution.execution_state === "execution_waiting_intake" ||
+      execution.execution_state === "execution_waiting_parts")
+      ? "Operations Coordinator Agent"
+      : null) ||
+    (market &&
+    (market.market_state === "market_ready" ||
+      market.market_state === "market_waiting_pricing" ||
+      market.market_state === "market_waiting_listing")
+      ? "Department Operator Agent"
+      : null) ||
+    "Risk and Compliance Agent";
+
+  const fallbackResumeCondition =
+    (market && market.market_clear_condition) ||
+    (execution && execution.execution_clear_condition) ||
+    (handoff && handoff.handoff_clear_condition) ||
+    (recommendation && recommendation.change_condition) ||
+    "Flow resumes when owner decision is recorded and the next step starts.";
+
+  let approveConsequence = "Approve: continue current route with the next owner action.";
+  let rejectConsequence = "Reject: stop this route and close active pursuit.";
+  let moreInfoConsequence = "More info: keep ticket open and collect missing evidence.";
+
+  if (route && route.operator_route_state === "prepare_market") {
+    approveConsequence = "Approve: resume market preparation and listing tasks.";
+  } else if (route && route.operator_route_state === "prepare_execution") {
+    approveConsequence = "Approve: resume execution intake and handoff.";
+  } else if (route && route.operator_route_state === "pursue_after_verification") {
+    approveConsequence = "Approve: keep pursuit active while verification completes.";
+  } else if (route && route.operator_route_state === "stop") {
+    approveConsequence = "Approve: override stop path and reopen owner review.";
+  } else if (route && route.operator_route_state === "hold") {
+    approveConsequence = "Approve: resume hold path and resolve blocker.";
+  }
+
+  if (route && route.operator_route_state === "prepare_market") {
+    moreInfoConsequence = "More info: pause listing and request missing market inputs.";
+  } else if (route && route.operator_route_state === "prepare_execution") {
+    moreInfoConsequence = "More info: pause intake and request missing execution inputs.";
+  } else if (route && route.operator_route_state === "pursue_after_verification") {
+    moreInfoConsequence = "More info: keep verification open and request missing proof.";
+  }
+
+  return {
+    approve_consequence: approveConsequence,
+    reject_consequence: rejectConsequence,
+    more_info_consequence: moreInfoConsequence,
+    resume_owner: fallbackResumeOwner,
+    resume_condition: fallbackResumeCondition,
+  };
+}
+
 function alignApprovalQueueItemsWithRecommendations(queueItems, opportunitiesById) {
   return (queueItems || []).map((item) => {
     if (!item || !item.ticket) {
       return item;
     }
-    const recommendation =
+    const opportunityEntry =
       item.opportunity_id && opportunitiesById.has(item.opportunity_id)
-        ? opportunitiesById.get(item.opportunity_id).operational_recommendation || null
+        ? opportunitiesById.get(item.opportunity_id)
         : null;
+    const recommendation = opportunityEntry ? opportunityEntry.operational_recommendation || null : null;
+    const consequences = deriveApprovalConsequences(opportunityEntry);
     const ticket = {
       ...item.ticket,
       reasoning_summary: normalizeRecommendationCopy(
@@ -1080,6 +1160,11 @@ function alignApprovalQueueItemsWithRecommendations(queueItems, opportunitiesByI
     return {
       ...item,
       ticket,
+      approve_consequence: normalizeRecommendationCopy(consequences.approve_consequence),
+      reject_consequence: normalizeRecommendationCopy(consequences.reject_consequence),
+      more_info_consequence: normalizeRecommendationCopy(consequences.more_info_consequence),
+      resume_owner: normalizeRecommendationCopy(consequences.resume_owner),
+      resume_condition: normalizeRecommendationCopy(consequences.resume_condition),
     };
   });
 }

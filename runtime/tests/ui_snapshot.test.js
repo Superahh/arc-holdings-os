@@ -940,7 +940,7 @@ test("buildUiSnapshot canonicalizes blocker text by blocker class", () => {
   );
 });
 
-test("buildUiSnapshot approval ticket summary aligns with derived recommendation fields", () => {
+test("buildUiSnapshot approval ticket summary aligns with recommendation and consequence fields", () => {
   const env = seedFixtureEnvironment();
   const snapshot = buildUiSnapshot({
     queuePath: env.queuePath,
@@ -957,6 +957,40 @@ test("buildUiSnapshot approval ticket summary aligns with derived recommendation
   assert.match(queueItem.ticket.reasoning_summary, new RegExp(`^${recommendation.recommendation_label}:`));
   assert.match(queueItem.ticket.reasoning_summary, new RegExp(recommendation.next_action.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.equal(queueItem.ticket.risk_summary, recommendation.change_condition);
+  assert.equal(typeof queueItem.approve_consequence, "string");
+  assert.equal(queueItem.approve_consequence.trim().length > 0, true);
+  assert.equal(typeof queueItem.reject_consequence, "string");
+  assert.equal(queueItem.reject_consequence.trim().length > 0, true);
+  assert.equal(typeof queueItem.more_info_consequence, "string");
+  assert.equal(queueItem.more_info_consequence.trim().length > 0, true);
+  assert.equal(typeof queueItem.resume_owner, "string");
+  assert.equal(queueItem.resume_owner.trim().length > 0, true);
+  assert.equal(typeof queueItem.resume_condition, "string");
+  assert.equal(queueItem.resume_condition.trim().length > 0, true);
+  assert.match(queueItem.reject_consequence, /stop/i);
+});
+
+test("buildUiSnapshot approval consequence fields remain deterministic", () => {
+  const env = seedFixtureEnvironment();
+  const first = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).approval_queue.items[0];
+  const second = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  }).approval_queue.items[0];
+  assert.equal(first.approve_consequence, second.approve_consequence);
+  assert.equal(first.reject_consequence, second.reject_consequence);
+  assert.equal(first.more_info_consequence, second.more_info_consequence);
+  assert.equal(first.resume_owner, second.resume_owner);
+  assert.equal(first.resume_condition, second.resume_condition);
 });
 
 test("buildUiSnapshot recommendation fallback remains non-blank with incomplete data", () => {

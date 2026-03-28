@@ -3080,6 +3080,14 @@ function renderApprovalQueue() {
                 <span class="status-pill ${formatStatusClass(item.status)}">${escapeHtml(item.status)}</span>
               </div>
               <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(item.ticket.reasoning_summary, "Approval packet summary pending."))}</p>
+              <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(
+                `Approve: ${item.approve_consequence || "No consequence summary."} Reject: ${item.reject_consequence || "No consequence summary."} More info: ${item.more_info_consequence || "No consequence summary."}`,
+                "Approval consequence summary pending."
+              ))}</p>
+              <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(
+                `Resume owner: ${item.resume_owner || "Unassigned"}. Resume when: ${item.resume_condition || "Decision follow-through is confirmed."}`,
+                "Resume context pending."
+              ))}</p>
               <div class="detail-meta">
                 <div class="detail-meta-item"><span>Exposure</span><strong>${formatCurrency(item.ticket.max_exposure_usd)}</strong></div>
                 <div class="detail-meta-item"><span>Required by</span><strong>${escapeHtml(formatTimestamp(item.ticket.required_by))}</strong></div>
