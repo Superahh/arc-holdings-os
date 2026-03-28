@@ -666,6 +666,39 @@ h2 {
     0 4px 0 rgba(20, 35, 34, 0.08);
 }
 
+.avatar::before,
+.avatar::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.avatar::before {
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: rgba(255, 252, 245, 0.92);
+  box-shadow: 0 0 0 2px rgba(20, 35, 34, 0.16);
+  transform: rotate(45deg) scale(0.8);
+}
+
+.avatar::after {
+  left: 9px;
+  bottom: 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 252, 245, 0.94);
+  box-shadow:
+    0 0 0 2px rgba(20, 35, 34, 0.14),
+    12px -3px 0 -4px rgba(20, 35, 34, 0.12),
+    20px -1px 0 -5px rgba(20, 35, 34, 0.08);
+  transform: scale(0.7);
+}
+
 .office-room .avatar-ring {
   position: absolute;
   inset: 8px 10px 12px;
@@ -764,6 +797,97 @@ h2 {
 .motion-needs_approval .avatar-character::before,
 .motion-awaiting_approval .avatar-character::before {
   transform: translateY(-1px);
+}
+
+.motion-idle .avatar-character::before {
+  animation: avatarBreathe 3.8s ease-in-out infinite;
+}
+
+.motion-active .avatar-character::before,
+.motion-working .avatar-character::before,
+.motion-reviewing .avatar-character::before {
+  animation: avatarBob 1.9s ease-in-out infinite;
+}
+
+.motion-waiting .avatar-character::before {
+  animation: avatarHold 3.2s ease-in-out infinite;
+}
+
+.motion-blocked .avatar-character::before {
+  animation: blockedFriction 2.8s ease-in-out infinite;
+}
+
+.motion-blocked .avatar::before,
+.visual-state-blocked .avatar::before {
+  opacity: 0.96;
+  background:
+    linear-gradient(180deg, rgba(255, 246, 246, 0.98), rgba(250, 232, 232, 0.98));
+  box-shadow:
+    0 0 0 2px rgba(163, 52, 52, 0.3),
+    8px 1px 0 -5px rgba(163, 52, 52, 0.4);
+  animation: blockedMarkerPulse 1.35s steps(2, end) infinite;
+}
+
+.motion-blocked .avatar::after,
+.visual-state-blocked .avatar::after {
+  opacity: 0.85;
+  background: rgba(163, 52, 52, 0.88);
+  box-shadow:
+    0 0 0 2px rgba(255, 245, 245, 0.88),
+    12px -3px 0 -4px rgba(163, 52, 52, 0.34),
+    20px -1px 0 -5px rgba(163, 52, 52, 0.2);
+}
+
+.motion-needs_approval .avatar::before,
+.motion-awaiting_approval .avatar::before,
+.visual-state-needs_approval .avatar::before {
+  opacity: 0.95;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 252, 245, 0.96) 0 36%, transparent 37%),
+    rgba(245, 205, 89, 0.86);
+  box-shadow:
+    0 0 0 2px rgba(124, 99, 30, 0.28),
+    0 0 0 5px rgba(245, 205, 89, 0.18);
+  transform: scale(1);
+  animation: approvalMarkerPulse 1.8s ease-in-out infinite;
+}
+
+.motion-needs_approval .avatar::after,
+.motion-awaiting_approval .avatar::after,
+.visual-state-needs_approval .avatar::after {
+  opacity: 0.8;
+  background: rgba(245, 205, 89, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(255, 249, 228, 0.92),
+    12px -3px 0 -4px rgba(124, 99, 30, 0.18),
+    20px -1px 0 -5px rgba(124, 99, 30, 0.14);
+}
+
+.motion-active .avatar::after,
+.motion-working .avatar::after,
+.visual-state-active .avatar::after,
+.visual-state-reviewing .avatar::after {
+  opacity: 0.92;
+  background: rgba(47, 107, 79, 0.9);
+  box-shadow:
+    0 0 0 2px rgba(241, 250, 245, 0.92),
+    10px -4px 0 -4px rgba(47, 107, 79, 0.4),
+    18px -2px 0 -5px rgba(47, 107, 79, 0.24);
+  animation: workMarkerPulse 1.2s ease-in-out infinite;
+}
+
+.motion-active .avatar::before,
+.motion-working .avatar::before,
+.visual-state-active .avatar::before,
+.visual-state-reviewing .avatar::before {
+  opacity: 0.84;
+  background:
+    linear-gradient(180deg, rgba(246, 253, 248, 0.98), rgba(231, 246, 236, 0.98));
+  box-shadow:
+    0 0 0 2px rgba(47, 107, 79, 0.24),
+    7px 1px 0 -5px rgba(47, 107, 79, 0.3);
+  animation: workBadgeNudge 1.5s ease-in-out infinite;
 }
 
 .thought-bubble {
@@ -890,6 +1014,17 @@ h2 {
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.6),
     8px 0 0 -4px rgba(20, 35, 34, 0.18);
+}
+
+.courier-token::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(20, 35, 34, 0.12);
 }
 
 .courier-token--packet {
@@ -1413,6 +1548,52 @@ h2 {
   }
 }
 
+@keyframes blockedMarkerPulse {
+  0%,
+  100% {
+    transform: rotate(45deg) scale(0.84);
+  }
+  50% {
+    transform: rotate(45deg) scale(1);
+  }
+}
+
+@keyframes approvalMarkerPulse {
+  0%,
+  100% {
+    transform: scale(0.96);
+    box-shadow:
+      0 0 0 2px rgba(124, 99, 30, 0.28),
+      0 0 0 5px rgba(245, 205, 89, 0.14);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow:
+      0 0 0 2px rgba(124, 99, 30, 0.34),
+      0 0 0 8px rgba(245, 205, 89, 0.22);
+  }
+}
+
+@keyframes workMarkerPulse {
+  0%,
+  100% {
+    transform: scale(0.72);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+@keyframes workBadgeNudge {
+  0%,
+  100% {
+    transform: rotate(45deg) translateY(0) scale(0.82);
+  }
+  50% {
+    transform: rotate(45deg) translateY(-1px) scale(0.92);
+  }
+}
+
 @keyframes workScreenPulse {
   0%,
   100% {
@@ -1593,17 +1774,24 @@ h2 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .motion-idle .avatar-body,
-  .motion-active .avatar-body,
-  .motion-reviewing .avatar-body,
-  .motion-waiting .avatar-body,
-  .motion-working .avatar-body,
-  .motion-working .activity-dots span,
-  .motion-blocked .avatar-body,
+  .motion-idle .avatar-character::before,
+  .motion-active .avatar-character::before,
+  .motion-reviewing .avatar-character::before,
+  .motion-waiting .avatar-character::before,
+  .motion-working .avatar-character::before,
+  .motion-blocked .avatar-character::before,
+  .motion-active .avatar::before,
+  .motion-active .avatar::after,
+  .motion-working .avatar::before,
+  .motion-working .avatar::after,
+  .motion-blocked .avatar::before,
+  .motion-blocked .avatar::after,
   .motion-alert .avatar-ring,
-  .motion-alert .avatar-body,
+  .motion-needs_approval .avatar::before,
+  .motion-needs_approval .avatar::after,
   .motion-awaiting_approval .avatar-ring,
-  .motion-awaiting_approval .avatar-body,
+  .motion-awaiting_approval .avatar::before,
+  .motion-awaiting_approval .avatar::after,
   .has-focus-shift,
   .has-lane-shift,
   .thought-bubble,
