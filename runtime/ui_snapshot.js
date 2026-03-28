@@ -134,6 +134,10 @@ function normalizeRecommendationCopy(value) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function normalizeOneLineSummary(value) {
+  return normalizeRecommendationCopy(value);
+}
+
 function recommendationCopyKey(value) {
   return normalizeRecommendationCopy(value).toLowerCase();
 }
@@ -910,6 +914,776 @@ function deriveOperatorRouteSummary(entry) {
   };
 }
 
+function buildCapacityPressureProfile(opportunities) {
+  const entries = Array.isArray(opportunities) ? opportunities : [];
+  const pendingApprovals = entries.filter(
+    (entry) => entry && entry.queue_item && entry.queue_item.status === "pending"
+  ).length;
+  const activeExecution = entries.filter((entry) => {
+    const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+    return (
+      execution &&
+      new Set([
+        "execution_ready",
+        "execution_waiting_intake",
+        "execution_waiting_parts",
+      ]).has(execution.execution_state)
+    );
+  }).length;
+  const activeMarket = entries.filter((entry) => {
+    const market = entry && entry.operational_market ? entry.operational_market : null;
+    return (
+      market &&
+      new Set([
+        "market_ready",
+        "market_waiting_pricing",
+        "market_waiting_listing",
+      ]).has(market.market_state)
+    );
+  }).length;
+  const activeOps = entries.filter((entry) => {
+    const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+    const market = entry && entry.operational_market ? entry.operational_market : null;
+    const executionActive = Boolean(
+      execution &&
+      new Set([
+        "execution_ready",
+        "execution_waiting_intake",
+        "execution_waiting_parts",
+      ]).has(execution.execution_state)
+    );
+    const marketActive = Boolean(
+      market &&
+      new Set([
+        "market_ready",
+        "market_waiting_pricing",
+        "market_waiting_listing",
+      ]).has(market.market_state)
+    );
+    return executionActive || marketActive;
+  }).length;
+  const blockedOps = entries.filter((entry) => {
+    const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+    const market = entry && entry.operational_market ? entry.operational_market : null;
+    return (
+      (execution && execution.execution_state === "execution_blocked") ||
+      (market && market.market_state === "market_blocked")
+    );
+  }).length;
+  const routedInventory = entries.filter((entry) =>
+    new Set(["routed", "monetizing"]).has(entry.current_status)
+  ).length;
+  const inFlightLoad = activeOps + pendingApprovals;
+
+  let pressureLevel = "clear";
+  if (inFlightLoad >= 8 || routedInventory >= 5 || blockedOps >= 3) {
+    pressureLevel = "overloaded";
+  } else if (inFlightLoad >= 4 || routedInventory >= 3 || blockedOps >= 1) {
+    pressureLevel = "constrained";
+  }
+
+  let dominantPressure = "execution_load";
+  if (pendingApprovals >= Math.max(2, routedInventory, blockedOps)) {
+    dominantPressure = "approval_queue";
+  } else if (routedInventory >= Math.max(2, blockedOps)) {
+    dominantPressure = "routed_inventory";
+  } else if (blockedOps >= 1) {
+    dominantPressure = "blocked_ops";
+  }
+
+  return {
+    pressure_level: pressureLevel,
+    pending_approvals: pendingApprovals,
+    active_execution: activeExecution,
+    active_market: activeMarket,
+    active_ops: activeOps,
+    blocked_ops: blockedOps,
+    routed_inventory: routedInventory,
+    in_flight_load: inFlightLoad,
+    dominant_pressure: dominantPressure,
+  };
+}
+
+function capacityPressureReason(profile) {
+  if (!profile || typeof profile !== "object") {
+    return "Execution and inventory load signals are unavailable.";
+  }
+  if (profile.dominant_pressure === "approval_queue") {
+    return `${profile.pending_approvals} approval item(s) are waiting in queue.`;
+  }
+  if (profile.dominant_pressure === "routed_inventory") {
+    return `${profile.routed_inventory} inventory item(s) are already in routed/market stages.`;
+  }
+  if (profile.dominant_pressure === "blocked_ops") {
+    return `${profile.blocked_ops} active item(s) are currently blocked.`;
+  }
+  return `${profile.in_flight_load} active execution/market workload item(s) are in flight.`;
+}
+
+function capacityReliefStep(profile) {
+  if (!profile || typeof profile !== "object") {
+    return "Review active workload and clear one blocked item before new intake.";
+  }
+  if (profile.dominant_pressure === "approval_queue") {
+    return "Resolve one pending approval before adding new intake.";
+  }
+  if (profile.dominant_pressure === "routed_inventory") {
+    return "Close or relist one routed/market item before adding intake.";
+  }
+  if (profile.dominant_pressure === "blocked_ops") {
+    return "Clear one blocked execution/market item before adding intake.";
+  }
+  return "Complete one in-flight execution/market item before adding intake.";
+}
+
+function deriveOperationalCapacity(entry, profile) {
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+  const market = entry && entry.operational_market ? entry.operational_market : null;
+  const route = entry && entry.operational_route ? entry.operational_route : null;
+
+  const isNotApplicable = Boolean(
+    (recommendation && recommendation.recommendation_state === "reject_now") ||
+      (route && route.operator_route_state === "stop") ||
+      (execution && execution.execution_state === "execution_not_applicable") ||
+      (market && market.market_state === "market_not_applicable")
+  );
+  const isOverloaded = profile && profile.pressure_level === "overloaded";
+  const isConstrained = profile && profile.pressure_level === "constrained";
+  const holdSignal = Boolean(
+    (route && route.operator_route_state === "hold") ||
+      (recommendation && recommendation.recommendation_state === "buy_after_verification")
+  );
+
+  let capacityState = "capacity_clear";
+  if (isNotApplicable) {
+    capacityState = "capacity_not_applicable";
+  } else if (isOverloaded) {
+    capacityState = "capacity_overloaded";
+  } else if (isConstrained && holdSignal) {
+    capacityState = "capacity_hold";
+  } else if (isConstrained) {
+    capacityState = "capacity_constrained";
+  }
+
+  const labels = {
+    capacity_clear: "Capacity clear",
+    capacity_constrained: "Capacity constrained",
+    capacity_overloaded: "Capacity overloaded",
+    capacity_hold: "Capacity hold",
+    capacity_not_applicable: "Not applicable",
+  };
+
+  let reason = "Execution and inventory load are within working range.";
+  let nextStep = "Proceed with the current route owner action.";
+  let clearCondition = "Clears now; no immediate capacity relief is required.";
+
+  if (capacityState === "capacity_constrained") {
+    const pressureReason = capacityPressureReason(profile);
+    reason = `Capacity pressure is elevated: ${pressureReason}`;
+    nextStep = capacityReliefStep(profile);
+    clearCondition =
+      "Clears when workload returns to working range (in-flight <= 3, routed inventory <= 2, blocked ops = 0).";
+  } else if (capacityState === "capacity_overloaded") {
+    const pressureReason = capacityPressureReason(profile);
+    reason = `Capacity load is above safe working range: ${pressureReason}`;
+    nextStep = `Relieve load first. ${capacityReliefStep(profile)}`;
+    clearCondition =
+      "Clears when workload returns to working range (in-flight <= 3, routed inventory <= 2, blocked ops = 0).";
+  } else if (capacityState === "capacity_hold") {
+    const pressureReason = capacityPressureReason(profile);
+    reason = `Opportunity is viable, but capacity timing is tight: ${pressureReason}`;
+    nextStep = `Hold this intake until one relief step is complete. ${capacityReliefStep(profile)}`;
+    clearCondition =
+      "Clears when one relief step is complete and workload returns to working range.";
+  } else if (capacityState === "capacity_not_applicable") {
+    reason = "Current route is stop/terminal, so capacity gating does not apply.";
+    nextStep = "No capacity action is required for this route.";
+    clearCondition = "Clears only if the route reopens from stop/terminal path.";
+  }
+
+  return {
+    capacity_state: capacityState,
+    capacity_label: labels[capacityState],
+    capacity_reason: reason,
+    capacity_next_step: nextStep,
+    capacity_clear_condition: clearCondition,
+  };
+}
+
+function buildSellthroughPressureProfile(opportunities) {
+  const entries = Array.isArray(opportunities) ? opportunities : [];
+  const routedInventory = entries.filter((entry) =>
+    new Set(["routed", "monetizing"]).has(entry.current_status)
+  );
+  const routedCount = routedInventory.length;
+  const stalledCount = routedInventory.filter((entry) => {
+    const market = entry && entry.operational_market ? entry.operational_market : null;
+    return Boolean(
+      market &&
+      new Set(["market_waiting_pricing", "market_waiting_listing"]).has(market.market_state)
+    );
+  }).length;
+  const blockedCount = routedInventory.filter((entry) => {
+    const market = entry && entry.operational_market ? entry.operational_market : null;
+    return Boolean(market && market.market_state === "market_blocked");
+  }).length;
+  const activeMarketCount = routedInventory.filter((entry) => {
+    const market = entry && entry.operational_market ? entry.operational_market : null;
+    return Boolean(
+      market &&
+      new Set(["market_ready", "market_waiting_pricing", "market_waiting_listing"]).has(
+        market.market_state
+      )
+    );
+  }).length;
+
+  let pressureLevel = "clear";
+  if (routedCount >= 5 || stalledCount >= 3 || blockedCount >= 2) {
+    pressureLevel = "stale";
+  } else if (routedCount >= 3 || stalledCount >= 1 || blockedCount >= 1) {
+    pressureLevel = "slow";
+  }
+
+  let dominantPressure = "routed_load";
+  if (blockedCount >= Math.max(1, stalledCount)) {
+    dominantPressure = "market_blocked";
+  } else if (stalledCount >= 1) {
+    dominantPressure = "market_stalled";
+  }
+
+  return {
+    pressure_level: pressureLevel,
+    routed_count: routedCount,
+    stalled_count: stalledCount,
+    blocked_count: blockedCount,
+    active_market_count: activeMarketCount,
+    dominant_pressure: dominantPressure,
+  };
+}
+
+function sellthroughPressureReason(profile) {
+  if (!profile || typeof profile !== "object") {
+    return "Sell-through signals are unavailable.";
+  }
+  if (profile.dominant_pressure === "market_blocked") {
+    return `${profile.blocked_count} routed/market item(s) are market-blocked.`;
+  }
+  if (profile.dominant_pressure === "market_stalled") {
+    return `${profile.stalled_count} routed/market item(s) are waiting pricing/listing.`;
+  }
+  return `${profile.routed_count} item(s) are active in routed/market stages.`;
+}
+
+function sellthroughReliefStep(profile) {
+  if (!profile || typeof profile !== "object") {
+    return "Review routed inventory and clear one blocked listing.";
+  }
+  if (profile.dominant_pressure === "market_blocked") {
+    return "Resolve one market blocker and relist that item.";
+  }
+  if (profile.dominant_pressure === "market_stalled") {
+    return "Refresh pricing/listing package on one stalled item.";
+  }
+  return "Close one routed/market item before adding new intake.";
+}
+
+function deriveOperationalSellthrough(entry, profile) {
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+  const market = entry && entry.operational_market ? entry.operational_market : null;
+  const route = entry && entry.operational_route ? entry.operational_route : null;
+
+  const isNotApplicable = Boolean(
+    (recommendation && recommendation.recommendation_state === "reject_now") ||
+      (route && route.operator_route_state === "stop") ||
+      (execution && execution.execution_state === "execution_not_applicable") ||
+      (market && market.market_state === "market_not_applicable")
+  );
+  const isStale = profile && profile.pressure_level === "stale";
+  const isSlow = profile && profile.pressure_level === "slow";
+  const holdSignal = Boolean(
+    (route && route.operator_route_state === "hold") ||
+      (recommendation && recommendation.recommendation_state === "buy_after_verification")
+  );
+
+  let sellthroughState = "sellthrough_clear";
+  if (isNotApplicable) {
+    sellthroughState = "sellthrough_not_applicable";
+  } else if (isStale) {
+    sellthroughState = "sellthrough_stale";
+  } else if (isSlow && holdSignal) {
+    sellthroughState = "sellthrough_hold";
+  } else if (isSlow) {
+    sellthroughState = "sellthrough_slow";
+  }
+
+  const labels = {
+    sellthrough_clear: "Sell-through clear",
+    sellthrough_slow: "Sell-through slow",
+    sellthrough_stale: "Sell-through stale",
+    sellthrough_hold: "Sell-through hold",
+    sellthrough_not_applicable: "Not applicable",
+  };
+
+  let reason = "Routed/market turnover is within working range.";
+  let nextStep = "Proceed with the current route owner action.";
+  let clearCondition = "Clears now; no sell-through relief is required.";
+
+  if (sellthroughState === "sellthrough_slow") {
+    const pressureReason = sellthroughPressureReason(profile);
+    reason = `Sell-through pressure is elevated: ${pressureReason}`;
+    nextStep = sellthroughReliefStep(profile);
+    clearCondition =
+      "Clears when routed/market pressure returns to working range (routed <= 2, stalled = 0, blocked = 0).";
+  } else if (sellthroughState === "sellthrough_stale") {
+    const pressureReason = sellthroughPressureReason(profile);
+    reason = `Sell-through is clogged by stale inventory: ${pressureReason}`;
+    nextStep = `Clear stale inventory first. ${sellthroughReliefStep(profile)}`;
+    clearCondition =
+      "Clears when routed/market pressure returns to working range (routed <= 2, stalled = 0, blocked = 0).";
+  } else if (sellthroughState === "sellthrough_hold") {
+    const pressureReason = sellthroughPressureReason(profile);
+    reason = `Opportunity is viable, but turnover pressure is slow: ${pressureReason}`;
+    nextStep = `Hold intake until one turnover-relief step is complete. ${sellthroughReliefStep(profile)}`;
+    clearCondition = "Clears when one turnover-relief step is complete and routed pressure returns to working range.";
+  } else if (sellthroughState === "sellthrough_not_applicable") {
+    reason = "Current route is stop/terminal, so sell-through gating does not apply.";
+    nextStep = "No inventory-turnover action is required for this route.";
+    clearCondition = "Clears only if the route reopens from stop/terminal path.";
+  }
+
+  return {
+    sellthrough_state: sellthroughState,
+    sellthrough_label: labels[sellthroughState],
+    sellthrough_reason: reason,
+    sellthrough_next_step: nextStep,
+    sellthrough_clear_condition: clearCondition,
+  };
+}
+
+function parseConfidenceLevel(value) {
+  const normalized = normalizeRecommendationCopy(value || "").toLowerCase();
+  if (!normalized) {
+    return "unknown";
+  }
+  if (new Set(["high", "very_high", "strong"]).has(normalized)) {
+    return "high";
+  }
+  if (new Set(["medium", "moderate", "mixed"]).has(normalized)) {
+    return "medium";
+  }
+  if (new Set(["low", "very_low", "weak"]).has(normalized)) {
+    return "low";
+  }
+  return "unknown";
+}
+
+function summarizeRisk(riskText) {
+  const normalized = normalizeRecommendationCopy(riskText || "");
+  if (!normalized) {
+    return "unresolved risk item";
+  }
+  return normalized.length > 96 ? `${normalized.slice(0, 93).trim()}...` : normalized;
+}
+
+function deriveOpportunityQuality(entry) {
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const route = entry && entry.operational_route ? entry.operational_route : null;
+  const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+  const market = entry && entry.operational_market ? entry.operational_market : null;
+  const workflow = entry && entry.workflow_record ? entry.workflow_record : null;
+  const queueItem = entry && entry.queue_item ? entry.queue_item : null;
+  const opportunityRecord =
+    entry && entry.contract_bundle ? entry.contract_bundle.opportunity_record : null;
+  const risks = opportunityRecord && Array.isArray(opportunityRecord.risks) ? opportunityRecord.risks : [];
+  const confidenceRaw =
+    (opportunityRecord && opportunityRecord.confidence) ||
+    (workflow && workflow.confidence) ||
+    "unknown";
+  const confidenceLevel = parseConfidenceLevel(confidenceRaw);
+  const verification = workflow && workflow.seller_verification ? workflow.seller_verification : null;
+  const verificationComplete = Boolean(
+    verification &&
+      verification.imei_proof_verified === true &&
+      verification.carrier_status_verified === true
+  );
+  const verificationResponse = normalizeRecommendationCopy(
+    verification && verification.response_status ? verification.response_status : ""
+  ).toLowerCase();
+  const verificationFailed = new Set([
+    "failed",
+    "rejected",
+    "invalid",
+    "blacklisted",
+    "fraud_suspected",
+    "unsatisfactory",
+  ]).has(verificationResponse);
+  const verificationMissing = Boolean(
+    !verification || verification.imei_proof_verified !== true || verification.carrier_status_verified !== true
+  );
+  const blocked = Boolean(workflow && workflow.purchase_recommendation_blocked);
+  const pendingApproval = Boolean(queueItem && queueItem.status === "pending");
+  const recommendationState = recommendation ? recommendation.recommendation_state : "";
+  const criticalRiskPattern =
+    /(fraud|blacklist|blacklisted|stolen|counterfeit|imei mismatch|verification failed|confirmed lock)/i;
+  const criticalRisk = risks.find((risk) => criticalRiskPattern.test(String(risk || ""))) || null;
+
+  const notApplicable = Boolean(
+    recommendationState === "reject_now" ||
+      (route && route.operator_route_state === "stop") ||
+      (execution && execution.execution_state === "execution_not_applicable") ||
+      (market && market.market_state === "market_not_applicable")
+  );
+
+  let qualityState = "quality_uncertain";
+  if (notApplicable) {
+    qualityState = "quality_not_applicable";
+  } else if (
+    verificationFailed ||
+    criticalRisk ||
+    (confidenceLevel === "low" && (blocked || verificationMissing))
+  ) {
+    qualityState = "quality_weak";
+  } else if (
+    verificationComplete &&
+    confidenceLevel === "high" &&
+    !blocked &&
+    !criticalRisk
+  ) {
+    qualityState = "quality_strong";
+  } else if (
+    (confidenceLevel === "medium" || confidenceLevel === "high") &&
+    !verificationFailed &&
+    !criticalRisk &&
+    (verificationComplete || recommendationState === "buy_after_verification")
+  ) {
+    qualityState = "quality_promising";
+  } else {
+    qualityState = "quality_uncertain";
+  }
+
+  const labels = {
+    quality_strong: "Quality strong",
+    quality_promising: "Quality promising",
+    quality_uncertain: "Quality uncertain",
+    quality_weak: "Quality weak",
+    quality_not_applicable: "Not applicable",
+  };
+
+  let reason = "Evidence quality is mixed and still needs verification clarity.";
+  let nextStep = "Verify missing quality inputs before investing more workflow effort.";
+  let upgradeCondition = "Upgrade when verification inputs are complete and confidence is raised.";
+  if (qualityState === "quality_strong") {
+    reason = "Evidence quality is strong: verification is complete, confidence is high, and no active blocker is open.";
+    nextStep = "Proceed with the current route owner action.";
+    upgradeCondition = "Already strong; keep verification clear and blockers closed.";
+  } else if (qualityState === "quality_promising") {
+    reason = verificationComplete
+      ? "Opportunity quality is good, but one focused input would strengthen confidence before scaling effort."
+      : "Opportunity quality is promising, with targeted verification still open.";
+    nextStep = blocked
+      ? "Resolve purchase recommendation blocker and preserve current verification evidence."
+      : verificationMissing
+      ? "Collect IMEI proof and carrier-status evidence to close quality gaps."
+      : pendingApproval
+      ? "Resolve owner approval to lock this evidence into an explicit decision."
+      : "Add one stronger proof item (condition evidence or pricing comp) before deeper execution effort.";
+    upgradeCondition = blocked
+      ? "Upgrades when the blocker is resolved and verification remains clear."
+      : verificationMissing
+      ? "Upgrades when IMEI proof and carrier status are both verified."
+      : "Upgrades when one stronger proof input is added and confidence remains at least medium.";
+  } else if (qualityState === "quality_uncertain") {
+    reason = blocked
+      ? "Evidence quality is uncertain because recommendation blockers are still unresolved."
+      : confidenceLevel === "unknown" || confidenceLevel === "low"
+      ? "Evidence quality is uncertain because confidence is not yet strong enough."
+      : "Evidence quality is uncertain because verification coverage is incomplete.";
+    nextStep = blocked
+      ? "Clear blocker requirements first, then re-check verification completeness."
+      : verificationMissing
+      ? "Complete IMEI proof + carrier verification before advancing."
+      : "Capture one concrete quality proof item and re-score confidence.";
+    upgradeCondition = verificationMissing
+      ? "Upgrades when verification completeness is achieved and confidence reaches at least medium."
+      : "Upgrades when unresolved blockers close and confidence evidence improves.";
+  } else if (qualityState === "quality_weak") {
+    reason = verificationFailed
+      ? "Evidence quality is weak because seller/device verification failed."
+      : criticalRisk
+      ? `Evidence quality is weak due to critical risk: ${summarizeRisk(criticalRisk)}`
+      : "Evidence quality is weak due to low confidence with unresolved blockers.";
+    nextStep = verificationFailed || criticalRisk
+      ? "Deprioritize this opportunity and shift effort to higher-quality items."
+      : "Stop advancing this opportunity until quality blockers are resolved.";
+    upgradeCondition =
+      "Upgrades only if critical blocker evidence is reversed and verification is re-validated.";
+  } else if (qualityState === "quality_not_applicable") {
+    reason = "Current route is stop/terminal, so opportunity-quality scoring is not required.";
+    nextStep = "No additional quality action is required on this path.";
+    upgradeCondition = "Clears only if the route reopens from stop/terminal path.";
+  }
+
+  return {
+    opportunity_quality_state: qualityState,
+    opportunity_quality_label: labels[qualityState],
+    opportunity_quality_reason: reason,
+    opportunity_quality_next_step: nextStep,
+    opportunity_quality_upgrade_condition: upgradeCondition,
+  };
+}
+
+function toTimestamp(value) {
+  const parsed = Date.parse(value || 0);
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
+function deriveIntakePriority(entry, context = {}) {
+  const recommendation = entry && entry.operational_recommendation ? entry.operational_recommendation : null;
+  const route = entry && entry.operational_route ? entry.operational_route : null;
+  const execution = entry && entry.operational_execution ? entry.operational_execution : null;
+  const market = entry && entry.operational_market ? entry.operational_market : null;
+  const capacity = entry && entry.operational_capacity ? entry.operational_capacity : null;
+  const sellthrough = entry && entry.operational_sellthrough ? entry.operational_sellthrough : null;
+  const quality = entry && entry.operational_opportunity_quality ? entry.operational_opportunity_quality : null;
+  const workflow = entry && entry.workflow_record ? entry.workflow_record : null;
+  const queueItem = entry && entry.queue_item ? entry.queue_item : null;
+  const capitalFit = entry && entry.capital_fit ? entry.capital_fit : null;
+  const capitalStrategy = context.capitalStrategy || null;
+  const nowTs = toTimestamp(context.nowIso || new Date().toISOString());
+
+  const pendingApproval = Boolean(queueItem && queueItem.status === "pending");
+  const requiredByTs = toTimestamp(
+    queueItem && queueItem.ticket ? queueItem.ticket.required_by : null
+  );
+  const hasRequiredBy = Number.isFinite(requiredByTs);
+  const minutesToRequiredBy = hasRequiredBy ? Math.round((requiredByTs - nowTs) / 60000) : null;
+  const overdueApproval = pendingApproval && minutesToRequiredBy != null && minutesToRequiredBy < 0;
+  const dueSoonApproval = pendingApproval && minutesToRequiredBy != null && minutesToRequiredBy <= 120;
+
+  const notApplicable = Boolean(
+    (recommendation && recommendation.recommendation_state === "reject_now") ||
+      (route && route.operator_route_state === "stop") ||
+      (execution && execution.execution_state === "execution_not_applicable") ||
+      (market && market.market_state === "market_not_applicable")
+  );
+  const blocked = Boolean(workflow && workflow.purchase_recommendation_blocked);
+  const weakQuality = Boolean(quality && quality.opportunity_quality_state === "quality_weak");
+  const uncertainQuality = Boolean(
+    quality && quality.opportunity_quality_state === "quality_uncertain"
+  );
+  const pressureDefer = Boolean(
+    (capacity && capacity.capacity_state === "capacity_overloaded") ||
+      (sellthrough && sellthrough.sellthrough_state === "sellthrough_stale")
+  );
+  const holdPressure = Boolean(
+    (capacity && capacity.capacity_state === "capacity_hold") ||
+      (sellthrough && sellthrough.sellthrough_state === "sellthrough_hold")
+  );
+  const moderatePressure = Boolean(
+    (capacity && capacity.capacity_state === "capacity_constrained") ||
+      (sellthrough && sellthrough.sellthrough_state === "sellthrough_slow")
+  );
+  const capitalRecoveryDefer = Boolean(
+    capitalStrategy &&
+      capitalStrategy.capital_mode === "recovery" &&
+      capitalFit &&
+      capitalFit.stance === "discouraged"
+  );
+  const immediateReady = Boolean(
+    recommendation &&
+      recommendation.recommendation_state === "approve_now" &&
+      route &&
+      new Set(["pursue_now", "prepare_execution", "prepare_market"]).has(
+        route.operator_route_state
+      ) &&
+      !pendingApproval &&
+      !pressureDefer &&
+      !holdPressure &&
+      !moderatePressure &&
+      !blocked
+  );
+
+  let intakePriorityState = "priority_later";
+  let intakePriorityReason = "Opportunity is active, but immediate intake urgency is limited.";
+  let intakePriorityNextStep = "Keep this in active review and re-check after higher-priority items move.";
+  if (notApplicable) {
+    intakePriorityState = "priority_not_applicable";
+    intakePriorityReason = "Current route is stop/terminal, so intake prioritization does not apply.";
+    intakePriorityNextStep = "No intake-priority action is required for this route.";
+  } else if (pressureDefer) {
+    intakePriorityState = "priority_defer";
+    intakePriorityReason =
+      "Active capacity or sell-through pressure is above safe working range for new intake.";
+    intakePriorityNextStep = "Relieve overloaded/stale pressure before advancing this intake.";
+  } else if (blocked || holdPressure || capitalRecoveryDefer) {
+    intakePriorityState = "priority_defer";
+    intakePriorityReason = blocked
+      ? "Purchase recommendation is blocked by unresolved requirements."
+      : holdPressure
+      ? "Operational pressure indicates hold timing for this intake."
+      : "Capital mode is recovery and this opportunity is currently discouraged.";
+    intakePriorityNextStep = blocked
+      ? "Clear blocker requirements, then re-rank this intake."
+      : holdPressure
+      ? "Complete one pressure-relief step, then re-rank this intake."
+      : "Improve capital posture or switch to a favored opportunity shape before intake.";
+  } else if (overdueApproval || dueSoonApproval || immediateReady) {
+    intakePriorityState = "priority_now";
+    intakePriorityReason = overdueApproval
+      ? "Pending approval is overdue and needs immediate operator decision."
+      : dueSoonApproval
+      ? "Pending approval is due soon and should be handled now."
+      : "Recommendation and route are ready for immediate intake action.";
+    intakePriorityNextStep = overdueApproval || dueSoonApproval
+      ? "Resolve approval decision now, then continue the route."
+      : "Advance the current route owner action now.";
+  } else if (
+    pendingApproval ||
+    (recommendation && recommendation.recommendation_state === "buy_after_verification")
+  ) {
+    intakePriorityState = "priority_soon";
+    intakePriorityReason = uncertainQuality
+      ? "Quality signals are still uncertain, so keep this in near-term verification queue."
+      : pendingApproval
+      ? "Approval is pending but not urgent enough for immediate handling."
+      : recommendation && recommendation.recommendation_state === "buy_after_verification"
+      ? "Verification remains open before immediate intake is justified."
+      : "Support-layer pressure suggests near-term but selective intake.";
+    intakePriorityNextStep = uncertainQuality
+      ? "Complete the quality next step, then re-rank for immediate intake."
+      : pendingApproval
+      ? "Queue this for the next approval pass."
+      : "Keep this queued for the next focused intake window.";
+  } else if (
+    moderatePressure ||
+    (capitalStrategy && capitalStrategy.capital_mode === "constrained")
+  ) {
+    intakePriorityState = "priority_later";
+    intakePriorityReason = "Support-layer pressure is manageable but suggests lower intake order.";
+    intakePriorityNextStep = "Leave this in later intake order until pressure returns to clear.";
+  }
+
+  const labels = {
+    priority_now: "Priority now",
+    priority_soon: "Priority soon",
+    priority_later: "Priority later",
+    priority_defer: "Priority defer",
+    priority_not_applicable: "Not applicable",
+  };
+  const stateScore = {
+    priority_now: 80,
+    priority_soon: 60,
+    priority_later: 40,
+    priority_defer: 20,
+    priority_not_applicable: 0,
+  };
+
+  let score = stateScore[intakePriorityState] || 0;
+  if (pendingApproval) {
+    score += 4;
+  }
+  if (overdueApproval) {
+    score += 6;
+  }
+  if (execution && execution.execution_state === "execution_ready") {
+    score += 4;
+  }
+  if (market && market.market_state === "market_ready") {
+    score += 2;
+  }
+  if (capacity && capacity.capacity_state === "capacity_constrained") {
+    score -= 3;
+  }
+  if (sellthrough && sellthrough.sellthrough_state === "sellthrough_slow") {
+    score -= 3;
+  }
+  if (weakQuality) {
+    score -= 6;
+  } else if (uncertainQuality) {
+    score -= 2;
+  }
+
+  return {
+    intake_priority_state: intakePriorityState,
+    intake_priority_label: labels[intakePriorityState],
+    intake_priority_reason: intakePriorityReason,
+    intake_priority_rank: null,
+    intake_priority_next_step: intakePriorityNextStep,
+    _priority_score: score,
+    _priority_due_ts: hasRequiredBy ? requiredByTs : Number.POSITIVE_INFINITY,
+  };
+}
+
+function annotateIntakePriorities(opportunities, capitalStrategy, nowIso) {
+  const annotated = opportunities.map((entry) => {
+    const priority = deriveIntakePriority(entry, {
+      capitalStrategy,
+      nowIso,
+    });
+    return {
+      ...entry,
+      intake_priority_state: priority.intake_priority_state,
+      intake_priority_label: priority.intake_priority_label,
+      intake_priority_reason: priority.intake_priority_reason,
+      intake_priority_rank: null,
+      intake_priority_next_step: priority.intake_priority_next_step,
+      operational_intake_priority: {
+        intake_priority_state: priority.intake_priority_state,
+        intake_priority_label: priority.intake_priority_label,
+        intake_priority_reason: priority.intake_priority_reason,
+        intake_priority_rank: null,
+        intake_priority_next_step: priority.intake_priority_next_step,
+      },
+      _priority_score: priority._priority_score,
+      _priority_due_ts: priority._priority_due_ts,
+    };
+  });
+
+  const stateOrder = new Map([
+    ["priority_now", 0],
+    ["priority_soon", 1],
+    ["priority_later", 2],
+    ["priority_defer", 3],
+    ["priority_not_applicable", 4],
+  ]);
+  const rankable = annotated
+    .filter((entry) => entry.intake_priority_state !== "priority_not_applicable")
+    .sort((a, b) => {
+      const stateDelta =
+        (stateOrder.get(a.intake_priority_state) || 99) -
+        (stateOrder.get(b.intake_priority_state) || 99);
+      if (stateDelta !== 0) {
+        return stateDelta;
+      }
+      if (a._priority_score !== b._priority_score) {
+        return b._priority_score - a._priority_score;
+      }
+      if (a._priority_due_ts !== b._priority_due_ts) {
+        return a._priority_due_ts - b._priority_due_ts;
+      }
+      return String(a.opportunity_id).localeCompare(String(b.opportunity_id));
+    });
+
+  const rankById = new Map();
+  rankable.forEach((entry, index) => {
+    rankById.set(entry.opportunity_id, index + 1);
+  });
+
+  return annotated.map((entry) => {
+    const rank = rankById.has(entry.opportunity_id) ? rankById.get(entry.opportunity_id) : null;
+    return {
+      ...entry,
+      intake_priority_rank: rank,
+      operational_intake_priority: {
+        ...entry.operational_intake_priority,
+        intake_priority_rank: rank,
+      },
+    };
+  });
+}
+
 function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaitingTasks) {
   const ids = new Set([
     ...Object.keys(workflowState.opportunities || {}),
@@ -1038,6 +1812,32 @@ function buildOpportunityEntries(queue, workflowState, latestArtifacts, awaiting
       };
     }
     entries.push(entry);
+  }
+
+  const capacityProfile = buildCapacityPressureProfile(entries);
+  const sellthroughProfile = buildSellthroughPressureProfile(entries);
+  for (const entry of entries) {
+    const capacity = deriveOperationalCapacity(entry, capacityProfile);
+    entry.capacity_state = capacity.capacity_state;
+    entry.capacity_label = capacity.capacity_label;
+    entry.capacity_reason = capacity.capacity_reason;
+    entry.capacity_next_step = capacity.capacity_next_step;
+    entry.capacity_clear_condition = capacity.capacity_clear_condition;
+    entry.operational_capacity = capacity;
+    const sellthrough = deriveOperationalSellthrough(entry, sellthroughProfile);
+    entry.sellthrough_state = sellthrough.sellthrough_state;
+    entry.sellthrough_label = sellthrough.sellthrough_label;
+    entry.sellthrough_reason = sellthrough.sellthrough_reason;
+    entry.sellthrough_next_step = sellthrough.sellthrough_next_step;
+    entry.sellthrough_clear_condition = sellthrough.sellthrough_clear_condition;
+    entry.operational_sellthrough = sellthrough;
+    const quality = deriveOpportunityQuality(entry);
+    entry.opportunity_quality_state = quality.opportunity_quality_state;
+    entry.opportunity_quality_label = quality.opportunity_quality_label;
+    entry.opportunity_quality_reason = quality.opportunity_quality_reason;
+    entry.opportunity_quality_next_step = quality.opportunity_quality_next_step;
+    entry.opportunity_quality_upgrade_condition = quality.opportunity_quality_upgrade_condition;
+    entry.operational_opportunity_quality = quality;
   }
 
   return sortOpportunities(entries);
@@ -2743,10 +3543,15 @@ function buildUiSnapshot(options = {}) {
     opportunities,
     nowIso
   );
-  const annotatedOpportunities = opportunities.map((entry) => ({
+  const opportunitiesWithCapitalFit = opportunities.map((entry) => ({
     ...entry,
     capital_fit: buildOpportunityCapitalFit(entry, capitalStrategy),
   }));
+  const annotatedOpportunities = annotateIntakePriorities(
+    opportunitiesWithCapitalFit,
+    capitalStrategy,
+    nowIso
+  );
   const agentStatusCards = buildAgentStatusCards(
     annotatedOpportunities,
     statusSnapshot.attention,

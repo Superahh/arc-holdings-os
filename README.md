@@ -18,6 +18,10 @@ The current UI/runtime slice is an operator-facing workflow shell that derives d
 - handoff actionability
 - execution readiness
 - monetization readiness
+- capacity pressure readiness
+- sell-through pressure readiness
+- sourcing prioritization and intake ranking readiness
+- sourcing confidence / opportunity quality readiness
 - compact operator route summary
 - approval decision consequences
 - read-only capital posture visibility plus user-controlled withdrawal request/approve/cancel actions
@@ -38,7 +42,7 @@ Use this repo to:
 
 1. Runtime ingests workflow state, approval queue items, and latest run artifacts.
 2. Runtime builds a UI snapshot in `runtime/ui_snapshot.js`.
-3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, operator route summary, approval consequences, and capital controls.
+3. Snapshot derivation computes compact operational fields for recommendation, handoff, execution, monetization, capacity pressure, sell-through pressure, intake prioritization/ranking, opportunity quality, operator route summary, approval consequences, and capital controls.
 4. UI reads those fields and renders text only in existing cards/panels, including read-only capital buckets and pending withdrawal requests.
 5. Writable UI actions remain narrow and confirmation-gated: approval decisions and withdrawal request/approve/cancel/reject only.
 6. Deposit/reserve/release_reserve/approve_use remain runtime-manual (CLI/operator) and no autonomous capital movement is allowed.
@@ -67,6 +71,38 @@ Use this repo to:
 - `market_waiting_listing`: listing preparation is still incomplete.
 - `market_blocked`: hard blocker prevents market action (canonical blocker text reused).
 - `market_not_applicable`: decision path should not proceed to market action.
+
+### Current capacity pressure model (v1)
+
+- `capacity_clear`: current execution/inventory load supports taking this on now.
+- `capacity_constrained`: opportunity is still viable, but current load suggests careful timing.
+- `capacity_overloaded`: active load is too high; relieve capacity before intake.
+- `capacity_hold`: opportunity is viable, but timing/load mix calls for deferral.
+- `capacity_not_applicable`: stop/terminal path; no capacity action needed.
+
+### Current sell-through pressure model (v1)
+
+- `sellthrough_clear`: routed/market turnover does not constrain action.
+- `sellthrough_slow`: turnover is slower; proceed selectively.
+- `sellthrough_stale`: stale routed/market inventory is clogging turnover; relieve first.
+- `sellthrough_hold`: opportunity is viable, but turnover pressure supports deferral.
+- `sellthrough_not_applicable`: stop/terminal path; no sell-through action needed.
+
+### Current intake priority model (v1)
+
+- `priority_now`: highest immediate operator attention among active opportunities.
+- `priority_soon`: queue for the next attention pass once immediate items move.
+- `priority_later`: active but lower urgency than now/soon items.
+- `priority_defer`: defer until blocker or pressure condition is relieved.
+- `priority_not_applicable`: stop/terminal path; no intake-priority action needed.
+
+### Current opportunity quality model (v1)
+
+- `quality_strong`: evidence is strong; quality is not a major concern.
+- `quality_promising`: quality looks good, but one targeted proof input would materially improve confidence.
+- `quality_uncertain`: evidence is materially incomplete or ambiguous; verify before investing more effort.
+- `quality_weak`: evidence quality is poor enough to deprioritize or stop.
+- `quality_not_applicable`: stop/terminal path; no quality action needed.
 
 ### Snapshot payload additions used by UI
 
@@ -98,6 +134,46 @@ Per opportunity, snapshot also includes route summary fields:
 - `operator_route_next_step`
 
 Route fields are also grouped under `operational_route` for direct UI consumption.
+
+Per opportunity, snapshot now also includes capacity pressure fields:
+
+- `capacity_state`
+- `capacity_label`
+- `capacity_reason`
+- `capacity_next_step`
+- `capacity_clear_condition`
+
+Capacity fields are also grouped under `operational_capacity` for direct UI consumption.
+
+Per opportunity, snapshot now also includes sell-through pressure fields:
+
+- `sellthrough_state`
+- `sellthrough_label`
+- `sellthrough_reason`
+- `sellthrough_next_step`
+- `sellthrough_clear_condition`
+
+Sell-through fields are also grouped under `operational_sellthrough` for direct UI consumption.
+
+Per opportunity, snapshot now also includes intake-priority fields:
+
+- `intake_priority_state`
+- `intake_priority_label`
+- `intake_priority_reason`
+- `intake_priority_rank`
+- `intake_priority_next_step`
+
+Intake-priority fields are also grouped under `operational_intake_priority` for direct UI consumption.
+
+Per opportunity, snapshot now also includes opportunity-quality fields:
+
+- `opportunity_quality_state`
+- `opportunity_quality_label`
+- `opportunity_quality_reason`
+- `opportunity_quality_next_step`
+- `opportunity_quality_upgrade_condition`
+
+Opportunity-quality fields are also grouped under `operational_opportunity_quality` for direct UI consumption.
 
 Per approval queue ticket item, snapshot now also includes:
 

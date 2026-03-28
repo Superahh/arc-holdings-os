@@ -58,6 +58,34 @@ const ALLOWED_ROUTE_STATES = new Set([
   "hold",
   "stop",
 ]);
+const ALLOWED_CAPACITY_STATES = new Set([
+  "capacity_clear",
+  "capacity_constrained",
+  "capacity_overloaded",
+  "capacity_hold",
+  "capacity_not_applicable",
+]);
+const ALLOWED_SELLTHROUGH_STATES = new Set([
+  "sellthrough_clear",
+  "sellthrough_slow",
+  "sellthrough_stale",
+  "sellthrough_hold",
+  "sellthrough_not_applicable",
+]);
+const ALLOWED_INTAKE_PRIORITY_STATES = new Set([
+  "priority_now",
+  "priority_soon",
+  "priority_later",
+  "priority_defer",
+  "priority_not_applicable",
+]);
+const ALLOWED_OPPORTUNITY_QUALITY_STATES = new Set([
+  "quality_strong",
+  "quality_promising",
+  "quality_uncertain",
+  "quality_weak",
+  "quality_not_applicable",
+]);
 
 function loadGoldenFixture() {
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
@@ -137,6 +165,48 @@ function mutateSeededRecommendationInputs(env, mutateFn) {
   workflowState.opportunities[opportunityId] = workflowRecord;
   fs.writeFileSync(env.workflowStatePath, JSON.stringify(workflowState, null, 2));
   fs.writeFileSync(artifactPath, JSON.stringify(artifact, null, 2));
+}
+
+function addSyntheticWorkflowLoad(env, count, options = {}) {
+  if (!count || count <= 0) {
+    return;
+  }
+  const workflowState = JSON.parse(fs.readFileSync(env.workflowStatePath, "utf8"));
+  const templateId = Object.keys(workflowState.opportunities || {})[0];
+  assert.ok(templateId, "Expected seeded workflow state to include a template opportunity.");
+  const template = workflowState.opportunities[templateId];
+  const nowIso = options.now || "2026-03-25T19:09:00.000Z";
+  const status = options.status || "approved";
+  const blocked = options.blocked === true;
+
+  for (let index = 1; index <= count; index += 1) {
+    const id = `opp-capacity-load-${String(index).padStart(3, "0")}`;
+    workflowState.opportunities[id] = {
+      ...template,
+      opportunity_id: id,
+      source: "synthetic_capacity_load",
+      current_status: status,
+      recommendation: "acquire",
+      purchase_recommendation_blocked: blocked,
+      priority: "normal",
+      last_updated_at: nowIso,
+      seller_verification: {
+        imei_proof_verified: true,
+        carrier_status_verified: true,
+        response_status: "verified",
+      },
+      status_history: [
+        {
+          status,
+          actor: "ui_snapshot_capacity_test",
+          reason: "Synthetic load entry for capacity mapping coverage.",
+          timestamp: nowIso,
+        },
+      ],
+    };
+  }
+
+  fs.writeFileSync(env.workflowStatePath, JSON.stringify(workflowState, null, 2));
 }
 
 function normalizeTextKey(value) {
@@ -223,6 +293,63 @@ function assertRouteTextContract(route) {
   assert.equal(route.operator_route_next_step.trim().length > 0, true);
 }
 
+function assertCapacityTextContract(capacity) {
+  assert.equal(typeof capacity.capacity_state, "string");
+  assert.equal(ALLOWED_CAPACITY_STATES.has(capacity.capacity_state), true);
+  assert.equal(typeof capacity.capacity_label, "string");
+  assert.equal(capacity.capacity_label.trim().length > 0, true);
+  assert.equal(typeof capacity.capacity_reason, "string");
+  assert.equal(capacity.capacity_reason.trim().length > 0, true);
+  assert.equal(typeof capacity.capacity_next_step, "string");
+  assert.equal(capacity.capacity_next_step.trim().length > 0, true);
+  assert.equal(typeof capacity.capacity_clear_condition, "string");
+  assert.equal(capacity.capacity_clear_condition.trim().length > 0, true);
+}
+
+function assertSellthroughTextContract(sellthrough) {
+  assert.equal(typeof sellthrough.sellthrough_state, "string");
+  assert.equal(ALLOWED_SELLTHROUGH_STATES.has(sellthrough.sellthrough_state), true);
+  assert.equal(typeof sellthrough.sellthrough_label, "string");
+  assert.equal(sellthrough.sellthrough_label.trim().length > 0, true);
+  assert.equal(typeof sellthrough.sellthrough_reason, "string");
+  assert.equal(sellthrough.sellthrough_reason.trim().length > 0, true);
+  assert.equal(typeof sellthrough.sellthrough_next_step, "string");
+  assert.equal(sellthrough.sellthrough_next_step.trim().length > 0, true);
+  assert.equal(typeof sellthrough.sellthrough_clear_condition, "string");
+  assert.equal(sellthrough.sellthrough_clear_condition.trim().length > 0, true);
+}
+
+function assertIntakePriorityContract(priority) {
+  assert.equal(typeof priority.intake_priority_state, "string");
+  assert.equal(ALLOWED_INTAKE_PRIORITY_STATES.has(priority.intake_priority_state), true);
+  assert.equal(typeof priority.intake_priority_label, "string");
+  assert.equal(priority.intake_priority_label.trim().length > 0, true);
+  assert.equal(typeof priority.intake_priority_reason, "string");
+  assert.equal(priority.intake_priority_reason.trim().length > 0, true);
+  assert.equal(
+    priority.intake_priority_rank === null || Number.isInteger(priority.intake_priority_rank),
+    true
+  );
+  assert.equal(typeof priority.intake_priority_next_step, "string");
+  assert.equal(priority.intake_priority_next_step.trim().length > 0, true);
+}
+
+function assertOpportunityQualityContract(quality) {
+  assert.equal(typeof quality.opportunity_quality_state, "string");
+  assert.equal(
+    ALLOWED_OPPORTUNITY_QUALITY_STATES.has(quality.opportunity_quality_state),
+    true
+  );
+  assert.equal(typeof quality.opportunity_quality_label, "string");
+  assert.equal(quality.opportunity_quality_label.trim().length > 0, true);
+  assert.equal(typeof quality.opportunity_quality_reason, "string");
+  assert.equal(quality.opportunity_quality_reason.trim().length > 0, true);
+  assert.equal(typeof quality.opportunity_quality_next_step, "string");
+  assert.equal(quality.opportunity_quality_next_step.trim().length > 0, true);
+  assert.equal(typeof quality.opportunity_quality_upgrade_condition, "string");
+  assert.equal(quality.opportunity_quality_upgrade_condition.trim().length > 0, true);
+}
+
 test("buildUiSnapshot composes contract-driven shell data from runtime state", () => {
   const env = seedFixtureEnvironment();
 
@@ -262,11 +389,19 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   const execution = snapshot.workflow.opportunities[0].operational_execution;
   const market = snapshot.workflow.opportunities[0].operational_market;
   const route = snapshot.workflow.opportunities[0].operational_route;
+  const capacity = snapshot.workflow.opportunities[0].operational_capacity;
+  const sellthrough = snapshot.workflow.opportunities[0].operational_sellthrough;
+  const intakePriority = snapshot.workflow.opportunities[0].operational_intake_priority;
+  const opportunityQuality = snapshot.workflow.opportunities[0].operational_opportunity_quality;
   assert.ok(recommendation);
   assert.ok(handoff);
   assert.ok(execution);
   assert.ok(market);
   assert.ok(route);
+  assert.ok(capacity);
+  assert.ok(sellthrough);
+  assert.ok(intakePriority);
+  assert.ok(opportunityQuality);
   assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
   assert.equal(typeof recommendation.recommendation_label, "string");
   assert.equal(recommendation.recommendation_label.length > 0, true);
@@ -292,6 +427,20 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.equal(market.market_state, "market_blocked");
   assertRouteTextContract(route);
   assert.equal(route.operator_route_state, "hold");
+  assertCapacityTextContract(capacity);
+  assert.equal(snapshot.workflow.opportunities[0].capacity_state, capacity.capacity_state);
+  assertSellthroughTextContract(sellthrough);
+  assert.equal(snapshot.workflow.opportunities[0].sellthrough_state, sellthrough.sellthrough_state);
+  assertIntakePriorityContract(intakePriority);
+  assert.equal(
+    snapshot.workflow.opportunities[0].intake_priority_state,
+    intakePriority.intake_priority_state
+  );
+  assertOpportunityQualityContract(opportunityQuality);
+  assert.equal(
+    snapshot.workflow.opportunities[0].opportunity_quality_state,
+    opportunityQuality.opportunity_quality_state
+  );
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -1614,6 +1763,513 @@ test("buildUiSnapshot route next step remains deterministic", () => {
 
   assert.equal(first.operator_route_next_step, second.operator_route_next_step);
   assert.equal(first.operator_route_reason, second.operator_route_reason);
+});
+
+test("buildUiSnapshot capacity mapping covers clear constrained overloaded hold and not-applicable", () => {
+  const scenarios = [
+    {
+      name: "capacity_clear",
+      enqueueApproval: false,
+      loadCount: 0,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "capacity_constrained",
+      enqueueApproval: false,
+      loadCount: 3,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "capacity_overloaded",
+      enqueueApproval: false,
+      loadCount: 7,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "capacity_hold",
+      enqueueApproval: false,
+      loadCount: 3,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+      },
+    },
+    {
+      name: "capacity_not_applicable",
+      enqueueApproval: false,
+      loadCount: 0,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "researching";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: scenario.enqueueApproval });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    addSyntheticWorkflowLoad(env, scenario.loadCount, {
+      status: "approved",
+      blocked: false,
+      now: "2026-03-25T19:09:00.000Z",
+    });
+
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities.find(
+      (entry) => entry.opportunity_id === "opp-2026-03-25-001"
+    );
+    assert.ok(opportunity, "Expected seeded primary opportunity in snapshot.");
+    const capacity = opportunity.operational_capacity;
+    assertCapacityTextContract(capacity);
+    assert.equal(capacity.capacity_state, scenario.name, scenario.name);
+    assert.equal(opportunity.capacity_state, scenario.name, scenario.name);
+  }
+});
+
+test("buildUiSnapshot sell-through mapping covers clear slow stale hold and not-applicable", () => {
+  const scenarios = [
+    {
+      name: "sellthrough_clear",
+      routedLoadCount: 0,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "sellthrough_slow",
+      routedLoadCount: 2,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "sellthrough_stale",
+      routedLoadCount: 3,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "sellthrough_hold",
+      routedLoadCount: 2,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+      },
+    },
+    {
+      name: "sellthrough_not_applicable",
+      routedLoadCount: 0,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "researching";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: false });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    addSyntheticWorkflowLoad(env, scenario.routedLoadCount, {
+      status: "routed",
+      blocked: false,
+      now: "2026-03-25T19:09:00.000Z",
+    });
+
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities.find(
+      (entry) => entry.opportunity_id === "opp-2026-03-25-001"
+    );
+    assert.ok(opportunity, "Expected seeded primary opportunity in snapshot.");
+    const sellthrough = opportunity.operational_sellthrough;
+    assertSellthroughTextContract(sellthrough);
+    assert.equal(sellthrough.sellthrough_state, scenario.name, scenario.name);
+    assert.equal(opportunity.sellthrough_state, scenario.name, scenario.name);
+  }
+});
+
+test("buildUiSnapshot intake-priority mapping covers now soon later defer and not-applicable", () => {
+  const scenarios = [
+    {
+      name: "priority_now",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+      loadCount: 0,
+      loadStatus: "approved",
+    },
+    {
+      name: "priority_soon",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "awaiting_seller_verification";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+          response_status: "pending",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+      loadCount: 0,
+      loadStatus: "approved",
+    },
+    {
+      name: "priority_later",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+      loadCount: 2,
+      loadStatus: "routed",
+    },
+    {
+      name: "priority_defer",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+      loadCount: 0,
+      loadStatus: "approved",
+    },
+    {
+      name: "priority_not_applicable",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        workflowRecord.current_status = "researching";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+      loadCount: 0,
+      loadStatus: "approved",
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: scenario.enqueueApproval });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+    addSyntheticWorkflowLoad(env, scenario.loadCount, {
+      status: scenario.loadStatus,
+      blocked: false,
+      now: "2026-03-25T19:09:00.000Z",
+    });
+
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities.find(
+      (entry) => entry.opportunity_id === "opp-2026-03-25-001"
+    );
+    assert.ok(opportunity, "Expected seeded primary opportunity in snapshot.");
+    const priority = opportunity.operational_intake_priority;
+    assertIntakePriorityContract(priority);
+    assert.equal(priority.intake_priority_state, scenario.name, scenario.name);
+    assert.equal(opportunity.intake_priority_state, scenario.name, scenario.name);
+  }
+});
+
+test("buildUiSnapshot intake-priority rank remains deterministic on score ties", () => {
+  const env = seedFixtureEnvironment({ enqueueApproval: false });
+  mutateSeededRecommendationInputs(env, ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+    opportunityRecord.recommendation = "acquire";
+    opportunityRecord.recommended_path = "resale_as_is";
+    workflowRecord.current_status = "approved";
+    workflowRecord.purchase_recommendation_blocked = false;
+    workflowRecord.seller_verification = {
+      imei_proof_verified: true,
+      carrier_status_verified: true,
+      response_status: "verified",
+    };
+    artifactOutput.handoff_packet.blocking_items = [];
+  });
+  addSyntheticWorkflowLoad(env, 2, {
+    status: "approved",
+    blocked: false,
+    now: "2026-03-25T19:09:00.000Z",
+  });
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  const rankable = snapshot.workflow.opportunities
+    .filter((entry) => entry.intake_priority_state !== "priority_not_applicable")
+    .map((entry) => ({
+      id: entry.opportunity_id,
+      rank: entry.intake_priority_rank,
+      state: entry.intake_priority_state,
+    }));
+
+  const tiedLaterState = rankable.filter((entry) => entry.state === "priority_later");
+  assert.equal(tiedLaterState.length >= 2, true);
+  const sortedByRank = tiedLaterState.slice().sort((a, b) => a.rank - b.rank);
+  const sortedById = tiedLaterState.slice().sort((a, b) => a.id.localeCompare(b.id));
+  assert.deepEqual(
+    sortedByRank.map((entry) => entry.id),
+    sortedById.map((entry) => entry.id)
+  );
+});
+
+test("buildUiSnapshot opportunity-quality mapping covers strong promising uncertain weak and not-applicable", () => {
+  const scenarios = [
+    {
+      name: "quality_strong",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.confidence = "high";
+        opportunityRecord.risks = [];
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "quality_promising",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.confidence = "medium";
+        opportunityRecord.risks = ["Seller condition photos are still limited."];
+        workflowRecord.current_status = "awaiting_seller_verification";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: true,
+          response_status: "pending",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "quality_uncertain",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "acquire";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.confidence = "low";
+        opportunityRecord.risks = ["Condition evidence is limited."];
+        workflowRecord.current_status = "approved";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+    {
+      name: "quality_weak",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord }) => {
+        opportunityRecord.recommendation = "request_more_info";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.confidence = "low";
+        opportunityRecord.risks = ["Possible fraud concern from mismatched IMEI proof."];
+        workflowRecord.current_status = "awaiting_seller_verification";
+        workflowRecord.purchase_recommendation_blocked = true;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: false,
+          carrier_status_verified: false,
+          response_status: "unsatisfactory",
+        };
+      },
+    },
+    {
+      name: "quality_not_applicable",
+      enqueueApproval: false,
+      mutate: ({ workflowRecord, opportunityRecord, artifactOutput }) => {
+        opportunityRecord.recommendation = "skip";
+        opportunityRecord.recommended_path = "resale_as_is";
+        opportunityRecord.confidence = "low";
+        opportunityRecord.risks = [];
+        workflowRecord.current_status = "researching";
+        workflowRecord.purchase_recommendation_blocked = false;
+        workflowRecord.seller_verification = {
+          imei_proof_verified: true,
+          carrier_status_verified: true,
+          response_status: "verified",
+        };
+        artifactOutput.handoff_packet.blocking_items = [];
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const env = seedFixtureEnvironment({ enqueueApproval: scenario.enqueueApproval });
+    mutateSeededRecommendationInputs(env, scenario.mutate);
+
+    const snapshot = buildUiSnapshot({
+      queuePath: env.queuePath,
+      workflowStatePath: env.workflowStatePath,
+      baseDir: env.baseDir,
+      now: "2026-03-25T19:10:00.000Z",
+      dueSoonMinutes: 60,
+    });
+    const opportunity = snapshot.workflow.opportunities.find(
+      (entry) => entry.opportunity_id === "opp-2026-03-25-001"
+    );
+    assert.ok(opportunity, "Expected seeded primary opportunity in snapshot.");
+    const quality = opportunity.operational_opportunity_quality;
+    assertOpportunityQualityContract(quality);
+    assert.equal(quality.opportunity_quality_state, scenario.name, scenario.name);
+    assert.equal(opportunity.opportunity_quality_state, scenario.name, scenario.name);
+  }
 });
 
 test("buildUiSnapshot preserves repeated consecutive same-mode entries in capital board history", () => {

@@ -273,6 +273,77 @@ test("createUiServer serves shell html and runtime snapshot endpoint", async () 
         route.operator_route_next_step.length > 0,
       true
     );
+    const capacity = snapshot.workflow.opportunities[0].operational_capacity;
+    assert.equal(
+      typeof capacity.capacity_state === "string" && capacity.capacity_state.length > 0,
+      true
+    );
+    assert.equal(
+      typeof capacity.capacity_reason === "string" && capacity.capacity_reason.length > 0,
+      true
+    );
+    assert.equal(
+      typeof capacity.capacity_next_step === "string" && capacity.capacity_next_step.length > 0,
+      true
+    );
+    const sellthrough = snapshot.workflow.opportunities[0].operational_sellthrough;
+    assert.equal(
+      typeof sellthrough.sellthrough_state === "string" &&
+        sellthrough.sellthrough_state.length > 0,
+      true
+    );
+    assert.equal(
+      typeof sellthrough.sellthrough_reason === "string" &&
+        sellthrough.sellthrough_reason.length > 0,
+      true
+    );
+    assert.equal(
+      typeof sellthrough.sellthrough_next_step === "string" &&
+        sellthrough.sellthrough_next_step.length > 0,
+      true
+    );
+    const intakePriority = snapshot.workflow.opportunities[0].operational_intake_priority;
+    assert.equal(
+      typeof intakePriority.intake_priority_state === "string" &&
+        intakePriority.intake_priority_state.length > 0,
+      true
+    );
+    assert.equal(
+      typeof intakePriority.intake_priority_reason === "string" &&
+        intakePriority.intake_priority_reason.length > 0,
+      true
+    );
+    assert.equal(
+      intakePriority.intake_priority_rank === null ||
+        Number.isInteger(intakePriority.intake_priority_rank),
+      true
+    );
+    assert.equal(
+      typeof intakePriority.intake_priority_next_step === "string" &&
+        intakePriority.intake_priority_next_step.length > 0,
+      true
+    );
+    const opportunityQuality = snapshot.workflow.opportunities[0].operational_opportunity_quality;
+    assert.equal(
+      typeof opportunityQuality.opportunity_quality_state === "string" &&
+        opportunityQuality.opportunity_quality_state.length > 0,
+      true
+    );
+    assert.equal(
+      typeof opportunityQuality.opportunity_quality_reason === "string" &&
+        opportunityQuality.opportunity_quality_reason.length > 0,
+      true
+    );
+    assert.equal(
+      typeof opportunityQuality.opportunity_quality_next_step === "string" &&
+        opportunityQuality.opportunity_quality_next_step.length > 0,
+      true
+    );
+    assert.equal(
+      typeof opportunityQuality.opportunity_quality_upgrade_condition === "string" &&
+        opportunityQuality.opportunity_quality_upgrade_condition.length > 0,
+      true
+    );
     const queueItem = snapshot.approval_queue.items[0];
     assert.equal(typeof queueItem.approve_consequence, "string");
     assert.equal(queueItem.approve_consequence.trim().length > 0, true);
