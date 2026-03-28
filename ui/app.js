@@ -673,6 +673,94 @@ function resolveOpportunityFollowThroughText(entry) {
                     : nextAction;
 }
 
+function getPendingApprovalExposureTotal(snapshot) {
+  if (!snapshot || !snapshot.approval_queue || !Array.isArray(snapshot.approval_queue.items)) {
+    return 0;
+  }
+  return snapshot.approval_queue.items
+    .filter((item) => item && normalizeToken(item.status) === "pending" && item.ticket)
+    .reduce((sum, item) => sum + (Number(item.ticket.max_exposure_usd) || 0), 0);
+}
+
+function classifyCapitalModeForSnapshot(accountSnapshot, pendingExposure) {
+  if (!accountSnapshot) {
+    return null;
+  }
+  const available = Number(accountSnapshot.available_usd) || 0;
+  const reserved = Number(accountSnapshot.reserved_usd) || 0;
+  const committed = Number(accountSnapshot.committed_usd) || 0;
+
+  if (available <= 300 || pendingExposure > available || committed > available) {
+    return "recovery";
+  }
+  if (
+    available <= 1000 ||
+    pendingExposure >= available * 0.5 ||
+    reserved + committed >= Math.max(200, available * 0.75)
+  ) {
+    return "constrained";
+  }
+  return "normal";
+}
+
+function capitalModeRank(mode) {
+  const ranking = {
+    recovery: 0,
+    constrained: 1,
+    normal: 2,
+  };
+  return ranking[normalizeToken(mode)] ?? -1;
+}
+
+function buildCapitalDecisionSummary(snapshot, queueItem) {
+  if (!snapshot || !queueItem || !queueItem.ticket) {
+    return "";
+  }
+
+  const capitalControls = snapshot.capital_controls || null;
+  const capitalStrategy = snapshot.capital_strategy || null;
+  const accountSnapshot = capitalControls && capitalControls.account_snapshot
+    ? capitalControls.account_snapshot
+    : null;
+  const exposureUsd = Number(queueItem.ticket.max_exposure_usd) || 0;
+  const currentPendingExposure = getPendingApprovalExposureTotal(snapshot);
+
+  const exposureText =
+    exposureUsd > 0
+      ? `${formatCurrency(exposureUsd)} approval exposure left the pending queue.`
+      : "Pending approval exposure is no longer sitting in the queue.";
+
+  if (!accountSnapshot || !capitalStrategy) {
+    return `${exposureText} No live ledger-backed posture snapshot is available in this workspace.`;
+  }
+
+  const previousMode = classifyCapitalModeForSnapshot(
+    accountSnapshot,
+    currentPendingExposure + exposureUsd
+  );
+  const currentMode = normalizeToken(capitalStrategy.capital_mode);
+  let postureText = `Posture remains ${formatStrategyLabel(capitalStrategy.capital_mode)}.`;
+  if (previousMode && previousMode !== currentMode) {
+    const shiftedLooser = capitalModeRank(currentMode) > capitalModeRank(previousMode);
+    postureText = `Posture ${shiftedLooser ? "loosened" : "tightened"} from ${formatStrategyLabel(
+      previousMode
+    )} to ${formatStrategyLabel(capitalStrategy.capital_mode)}.`;
+  }
+
+  const pursuitText =
+    Array.isArray(capitalStrategy.recommended_actions) && capitalStrategy.recommended_actions[0]
+      ? capitalStrategy.recommended_actions[0]
+      : `Office favors ${formatStrategyLabel(
+          (capitalStrategy.approved_strategy_priorities || [])[0] || "monitor"
+        )}.`;
+
+  return `${exposureText} UI approval decisions do not move ledger capital directly; capital now reads ${formatCurrency(
+    accountSnapshot.available_usd
+  )} available, ${formatCurrency(accountSnapshot.reserved_usd)} reserved, and ${formatCurrency(
+    accountSnapshot.committed_usd
+  )} committed. ${postureText} ${pursuitText}`;
+}
+
 function buildDecisionFollowThrough(snapshot, ticketId, fallbackDecision) {
   const queueItem = findApprovalQueueItem(snapshot, ticketId);
   const resolvedEvent = findDecisionResolvedEvent(snapshot, ticketId);
@@ -694,6 +782,7 @@ function buildDecisionFollowThrough(snapshot, ticketId, fallbackDecision) {
     (queueItem && queueItem.resume_owner) ||
     null;
   const nextStep = resolveOpportunityFollowThroughText(opportunity);
+  const capitalSummary = buildCapitalDecisionSummary(snapshot, queueItem);
 
   if (decision === "approve") {
     return {
@@ -701,7 +790,7 @@ function buildDecisionFollowThrough(snapshot, ticketId, fallbackDecision) {
         opportunityId && nextOwner
           ? `${opportunityId} moved to ${nextOwner}.`
           : "The opportunity advanced to the next owner."
-      }${nextStep ? ` Next: ${nextStep}` : ""}`,
+      }${nextStep ? ` Next: ${nextStep}` : ""}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`,
       intentId: movementIntent ? movementIntent.intent_id : null,
     };
   }
@@ -711,7 +800,7 @@ function buildDecisionFollowThrough(snapshot, ticketId, fallbackDecision) {
         opportunityId && nextOwner
           ? `${opportunityId} moved back to ${nextOwner}.`
           : "The opportunity moved back for follow-up."
-      }${nextStep ? ` Next: ${nextStep}` : ""}`,
+      }${nextStep ? ` Next: ${nextStep}` : ""}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`,
       intentId: movementIntent ? movementIntent.intent_id : null,
     };
   }
@@ -721,7 +810,7 @@ function buildDecisionFollowThrough(snapshot, ticketId, fallbackDecision) {
         opportunityId && nextOwner
           ? `${opportunityId} returned to ${nextOwner}.`
           : "The opportunity stayed open for follow-up."
-      }${nextStep ? ` Next: ${nextStep}` : ""}`,
+      }${nextStep ? ` Next: ${nextStep}` : ""}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`,
       intentId: movementIntent ? movementIntent.intent_id : null,
     };
   }
@@ -752,17 +841,18 @@ function buildResolvedQueueOutcome(snapshot, item) {
     : null;
   const nextStep = resolveOpportunityFollowThroughText(opportunity);
   const decision = normalizeToken(item.status);
+  const capitalSummary = buildCapitalDecisionSummary(snapshot, item);
 
   if (decision === "approve") {
-    return `Moved to ${nextOwner}. Next: ${nextStep}`;
+    return `Moved to ${nextOwner}. Next: ${nextStep}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`;
   }
   if (decision === "reject") {
-    return `Moved back to ${nextOwner}. Next: ${nextStep}`;
+    return `Moved back to ${nextOwner}. Next: ${nextStep}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`;
   }
   if (decision === "request_more_info") {
-    return `Returned to ${nextOwner}. Next: ${nextStep}`;
+    return `Returned to ${nextOwner}. Next: ${nextStep}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`;
   }
-  return `Decision recorded. Next: ${nextStep}`;
+  return `Decision recorded. Next: ${nextStep}${capitalSummary ? ` Capital: ${capitalSummary}` : ""}`;
 }
 
 function buildSignalKey(signal) {
