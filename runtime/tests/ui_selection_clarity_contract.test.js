@@ -88,3 +88,34 @@ test("support context renders below operational sections", () => {
     /<h3>History<\/h3>[\s\S]*\$\{renderSupportContextSection\(capitalStrategy, capitalFit\)\}/
   );
 });
+
+test("office canvas rendering consumes office_view projection", () => {
+  const source = readUiAppSource();
+  assert.match(source, /state\.snapshot\.office\.office_view/);
+  assert.match(source, /officeViewZones/);
+  assert.match(source, /officeViewHandoffs/);
+  assert.match(source, /officeViewBoardSummary/);
+});
+
+test("office canvas emits stable zone and role labels", () => {
+  const source = readUiAppSource();
+  assert.match(source, /zone\.title \|\| "Office zone"/);
+  assert.match(source, /zone\.role_label/);
+  assert.match(source, /zone\.avatar_label/);
+  assert.match(source, /Role: \$\{agentName\}/);
+});
+
+test("office canvas conditionally renders blocker and approval chips", () => {
+  const source = readUiAppSource();
+  assert.match(source, /zone\.blocker_text/);
+  assert.match(source, /zone\.approval_text/);
+  assert.match(source, /office-chip-blocked/);
+  assert.match(source, /office-chip-approval/);
+});
+
+test("office canvas renders company board summary panel", () => {
+  const source = readUiAppSource();
+  assert.match(source, /Company board summary/);
+  assert.match(source, /office-board-summary/);
+  assert.match(source, /officeViewBoardSummary\.key_counts/);
+});

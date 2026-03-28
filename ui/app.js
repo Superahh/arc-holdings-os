@@ -892,15 +892,17 @@ function buildOpportunityCardV1Model(entry) {
   const record = entry.contract_bundle && entry.contract_bundle.opportunity_record;
   const handoff = entry.contract_bundle && entry.contract_bundle.handoff_packet;
   const workflow = entry.workflow_record || null;
+  const recommendation = entry.operational_recommendation || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const isBlocked = Boolean(
     (workflow && workflow.purchase_recommendation_blocked) || normalizeToken(entry.current_status) === "blocked"
   );
-  const nextAction =
-    (entry.latest_task && entry.latest_task.next_action) ||
-    (handoff && handoff.next_action) ||
-    "Awaiting workflow update.";
+  const nextAction = recommendation
+    ? recommendation.next_action
+    : (entry.latest_task && entry.latest_task.next_action) ||
+      (handoff && handoff.next_action) ||
+      "Awaiting workflow update.";
 
   return {
     primary_id: entry.opportunity_id,
@@ -1734,7 +1736,15 @@ function renderHandoffOverlay(renderableHandoffs) {
 }
 
 function renderOfficeCanvas() {
-  const presenceEntries = state.snapshot.office.presence || [];
+  const officeView = state.snapshot.office.office_view || null;
+  const officeViewZones = officeView && Array.isArray(officeView.zones) ? officeView.zones : [];
+  const officeViewHandoffs =
+    officeView && Array.isArray(officeView.handoffs) ? officeView.handoffs : [];
+  const officeViewBoardSummary =
+    officeView && officeView.company_board_summary ? officeView.company_board_summary : null;
+  const presenceByZone = new Map(
+    (state.snapshot.office.presence || []).map((entry) => [entry.zone_id, entry])
+  );
   const topTask = state.snapshot.attention.top_task;
   const activeTransitions = getActiveTransitionState();
   const renderableHandoffs = getRenderableHandoffs(activeTransitions);
@@ -1745,7 +1755,11 @@ function renderOfficeCanvas() {
       <div>
         <p class="eyebrow">Operations floor</p>
         <strong>${escapeHtml(
-          topTask ? topTask.next_action : "No active attention item."
+          officeViewBoardSummary && officeViewBoardSummary.headline
+            ? officeViewBoardSummary.headline
+            : topTask
+              ? topTask.next_action
+              : "No active attention item."
         )}</strong>
         <p class="muted">${escapeHtml(
           topTask
@@ -1762,39 +1776,63 @@ function renderOfficeCanvas() {
     </div>
   `;
 
-  const zonesHtml = presenceEntries
-    .map((presence) => {
-      const signalClasses = buildZoneSignalClasses(
-        presence.agent,
-        activeTransitions,
-        renderableHandoffs
-      );
-      const laneStage = getLaneStageForAgent(presence.agent);
-      const card = findAgentByName(presence.agent);
-      const topOpportunity = getTopLaneOpportunity(presence.agent);
-      const laneCardV1 = buildLaneCardV1Model(presence, card, topOpportunity);
-      const visualState = laneCardV1.avatar.visual_state;
+  const zonesHtml = officeViewZones
+    .map((zone) => {
+      const presence = presenceByZone.get(zone.id) || null;
+      const agentName = zone.role_label || (presence ? presence.agent : "Unknown Agent");
+      const visualState = zone.state || "idle";
+      const topOpportunity =
+        zone.dominant_item_id && zone.dominant_item_id !== "None"
+          ? (state.snapshot.workflow.opportunities || []).find(
+              (entry) => entry.opportunity_id === zone.dominant_item_id
+            ) || null
+          : null;
+      const signalClasses = buildZoneSignalClasses(agentName, activeTransitions, renderableHandoffs);
       const isSelected =
         (state.selected &&
           state.selected.type === "agent" &&
-          state.selected.id === presence.agent) ||
+          state.selected.id === agentName) ||
         (state.selected &&
           state.selected.type === "opportunity" &&
           topOpportunity &&
           state.selected.id === topOpportunity.opportunity_id);
+      const accentToken = (presence && presence.accent_token) || "slate";
+      const avatarMonogram =
+        (zone.avatar_label || agentName || "AG")
+          .split(/\s+/)
+          .map((part) => part.slice(0, 1).toUpperCase())
+          .join("")
+          .slice(0, 3) || "AG";
+      const blockerChip =
+        zone.blocker_text && typeof zone.blocker_text === "string" && zone.blocker_text.trim()
+          ? `<span class="priority-pill office-chip office-chip-blocked">Blocked: ${escapeHtml(
+              zone.blocker_text
+            )}</span>`
+          : "";
+      const approvalChip =
+        zone.approval_text && typeof zone.approval_text === "string" && zone.approval_text.trim()
+          ? `<span class="priority-pill office-chip office-chip-approval">Needs approval: ${escapeHtml(
+              zone.approval_text
+            )}</span>`
+          : "";
+
       return `
         <button
           type="button"
-          class="zone-card zone-room zone-card-${escapeHtml(presence.accent_token)} zone-room-${escapeHtml(normalizeToken(presence.zone_id))} ${formatLaneClass(laneStage)} ${formatVisualStateFamilyClass(visualState)} ${formatVisualStateClass(visualState)} ${isSelected ? "is-selected" : ""} ${signalClasses}"
+          class="zone-card zone-room zone-card-${escapeHtml(accentToken)} zone-room-${escapeHtml(
+            normalizeToken(zone.id)
+          )} ${formatVisualStateFamilyClass(visualState)} ${formatVisualStateClass(
+            visualState
+          )} ${isSelected ? "is-selected" : ""} ${signalClasses}"
           data-type="agent"
-          data-id="${escapeHtml(presence.agent)}"
-          data-zone-id="${escapeHtml(presence.zone_id)}"
+          data-id="${escapeHtml(agentName)}"
+          data-zone-id="${escapeHtml(zone.id)}"
           data-dominant-opportunity-id="${escapeHtml(topOpportunity ? topOpportunity.opportunity_id : "")}"
         >
           <div class="room-plaque">
             <div>
-              <p class="eyebrow">${escapeHtml(presence.zone_label)}</p>
-              <h3>${escapeHtml(presence.agent === "CEO Agent" ? "Decision owner" : presence.department_label)}</h3>
+              <p class="eyebrow">${escapeHtml(zone.title || "Office zone")}</p>
+              <h3>${escapeHtml(agentName)}</h3>
             </div>
             <span class="status-pill ${formatStatusClass(visualState)}">${escapeHtml(formatVisualStateLabel(visualState))}</span>
           </div>
@@ -1806,66 +1844,90 @@ function renderOfficeCanvas() {
             <div class="room-boundary room-boundary-left"></div>
             <div class="room-door room-door-horizontal"></div>
             <div class="room-door room-door-vertical"></div>
-            <div class="room-floor-label" aria-hidden="true">${escapeHtml(presence.zone_label)}</div>
+            <div class="room-floor-label" aria-hidden="true">${escapeHtml(zone.title || "Office zone")}</div>
 
             <div class="room-purpose">
-              <p class="zone-atmosphere-label">Active count</p>
+              <p class="zone-atmosphere-label">Current focus</p>
               <p class="zone-atmosphere-detail">${escapeHtml(
-                laneCardV1.active_count === 0
-                  ? "No live item currently owned in this lane."
-                  : `${laneCardV1.active_count} live item${laneCardV1.active_count === 1 ? "" : "s"} currently owned here.`
+                zone.current_focus || "Monitoring owned lane."
               )}</p>
-              <div class="zone-lane-ribbon ${formatLaneClass(laneStage)}">${escapeHtml(
-                formatLaneLabel(laneStage)
-              )}</div>
+              <div class="zone-lane-ribbon">${escapeHtml(`Role: ${agentName}`)}</div>
             </div>
 
-            <div class="workstation ${formatMotionClass(presence.motion_state)} accent-${escapeHtml(presence.accent_token)}">
+            <div class="workstation ${formatMotionClass(visualState)} accent-${escapeHtml(accentToken)}">
               <div class="desk-surface"></div>
               <div class="desk-screen"></div>
               <div class="desk-chair"></div>
               <div class="agent-marker">
                 <div class="agent-marker-ring"></div>
-                <div class="agent-marker-core">${escapeHtml(presence.avatar_monogram)}</div>
+                <div class="agent-marker-core">${escapeHtml(avatarMonogram)}</div>
               </div>
               <div class="agent-callout">
-                <strong>${escapeHtml(presence.agent)}</strong>
+                <strong>${escapeHtml(zone.avatar_label || agentName)}</strong>
                 <span>${escapeHtml(`State: ${formatVisualStateLabel(visualState)}`)}</span>
-                <span>${escapeHtml(getZoneSignalLabel(presence))}</span>
+                <span>${escapeHtml(zone.now_summary || "Monitoring lane workload.")}</span>
               </div>
             </div>
 
-            <div class="room-bubble ${formatBubbleClass(
-              laneCardV1.blocker_or_next_action.tone === "blocked"
-                ? "blocker"
-                : laneCardV1.blocker_or_next_action.tone === "approval"
-                  ? "approval"
-                  : "task"
-            )}">
-              <p class="presence-bubble-label">${escapeHtml(laneCardV1.blocker_or_next_action.label)}</p>
-              <p class="presence-bubble-text">${escapeHtml(laneCardV1.blocker_or_next_action.text)}</p>
+            <div class="room-bubble ${formatBubbleClass(zone.blocker_text ? "blocker" : zone.approval_text ? "approval" : "task")}">
+              <p class="presence-bubble-label">Now</p>
+              <p class="presence-bubble-text">${escapeHtml(zone.now_summary || "Monitoring lane workload.")}</p>
             </div>
 
             <div class="room-footer">
               <div class="presence-caption">
                 <p class="presence-owner-label">Owned by this lane</p>
-                <strong>${escapeHtml(laneCardV1.top_live_item.id)}</strong>
-                <p class="muted">${escapeHtml(laneCardV1.top_live_item.summary)}</p>
+                <strong>${escapeHtml(zone.dominant_item_id || "No dominant item")}</strong>
+                <p class="muted">${escapeHtml(zone.current_focus || "Monitoring owned lane.")}</p>
               </div>
-              <div class="card-tags">
-                <span class="priority-pill">${escapeHtml(`${laneCardV1.active_count} active`)}</span>
-                ${
-                  laneCardV1.top_live_item.status
-                    ? `<span class="priority-pill ${formatStatusClass(laneCardV1.top_live_item.status)}">${escapeHtml(laneCardV1.top_live_item.status)}</span>`
-                    : ""
-                }
-              </div>
+              <div class="card-tags">${blockerChip}${approvalChip}</div>
             </div>
           </div>
         </button>
       `;
     })
     .join("");
+
+  const officeBoardSummaryHtml = officeViewBoardSummary
+    ? `
+      <section class="office-board-summary">
+        <p class="eyebrow">Company board summary</p>
+        <strong>${escapeHtml(
+          officeViewBoardSummary.headline || "Company board is clear for normal monitoring."
+        )}</strong>
+        <div class="card-tags office-board-summary-counts">
+          ${Array.isArray(officeViewBoardSummary.key_counts)
+            ? officeViewBoardSummary.key_counts
+                .map(
+                  (entry) =>
+                    `<span class="priority-pill">${escapeHtml(`${entry.label}: ${entry.value}`)}</span>`
+                )
+                .join("")
+            : ""}
+        </div>
+        ${
+          officeViewBoardSummary.alert_text
+            ? `<p class="muted office-board-summary-alert">${escapeHtml(officeViewBoardSummary.alert_text)}</p>`
+            : ""
+        }
+      </section>
+    `
+    : "";
+
+  const handoffRowsHtml = officeViewHandoffs.length
+    ? officeViewHandoffs
+        .map(
+          (handoff) => `
+            <li class="office-handoff-row ${handoff.status === "blocked" ? "is-blocked" : "is-active"}">
+              <span class="office-handoff-route">${escapeHtml(handoff.from_zone)} -> ${escapeHtml(
+                handoff.to_zone
+              )}</span>
+              <span class="office-handoff-label">${escapeHtml(handoff.label)}</span>
+            </li>
+          `
+        )
+        .join("")
+    : '<li class="office-handoff-row is-idle"><span class="office-handoff-label">No active handoffs right now.</span></li>';
 
   const opportunities = state.snapshot.workflow.opportunities;
   const opportunityRailHtml = opportunities.length
@@ -1921,12 +1983,19 @@ function renderOfficeCanvas() {
       <div class="zone-network-overlay" aria-hidden="true">
         <svg class="zone-network-svg"></svg>
       </div>
-      <div class="office-layout office-floorplan">${zonesHtml}</div>
+      <div class="office-layout office-floorplan">
+        ${zonesHtml}
+        ${officeBoardSummaryHtml}
+      </div>
       <div class="handoff-overlay hidden" aria-hidden="true">
         <svg class="handoff-svg"></svg>
         <div class="handoff-chip-layer"></div>
       </div>
     </div>
+    <section class="office-handoffs-panel">
+      <h3>Zone handoffs</h3>
+      <ul class="office-handoff-list">${handoffRowsHtml}</ul>
+    </section>
     <div class="workflow-rail">${opportunityRailHtml}</div>
   `;
 
@@ -2104,6 +2173,7 @@ function renderDetailForOpportunity(entry) {
   const movementIntents = movementIntentsForOpportunity(entry.opportunity_id);
   const capitalStrategy = state.snapshot.capital_strategy;
   const capitalFit = entry.capital_fit;
+  const recommendation = entry.operational_recommendation || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const nextAction =
@@ -2164,16 +2234,26 @@ function renderDetailForOpportunity(entry) {
     <section class="detail-section">
       <h3>What happens next</h3>
       <ul class="detail-list">
-        <li>Next action: ${escapeHtml(nextAction)}</li>
+        <li>Next action: ${escapeHtml(recommendation ? recommendation.next_action : nextAction)}</li>
         <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
+        <li>What would change this: ${escapeHtml(
+          recommendation
+            ? recommendation.change_condition
+            : "Change when new verification, pricing, or owner decision updates this item."
+        )}</li>
       </ul>
     </section>
 
     <section class="detail-section">
       <h3>Evidence</h3>
       <ul class="detail-list">
-        <li>Recommendation reasoning: ${escapeHtml(entry.recommendation || "No recommendation yet.")}</li>
+        <li>Recommendation: ${escapeHtml(
+          recommendation ? recommendation.recommendation_label : entry.recommendation || "Manual review"
+        )}</li>
+        <li>Recommendation reasoning: ${escapeHtml(
+          recommendation ? recommendation.recommendation_reason : "No recommendation reason available."
+        )}</li>
         <li>Pricing context: Ask ${formatCurrency(record ? record.ask_price_usd : null)} vs value range ${
           record ? `${formatCurrency(record.estimated_value_range_usd[0])} to ${formatCurrency(record.estimated_value_range_usd[1])}` : "N/A"
         }.</li>

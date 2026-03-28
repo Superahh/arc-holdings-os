@@ -144,6 +144,12 @@ test("headless browser smoke renders the live UI shell from runtime snapshot", a
     assert.match(result.dom, /Desktop Command Floor/);
     assert.match(result.dom, /Operations floor/);
     assert.match(result.dom, /opp-2026-03-25-001/);
+    assert.match(result.dom, /Decision Desk/);
+    assert.match(result.dom, /Sourcing & Verification/);
+    assert.match(result.dom, /Ops & Diagnostics/);
+    assert.match(result.dom, /Sales & Market/);
+    assert.match(result.dom, /Company board summary/);
+    assert.match(result.dom, /Zone handoffs/);
     assert.match(result.dom, /zone-network-svg/);
     assert.match(result.dom, /handoff-overlay/);
   } finally {

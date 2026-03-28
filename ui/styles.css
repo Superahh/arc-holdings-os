@@ -448,6 +448,93 @@ h2 {
   position: relative;
 }
 
+.office-board-summary {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: min(340px, 88%);
+  border-radius: 16px;
+  border: 1px solid rgba(20, 35, 34, 0.14);
+  background: rgba(250, 245, 236, 0.95);
+  box-shadow: 0 14px 24px rgba(20, 35, 34, 0.12);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.office-board-summary strong {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.office-board-summary-counts {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.office-board-summary-alert {
+  font-size: 0.78rem;
+}
+
+.office-handoffs-panel {
+  margin-top: 16px;
+  border: 1px solid rgba(20, 35, 34, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 252, 245, 0.72);
+  padding: 14px 16px;
+}
+
+.office-handoff-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.office-handoff-row {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(20, 35, 34, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 8px 10px;
+}
+
+.office-handoff-row.is-blocked {
+  border-color: rgba(163, 52, 52, 0.36);
+  background: rgba(250, 238, 238, 0.9);
+}
+
+.office-handoff-route {
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.office-handoff-label {
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.office-chip {
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.office-chip-blocked {
+  border-color: rgba(163, 52, 52, 0.4);
+  background: rgba(250, 238, 238, 0.92);
+}
+
+.office-chip-approval {
+  border-color: rgba(124, 99, 30, 0.34);
+  background: rgba(251, 246, 232, 0.92);
+}
+
 .office-wayfinding {
   position: absolute;
   inset: 0;
