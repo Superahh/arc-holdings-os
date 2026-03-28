@@ -2279,6 +2279,131 @@ function movementIntentsForOpportunity(opportunityId) {
     .slice(0, 4);
 }
 
+function buildBlockedMovementStatus(intents, clearCondition) {
+  const activeIntent = (intents || []).find(
+    (intent) => intent && intent.transition_state === "in_flight"
+  ) || null;
+  if (activeIntent) {
+    return `Recovery movement is in flight from ${
+      activeIntent.from_agent || "current owner"
+    } to ${activeIntent.to_agent || "next owner"} via ${formatOfficeEventType(
+      activeIntent.trigger_type
+    )}. ${clearCondition}`;
+  }
+
+  const latestIntent = (intents || [])[0] || null;
+  if (latestIntent) {
+    return `Latest recorded movement reached ${
+      latestIntent.to_agent || "the current lane"
+    } at ${formatTimestamp(latestIntent.trigger_timestamp)}. ${clearCondition}`;
+  }
+
+  return `No unblock movement is in flight yet. ${clearCondition}`;
+}
+
+function buildBlockedFlowModel(entry, movementIntents) {
+  if (!entry) {
+    return null;
+  }
+
+  const workflow = entry.workflow_record || null;
+  const queue = entry.queue_item || null;
+  const packet = entry.contract_bundle && entry.contract_bundle.handoff_packet
+    ? entry.contract_bundle.handoff_packet
+    : null;
+  const recommendation = entry.operational_recommendation || null;
+  const handoffState = entry.operational_handoff || null;
+  const executionState = entry.operational_execution || null;
+  const marketState = entry.operational_market || null;
+  const routeState = entry.operational_route || null;
+  const policyState = entry.operational_policy || null;
+
+  const currentOwner =
+    opportunityTaskOwner(entry) ||
+    (handoffState && handoffState.next_owner) ||
+    (packet && packet.to_agent) ||
+    null;
+  const previousOwner = packet && packet.from_agent ? packet.from_agent : null;
+
+  let blockedNow = null;
+  let reason = null;
+  let owner = null;
+  let nextAction = null;
+  let clearCondition = null;
+
+  if (
+    policyState &&
+    new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
+      policyState.policy_state
+    )
+  ) {
+    blockedNow = policyState.policy_label || "Policy blocked";
+    reason = policyState.policy_reason || "Policy requirements are blocking progress.";
+    owner = currentOwner || previousOwner || "Risk and Compliance Agent";
+    nextAction = policyState.policy_next_step || "Resolve policy blocker before routing onward.";
+    clearCondition =
+      policyState.policy_clear_condition || "Clears when policy blocker is explicitly resolved.";
+  } else if (marketState && marketState.market_state === "market_blocked") {
+    blockedNow = marketState.market_label || "Market blocked";
+    reason = marketState.market_reason || "Market work is blocked.";
+    owner = currentOwner || "Department Operator Agent";
+    nextAction = marketState.market_next_step || "Resolve blocker, then resume market prep.";
+    clearCondition =
+      marketState.market_clear_condition || "Clears when market blocker is resolved.";
+  } else if (executionState && executionState.execution_state === "execution_blocked") {
+    blockedNow = executionState.execution_label || "Execution blocked";
+    reason = executionState.execution_reason || "Execution work is blocked.";
+    owner = currentOwner || "Operations Coordinator Agent";
+    nextAction = executionState.execution_next_step || "Resolve blocker, then reopen intake.";
+    clearCondition =
+      executionState.execution_clear_condition || "Clears when execution blocker is resolved.";
+  } else if (handoffState && handoffState.handoff_state === "handoff_return_required") {
+    blockedNow = handoffState.handoff_label || "Return required";
+    reason = handoffState.handoff_reason || "The current packet must return for correction.";
+    owner = previousOwner || currentOwner || "Previous owner";
+    nextAction =
+      handoffState.current_owner_action || "Rework the packet and republish a viable handoff.";
+    clearCondition =
+      handoffState.handoff_clear_condition || "Clears when the previous owner republishes a viable packet.";
+  } else if (handoffState && handoffState.handoff_state === "handoff_blocked") {
+    blockedNow = handoffState.handoff_label || "Handoff blocked";
+    reason = handoffState.handoff_reason || "Ownership transfer is blocked.";
+    owner = currentOwner || previousOwner || "Current owner";
+    nextAction =
+      handoffState.current_owner_action || "Resolve blocker and re-confirm the handoff.";
+    clearCondition =
+      handoffState.handoff_clear_condition || "Clears when the handoff blocker is resolved.";
+  } else if (workflow && workflow.purchase_recommendation_blocked) {
+    blockedNow = "Purchase blocked";
+    reason =
+      (recommendation && recommendation.blocker_text) ||
+      "Purchase recommendation remains blocked pending owner review.";
+    owner =
+      (queue && queue.status === "pending" && "CEO Agent") ||
+      currentOwner ||
+      previousOwner ||
+      "Owner review";
+    nextAction =
+      (routeState && routeState.operator_route_next_step) ||
+      (recommendation && recommendation.next_action) ||
+      "Resolve blocker requirements before advancing.";
+    clearCondition =
+      (executionState && executionState.execution_clear_condition) ||
+      (handoffState && handoffState.handoff_clear_condition) ||
+      "Clears when the blocker is resolved and the route is reopened.";
+  } else {
+    return null;
+  }
+
+  return {
+    blockedNow,
+    reason,
+    owner,
+    nextAction,
+    movementStatus: buildBlockedMovementStatus(movementIntents, clearCondition),
+  };
+}
+
 function movementIntentsForAgent(agent) {
   return (state.snapshot.office.movement_intents || [])
     .filter(
@@ -2441,6 +2566,7 @@ function renderDetailForOpportunity(entry) {
   const qualityState = entry.operational_opportunity_quality || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
+  const blockedFlow = buildBlockedFlowModel(entry, movementIntents);
   const nextAction =
     policyState &&
     new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
@@ -2533,6 +2659,23 @@ function renderDetailForOpportunity(entry) {
       <h3>Why this matters now</h3>
       <p>${escapeHtml(whyThisMattersNow)}</p>
     </section>
+
+    ${
+      blockedFlow
+        ? `
+          <section class="detail-section">
+            <h3>Blockage and unblock</h3>
+            <ul class="detail-list">
+              <li>Blocked now: ${escapeHtml(blockedFlow.blockedNow)}</li>
+              <li>Why: ${escapeHtml(blockedFlow.reason)}</li>
+              <li>Unblock owner: ${escapeHtml(blockedFlow.owner)}</li>
+              <li>Next unblock action: ${escapeHtml(blockedFlow.nextAction)}</li>
+              <li>Movement status: ${escapeHtml(blockedFlow.movementStatus)}</li>
+            </ul>
+          </section>
+        `
+        : ""
+    }
 
     <section class="detail-section">
       <h3>What happens next</h3>
