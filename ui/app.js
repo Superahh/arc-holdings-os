@@ -712,6 +712,32 @@ function capitalModeRank(mode) {
   return ranking[normalizeToken(mode)] ?? -1;
 }
 
+function formatOperationalNextState(state) {
+  const labels = {
+    ready: "Ready",
+    waiting: "Waiting",
+    blocked: "Blocked",
+    moving: "Moving",
+  };
+  return labels[normalizeToken(state)] || "Waiting";
+}
+
+function buildOperationalNextSummary(next) {
+  if (!next) {
+    return "";
+  }
+  const owner = next.owner || "Unassigned";
+  const stateLabel = formatOperationalNextState(next.state).toLowerCase();
+  const waitingOn = next.waiting_on ? ` on ${next.waiting_on}` : "";
+  const movementText = next.movement_in_flight ? " Movement is already in flight." : "";
+  if (normalizeToken(next.state) === "ready") {
+    return `${owner} is ready. Next: ${next.next_action || "Continue the current owner action."}${movementText}`;
+  }
+  return `${owner} is ${stateLabel}${waitingOn}. Next: ${
+    next.next_action || "Continue the current owner action."
+  }${next.ready_once ? ` Ready once: ${next.ready_once}` : ""}${movementText}`;
+}
+
 function buildCapitalDecisionSummary(snapshot, queueItem) {
   if (!snapshot || !queueItem || !queueItem.ticket) {
     return "";
@@ -2654,55 +2680,18 @@ function renderDetailForOpportunity(entry) {
   const capacityState = entry.operational_capacity || null;
   const policyState = entry.operational_policy || null;
   const qualityState = entry.operational_opportunity_quality || null;
+  const operationalNext = entry.operational_next || null;
   const ownerAgent = opportunityTaskOwner(entry) || (handoff && handoff.to_agent) || null;
   const ownerPresence = ownerAgent ? findPresenceByAgent(ownerAgent) : null;
   const blockedFlow = buildBlockedFlowModel(entry, movementIntents);
   const nextAction =
-    policyState &&
-    new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
-      policyState.policy_state
-    ) &&
-    policyState.policy_next_step
-      ? policyState.policy_next_step
-      : qualityState &&
-    new Set(["quality_uncertain", "quality_weak"]).has(qualityState.opportunity_quality_state) &&
-    qualityState.opportunity_quality_next_step
-      ? qualityState.opportunity_quality_next_step
-      : intakePriorityState &&
-    new Set(["priority_now", "priority_defer"]).has(intakePriorityState.intake_priority_state) &&
-    intakePriorityState.intake_priority_next_step
-      ? intakePriorityState.intake_priority_next_step
-      : sellthroughState &&
-    new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
-      sellthroughState.sellthrough_state
-    ) &&
-    sellthroughState.sellthrough_next_step
-      ? sellthroughState.sellthrough_next_step
-      : capacityState &&
-    new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
-      capacityState.capacity_state
-    ) &&
-    capacityState.capacity_next_step
-      ? capacityState.capacity_next_step
-      : routeState && routeState.operator_route_next_step
-      ? routeState.operator_route_next_step
-      : marketState && marketState.market_next_step
-      ? marketState.market_next_step
-      : executionState && executionState.execution_next_step
-      ? executionState.execution_next_step
-      : handoffState && handoffState.current_owner_action
-        ? handoffState.current_owner_action
-      : recommendation && recommendation.next_action
-        ? recommendation.next_action
-      : workflow && workflow.purchase_recommendation_blocked
-        ? "Blocked by: purchase recommendation remains blocked."
-        : entry.latest_task
-        ? entry.latest_task.next_action
-        : handoff
-          ? handoff.next_action
-          : "Reviewing owned queue.";
+    (operationalNext && operationalNext.next_action) ||
+    (entry.latest_task && entry.latest_task.next_action) ||
+    (handoff && handoff.next_action) ||
+    "Reviewing owned queue.";
   const dueBy = entry.latest_task ? entry.latest_task.due_by : handoff ? handoff.due_by : null;
   const nextOwner =
+    (operationalNext && operationalNext.owner) ||
     (handoffState && handoffState.next_owner) ||
     (entry.latest_task ? entry.latest_task.owner : handoff ? handoff.to_agent : ownerAgent);
   const whyThisMattersNow = buildWhyThisMattersNow({
@@ -2751,6 +2740,32 @@ function renderDetailForOpportunity(entry) {
     </section>
 
     ${
+      operationalNext
+        ? `
+          <section class="detail-section detail-section-now">
+            <h3>Operational next</h3>
+            <ul class="detail-list">
+              <li>Owner: ${escapeHtml(operationalNext.owner || "Unassigned")}</li>
+              <li>State: ${escapeHtml(formatOperationalNextState(operationalNext.state))}</li>
+              <li>Waiting on: ${escapeHtml(
+                operationalNext.waiting_on || "Nothing external right now."
+              )}</li>
+              <li>Next action: ${escapeHtml(
+                operationalNext.next_action || "Continue the current owner action."
+              )}</li>
+              <li>Ready once: ${escapeHtml(
+                operationalNext.ready_once || "Current owner starts the next action."
+              )}</li>
+              <li>Movement: ${escapeHtml(
+                operationalNext.movement_in_flight ? "Already in flight." : "Not in flight."
+              )}</li>
+            </ul>
+          </section>
+        `
+        : ""
+    }
+
+    ${
       blockedFlow
         ? `
           <section class="detail-section">
@@ -2770,71 +2785,12 @@ function renderDetailForOpportunity(entry) {
     <section class="detail-section">
       <h3>What happens next</h3>
       <ul class="detail-list">
-        <li>Next action: ${escapeHtml(nextAction)}</li>
-        <li>Intake priority: ${escapeHtml(
-          intakePriorityState
-            ? `${intakePriorityState.intake_priority_label} (rank ${intakePriorityState.intake_priority_rank == null ? "n/a" : intakePriorityState.intake_priority_rank})`
-            : "Intake priority is not derived."
-        )}</li>
-        <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
-        <li>Intake priority step: ${escapeHtml(
-          intakePriorityState
-            ? intakePriorityState.intake_priority_next_step
-            : "No intake-priority action is required."
-        )}</li>
-        <li>Policy boundary step: ${escapeHtml(
-          policyState ? policyState.policy_next_step : "No policy action is required."
-        )}</li>
-        <li>Quality proof step: ${escapeHtml(
-          qualityState
-            ? qualityState.opportunity_quality_next_step
-            : "No quality-proof step is derived."
-        )}</li>
-        <li>Sell-through relief step: ${escapeHtml(
-          sellthroughState
-            ? sellthroughState.sellthrough_next_step
-            : "No sell-through relief action is required."
-        )}</li>
-        <li>Capacity relief step: ${escapeHtml(
-          capacityState
-            ? capacityState.capacity_next_step
-            : "No capacity relief action is required."
-        )}</li>
+        <li>Next action: ${escapeHtml(nextAction)}</li>
+        <li>Due context: ${escapeHtml(formatTimestamp(dueBy))}</li>
         <li>What would change this: ${escapeHtml(
-          policyState &&
-          new Set(["policy_review_required", "policy_restricted", "policy_blocked"]).has(
-            policyState.policy_state
-          )
-            ? policyState.policy_clear_condition
-            : qualityState &&
-          new Set(["quality_promising", "quality_uncertain", "quality_weak"]).has(
-            qualityState.opportunity_quality_state
-          )
-            ? qualityState.opportunity_quality_upgrade_condition
-            : intakePriorityState &&
-          new Set(["priority_now", "priority_defer", "priority_soon", "priority_later"]).has(
-            intakePriorityState.intake_priority_state
-          )
-            ? "Changes when higher-priority items move or this opportunity state changes."
-            : sellthroughState &&
-          new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
-            sellthroughState.sellthrough_state
-          )
-            ? sellthroughState.sellthrough_clear_condition
-            : capacityState &&
-          new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
-            capacityState.capacity_state
-          )
-            ? capacityState.capacity_clear_condition
-            : marketState
-            ? marketState.market_clear_condition
-            : executionState
-            ? executionState.execution_clear_condition
-            : handoffState
-            ? handoffState.handoff_clear_condition
-            : recommendation
-            ? recommendation.change_condition
+          operationalNext && operationalNext.ready_once
+            ? operationalNext.ready_once
             : "Change when new verification, pricing, or owner decision updates this item."
         )}</li>
       </ul>
@@ -3610,6 +3566,7 @@ function renderApprovalQueue() {
             state.selected &&
             state.selected.type === "opportunity" &&
             state.selected.id === item.opportunity_id;
+          const operationalNext = item.operational_next || null;
           const resolvedOutcome = buildResolvedQueueOutcome(state.snapshot, item);
           const decisionControls =
             item.status === "pending"
@@ -3636,14 +3593,20 @@ function renderApprovalQueue() {
                 </div>
                 <span class="status-pill ${formatStatusClass(item.status)}">${escapeHtml(item.status)}</span>
               </div>
+              ${
+                operationalNext
+                  ? `<p class="queue-meta">${escapeHtml(
+                      normalizeOneLineSummary(
+                        buildOperationalNextSummary(operationalNext),
+                        "Operational next pending."
+                      )
+                    )}</p>`
+                  : ""
+              }
               <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(item.ticket.reasoning_summary, "Approval packet summary pending."))}</p>
               <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(
                 `Approve: ${item.approve_consequence || "No consequence summary."} Reject: ${item.reject_consequence || "No consequence summary."} More info: ${item.more_info_consequence || "No consequence summary."}`,
                 "Approval consequence summary pending."
-              ))}</p>
-              <p class="queue-meta">${escapeHtml(normalizeOneLineSummary(
-                `Resume owner: ${item.resume_owner || "Unassigned"}. Resume when: ${item.resume_condition || "Decision follow-through is confirmed."}`,
-                "Resume context pending."
               ))}</p>
               ${
                 resolvedOutcome
@@ -3694,9 +3657,21 @@ function renderApprovalQueue() {
 function renderAttention() {
   const task = state.snapshot.attention.top_task;
   elements.generatedAt.textContent = formatTimestamp(state.snapshot.generated_at);
-  const baseMessage = task
-    ? `${task.owner} next: ${task.next_action}`
-    : "No active attention item.";
+  const attentionOpportunity =
+    task && task.opportunity_id
+      ? findOpportunityByIdInSnapshot(state.snapshot, task.opportunity_id)
+      : null;
+  const baseMessage =
+    task && attentionOpportunity && attentionOpportunity.operational_next
+      ? normalizeOneLineSummary(
+          `${attentionOpportunity.opportunity_id}: ${buildOperationalNextSummary(
+            attentionOpportunity.operational_next
+          )}`,
+          `${task.owner} next: ${task.next_action}`
+        )
+      : task
+        ? `${task.owner} next: ${task.next_action}`
+        : "No active attention item.";
   elements.attentionNote.className = `panel-note decision-note-${normalizeToken(
     state.decisionMessageLevel || "info"
   )}`;

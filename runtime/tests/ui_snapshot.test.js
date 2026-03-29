@@ -86,6 +86,12 @@ const ALLOWED_OPPORTUNITY_QUALITY_STATES = new Set([
   "quality_weak",
   "quality_not_applicable",
 ]);
+const ALLOWED_OPERATIONAL_NEXT_STATES = new Set([
+  "ready",
+  "waiting",
+  "blocked",
+  "moving",
+]);
 
 function loadGoldenFixture() {
   const fixturePath = path.join(__dirname, "..", "fixtures", "golden-scenario.json");
@@ -350,6 +356,23 @@ function assertOpportunityQualityContract(quality) {
   assert.equal(quality.opportunity_quality_upgrade_condition.trim().length > 0, true);
 }
 
+function assertOperationalNextContract(next) {
+  assert.ok(next);
+  assert.equal(typeof next.owner, "string");
+  assert.equal(next.owner.trim().length > 0, true);
+  assert.equal(typeof next.state, "string");
+  assert.equal(ALLOWED_OPERATIONAL_NEXT_STATES.has(next.state), true);
+  assert.equal(next.waiting_on === null || typeof next.waiting_on === "string", true);
+  if (typeof next.waiting_on === "string") {
+    assert.equal(next.waiting_on.trim().length > 0, true);
+  }
+  assert.equal(typeof next.next_action, "string");
+  assert.equal(next.next_action.trim().length > 0, true);
+  assert.equal(typeof next.ready_once, "string");
+  assert.equal(next.ready_once.trim().length > 0, true);
+  assert.equal(typeof next.movement_in_flight, "boolean");
+}
+
 test("buildUiSnapshot composes contract-driven shell data from runtime state", () => {
   const env = seedFixtureEnvironment();
 
@@ -393,6 +416,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   const sellthrough = snapshot.workflow.opportunities[0].operational_sellthrough;
   const intakePriority = snapshot.workflow.opportunities[0].operational_intake_priority;
   const opportunityQuality = snapshot.workflow.opportunities[0].operational_opportunity_quality;
+  const operationalNext = snapshot.workflow.opportunities[0].operational_next;
   assert.ok(recommendation);
   assert.ok(handoff);
   assert.ok(execution);
@@ -402,6 +426,7 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
   assert.ok(sellthrough);
   assert.ok(intakePriority);
   assert.ok(opportunityQuality);
+  assert.ok(operationalNext);
   assert.equal(ALLOWED_RECOMMENDATION_TYPES.has(recommendation.recommendation_type), true);
   assert.equal(typeof recommendation.recommendation_label, "string");
   assert.equal(recommendation.recommendation_label.length > 0, true);
@@ -437,10 +462,12 @@ test("buildUiSnapshot composes contract-driven shell data from runtime state", (
     intakePriority.intake_priority_state
   );
   assertOpportunityQualityContract(opportunityQuality);
+  assertOperationalNextContract(operationalNext);
   assert.equal(
     snapshot.workflow.opportunities[0].opportunity_quality_state,
     opportunityQuality.opportunity_quality_state
   );
+  assertOperationalNextContract(snapshot.approval_queue.items[0].operational_next);
   assert.equal(
     snapshot.workflow.opportunities[0].contract_bundle.handoff_packet.next_action,
     "Request remote IMEI proof and verify carrier status."
@@ -733,6 +760,68 @@ test("buildUiSnapshot surfaces approval-linked capital trace on later ledger eff
     snapshot.capital_controls.recent_ledger_entries[0].opportunity_id,
     "opp-2026-03-25-001"
   );
+});
+
+test("buildUiSnapshot operational_next makes pending approval ownership explicit", () => {
+  const env = seedFixtureEnvironment();
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  const opportunity = snapshot.workflow.opportunities.find(
+    (entry) => entry.opportunity_id === "opp-2026-03-25-001"
+  );
+  assert.ok(opportunity);
+  assertOperationalNextContract(opportunity.operational_next);
+  assert.equal(opportunity.operational_next.owner, "CEO Agent");
+  assert.equal(opportunity.operational_next.state, "waiting");
+  assert.match(opportunity.operational_next.waiting_on || "", /approval decision/i);
+  assert.match(opportunity.operational_next.next_action, /approve|reject|request more info|decision/i);
+
+  const queueItem = snapshot.approval_queue.items.find((item) => item.ticket_id === "apr-ui-001");
+  assert.ok(queueItem);
+  assertOperationalNextContract(queueItem.operational_next);
+  assert.equal(queueItem.operational_next.owner, "CEO Agent");
+  assert.equal(queueItem.operational_next.state, "waiting");
+  assert.match(queueItem.operational_next.waiting_on || "", /approval decision/i);
+});
+
+test("buildUiSnapshot operational_next links resolved approval items to live follow-through owner", () => {
+  const env = seedFixtureEnvironment();
+  const queue = JSON.parse(fs.readFileSync(env.queuePath, "utf8"));
+  decideApproval(
+    queue,
+    "apr-ui-001",
+    "approve",
+    "owner_operator",
+    "Approved for operational-next follow-through coverage.",
+    "2026-03-25T19:07:00.000Z"
+  );
+  saveQueue(env.queuePath, queue, "2026-03-25T19:07:00.000Z");
+
+  const snapshot = buildUiSnapshot({
+    queuePath: env.queuePath,
+    workflowStatePath: env.workflowStatePath,
+    baseDir: env.baseDir,
+    now: "2026-03-25T19:10:00.000Z",
+    dueSoonMinutes: 60,
+  });
+
+  const opportunity = snapshot.workflow.opportunities.find(
+    (entry) => entry.opportunity_id === "opp-2026-03-25-001"
+  );
+  const queueItem = snapshot.approval_queue.items.find((item) => item.ticket_id === "apr-ui-001");
+  assert.ok(opportunity);
+  assert.ok(queueItem);
+  assertOperationalNextContract(opportunity.operational_next);
+  assertOperationalNextContract(queueItem.operational_next);
+  assert.equal(queueItem.operational_next.owner, opportunity.operational_next.owner);
+  assert.equal(queueItem.operational_next.state, opportunity.operational_next.state);
+  assert.equal(queueItem.operational_next.next_action, opportunity.operational_next.next_action);
 });
 
 test("buildUiSnapshot keeps capital board history empty when no eligible ledger-backed snapshots exist", () => {

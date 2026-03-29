@@ -2933,6 +2933,383 @@ function getOpportunityOwner(opportunity) {
   return null;
 }
 
+function isMovementIntentCurrentlyInFlight(intent, nowIso) {
+  if (!intent || intent.transition_state !== "in_flight") {
+    return false;
+  }
+  const triggerAt = Date.parse(intent.trigger_timestamp || 0);
+  const snapshotAt = Date.parse(nowIso || 0);
+  const durationMs = Math.max(1200, Number(intent.duration_ms) || 0);
+  if (Number.isNaN(triggerAt) || Number.isNaN(snapshotAt)) {
+    return true;
+  }
+  return Math.max(0, snapshotAt - triggerAt) <= durationMs;
+}
+
+function getMovementContextForOpportunity(officeMovementIntents, opportunityId, nowIso) {
+  const relatedIntents = (officeMovementIntents || []).filter(
+    (intent) => intent && intent.opportunity_id === opportunityId
+  );
+  return {
+    active_intent:
+      relatedIntents.find((intent) => isMovementIntentCurrentlyInFlight(intent, nowIso)) || null,
+    latest_intent: relatedIntents[0] || null,
+  };
+}
+
+function resolveFallbackOperationalOwner(entry) {
+  if (!entry) {
+    return "Unassigned";
+  }
+  const packet =
+    entry.contract_bundle && entry.contract_bundle.handoff_packet
+      ? entry.contract_bundle.handoff_packet
+      : null;
+  const handoff = entry.operational_handoff || null;
+  const execution = entry.operational_execution || null;
+  const market = entry.operational_market || null;
+  const latestTask = entry.latest_task || null;
+  return (
+    getOpportunityOwner(entry) ||
+    (latestTask && latestTask.owner) ||
+    (packet && packet.to_agent) ||
+    (handoff && handoff.next_owner) ||
+    (market && market.market_state !== "market_not_applicable" && "Department Operator Agent") ||
+    (execution &&
+      execution.execution_state !== "execution_not_applicable" &&
+      "Operations Coordinator Agent") ||
+    "Risk and Compliance Agent"
+  );
+}
+
+function resolveOperationalNextAction(entry) {
+  if (!entry) {
+    return "Review current owner queue.";
+  }
+  const workflow = entry.workflow_record || null;
+  const recommendation = entry.operational_recommendation || null;
+  const handoff = entry.operational_handoff || null;
+  const execution = entry.operational_execution || null;
+  const market = entry.operational_market || null;
+  const route = entry.operational_route || null;
+  const intakePriority = entry.operational_intake_priority || null;
+  const sellthrough = entry.operational_sellthrough || null;
+  const capacity = entry.operational_capacity || null;
+  const quality = entry.operational_opportunity_quality || null;
+  const latestTask = entry.latest_task || null;
+  const packet =
+    entry.contract_bundle && entry.contract_bundle.handoff_packet
+      ? entry.contract_bundle.handoff_packet
+      : null;
+
+  if (
+    quality &&
+    new Set(["quality_uncertain", "quality_weak"]).has(quality.opportunity_quality_state)
+  ) {
+    return quality.opportunity_quality_next_step;
+  }
+  if (
+    intakePriority &&
+    new Set(["priority_now", "priority_defer"]).has(intakePriority.intake_priority_state)
+  ) {
+    return intakePriority.intake_priority_next_step;
+  }
+  if (
+    sellthrough &&
+    new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
+      sellthrough.sellthrough_state
+    )
+  ) {
+    return sellthrough.sellthrough_next_step;
+  }
+  if (
+    capacity &&
+    new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
+      capacity.capacity_state
+    )
+  ) {
+    return capacity.capacity_next_step;
+  }
+  if (route && route.operator_route_next_step) {
+    return route.operator_route_next_step;
+  }
+  if (market && market.market_next_step) {
+    return market.market_next_step;
+  }
+  if (execution && execution.execution_next_step) {
+    return execution.execution_next_step;
+  }
+  if (handoff && handoff.current_owner_action) {
+    return handoff.current_owner_action;
+  }
+  if (recommendation && recommendation.next_action) {
+    return recommendation.next_action;
+  }
+  if (workflow && workflow.purchase_recommendation_blocked) {
+    return "Resolve the purchase blocker before routing onward.";
+  }
+  if (latestTask && latestTask.next_action) {
+    return latestTask.next_action;
+  }
+  if (packet && packet.next_action) {
+    return packet.next_action;
+  }
+  return "Review current owner queue.";
+}
+
+function resolveOperationalReadyOnce(entry) {
+  if (!entry) {
+    return "Ready once the current owner starts the next action.";
+  }
+  const recommendation = entry.operational_recommendation || null;
+  const handoff = entry.operational_handoff || null;
+  const execution = entry.operational_execution || null;
+  const market = entry.operational_market || null;
+  const intakePriority = entry.operational_intake_priority || null;
+  const sellthrough = entry.operational_sellthrough || null;
+  const capacity = entry.operational_capacity || null;
+  const quality = entry.operational_opportunity_quality || null;
+
+  if (
+    quality &&
+    new Set(["quality_promising", "quality_uncertain", "quality_weak"]).has(
+      quality.opportunity_quality_state
+    )
+  ) {
+    return quality.opportunity_quality_upgrade_condition;
+  }
+  if (
+    sellthrough &&
+    new Set(["sellthrough_slow", "sellthrough_stale", "sellthrough_hold"]).has(
+      sellthrough.sellthrough_state
+    )
+  ) {
+    return sellthrough.sellthrough_clear_condition;
+  }
+  if (
+    capacity &&
+    new Set(["capacity_constrained", "capacity_overloaded", "capacity_hold"]).has(
+      capacity.capacity_state
+    )
+  ) {
+    return capacity.capacity_clear_condition;
+  }
+  if (
+    intakePriority &&
+    new Set(["priority_now", "priority_defer", "priority_soon", "priority_later"]).has(
+      intakePriority.intake_priority_state
+    )
+  ) {
+    return "Ready once higher-priority work clears or this item state changes.";
+  }
+  if (market && market.market_clear_condition) {
+    return market.market_clear_condition;
+  }
+  if (execution && execution.execution_clear_condition) {
+    return execution.execution_clear_condition;
+  }
+  if (handoff && handoff.handoff_clear_condition) {
+    return handoff.handoff_clear_condition;
+  }
+  if (recommendation && recommendation.change_condition) {
+    return recommendation.change_condition;
+  }
+  return "Ready once the current owner starts the next action.";
+}
+
+function deriveOpportunityOperationalNext(entry, officeMovementIntents, nowIso) {
+  if (!entry) {
+    return null;
+  }
+
+  const workflow = entry.workflow_record || null;
+  const queue = entry.queue_item || null;
+  const handoff = entry.operational_handoff || null;
+  const execution = entry.operational_execution || null;
+  const market = entry.operational_market || null;
+  const quality = entry.operational_opportunity_quality || null;
+  const capacity = entry.operational_capacity || null;
+  const sellthrough = entry.operational_sellthrough || null;
+  const packet =
+    entry.contract_bundle && entry.contract_bundle.handoff_packet
+      ? entry.contract_bundle.handoff_packet
+      : null;
+  const latestTask = entry.latest_task || null;
+  const movement = getMovementContextForOpportunity(
+    officeMovementIntents,
+    entry.opportunity_id,
+    nowIso
+  );
+  const movementInFlight = Boolean(movement.active_intent);
+  let owner = resolveFallbackOperationalOwner(entry);
+  let state = "ready";
+  let waitingOn = null;
+  let readyOnce = resolveOperationalReadyOnce(entry);
+
+  if (queue && queue.status === "pending") {
+    owner = "CEO Agent";
+    state = "waiting";
+    waitingOn = `approval decision on ${queue.ticket_id}`;
+    readyOnce = "Ready once CEO Agent records approve, reject, or request more info.";
+  } else if (market && market.market_state === "market_blocked") {
+    owner = owner || "Department Operator Agent";
+    state = "blocked";
+    waitingOn = market.market_label || "market blocker";
+    readyOnce = market.market_clear_condition;
+  } else if (execution && execution.execution_state === "execution_blocked") {
+    owner = owner || "Operations Coordinator Agent";
+    state = "blocked";
+    waitingOn = execution.execution_label || "execution blocker";
+    readyOnce = execution.execution_clear_condition;
+  } else if (handoff && handoff.handoff_state === "handoff_return_required") {
+    owner = (packet && packet.from_agent) || owner || "Previous owner";
+    state = "blocked";
+    waitingOn = handoff.handoff_label || "return correction";
+    readyOnce = handoff.handoff_clear_condition;
+  } else if (handoff && handoff.handoff_state === "handoff_blocked") {
+    owner = (packet && packet.from_agent) || (latestTask && latestTask.owner) || owner;
+    state = "blocked";
+    waitingOn = handoff.handoff_label || "handoff blocker";
+    readyOnce = handoff.handoff_clear_condition;
+  } else if (workflow && workflow.purchase_recommendation_blocked) {
+    owner = (latestTask && latestTask.owner) || (packet && packet.from_agent) || owner;
+    state = "blocked";
+    waitingOn = canonicalizeBlockerText("purchase_recommendation_blocked");
+    readyOnce =
+      (handoff && handoff.handoff_clear_condition) ||
+      (execution && execution.execution_clear_condition) ||
+      "Ready once verification or owner approval clears.";
+  } else if (handoff && handoff.handoff_state === "handoff_waiting") {
+    owner = (packet && packet.from_agent) || (latestTask && latestTask.owner) || owner;
+    state = "waiting";
+    waitingOn = handoff.handoff_reason || "handoff confirmation";
+    readyOnce = handoff.handoff_clear_condition;
+  } else if (execution && execution.execution_state === "execution_waiting_parts") {
+    owner = owner || "Operations Coordinator Agent";
+    state = "waiting";
+    waitingOn = "parts and quote confirmation";
+    readyOnce = execution.execution_clear_condition;
+  } else if (execution && execution.execution_state === "execution_waiting_intake") {
+    owner = owner || "Operations Coordinator Agent";
+    state = "waiting";
+    waitingOn = "execution intake readiness";
+    readyOnce = execution.execution_clear_condition;
+  } else if (market && market.market_state === "market_waiting_pricing") {
+    owner = owner || "Department Operator Agent";
+    state = "waiting";
+    waitingOn = "pricing inputs";
+    readyOnce = market.market_clear_condition;
+  } else if (market && market.market_state === "market_waiting_listing") {
+    owner = owner || "Department Operator Agent";
+    state = "waiting";
+    waitingOn = "listing packet prep";
+    readyOnce = market.market_clear_condition;
+  } else if (
+    quality &&
+    new Set(["quality_uncertain", "quality_weak"]).has(quality.opportunity_quality_state)
+  ) {
+    owner = (packet && packet.from_agent) || (latestTask && latestTask.owner) || owner;
+    state = "waiting";
+    waitingOn = quality.opportunity_quality_label || "stronger proof";
+    readyOnce = quality.opportunity_quality_upgrade_condition;
+  } else if (
+    capacity &&
+    new Set(["capacity_hold", "capacity_overloaded", "capacity_constrained"]).has(
+      capacity.capacity_state
+    )
+  ) {
+    owner = owner || "Operations Coordinator Agent";
+    state = "waiting";
+    waitingOn = "capacity relief";
+    readyOnce = capacity.capacity_clear_condition;
+  } else if (
+    sellthrough &&
+    new Set(["sellthrough_hold", "sellthrough_stale", "sellthrough_slow"]).has(
+      sellthrough.sellthrough_state
+    )
+  ) {
+    owner = owner || "Department Operator Agent";
+    state = "waiting";
+    waitingOn = "sell-through relief";
+    readyOnce = sellthrough.sellthrough_clear_condition;
+  }
+
+  if (movementInFlight) {
+    owner = movement.active_intent.to_agent || owner;
+    state = "moving";
+    waitingOn = `${movement.active_intent.to_agent || owner} to receive the current handoff`;
+    readyOnce = `Ready once ${movement.active_intent.to_agent || owner} receives it and starts the next action.`;
+  }
+
+  return {
+    owner: normalizeRecommendationCopy(owner || "Unassigned"),
+    state,
+    waiting_on: waitingOn ? normalizeRecommendationCopy(waitingOn) : null,
+    next_action: normalizeRecommendationCopy(resolveOperationalNextAction(entry)),
+    ready_once: normalizeRecommendationCopy(
+      readyOnce || "Ready once the current owner starts the next action."
+    ),
+    movement_in_flight: movementInFlight,
+  };
+}
+
+function deriveApprovalQueueOperationalNext(item, opportunitiesById, officeMovementIntents, nowIso) {
+  if (!item) {
+    return null;
+  }
+  const linkedOpportunity =
+    item.opportunity_id && opportunitiesById.has(item.opportunity_id)
+      ? opportunitiesById.get(item.opportunity_id)
+      : null;
+  const movement = getMovementContextForOpportunity(
+    officeMovementIntents,
+    item.opportunity_id,
+    nowIso
+  );
+  const movementInFlight = Boolean(movement.active_intent);
+
+  if (item.status === "pending") {
+    return {
+      owner: "CEO Agent",
+      state: movementInFlight ? "moving" : "waiting",
+      waiting_on: movementInFlight
+        ? "CEO Agent to receive the approval packet"
+        : `approval decision on ${item.ticket_id}`,
+      next_action:
+        "Review the approval packet and record approve, reject, or request more info.",
+      ready_once: "Ready once CEO Agent records a decision and the next owner resumes work.",
+      movement_in_flight: movementInFlight,
+    };
+  }
+
+  if (linkedOpportunity && linkedOpportunity.operational_next) {
+    return { ...linkedOpportunity.operational_next };
+  }
+
+  const fallbackOwner =
+    item.resume_owner ||
+    (item.status === "approve"
+      ? "Operations Coordinator Agent"
+      : "Risk and Compliance Agent");
+  return {
+    owner: normalizeRecommendationCopy(fallbackOwner),
+    state: movementInFlight ? "moving" : "waiting",
+    waiting_on: movementInFlight
+      ? `${fallbackOwner} to receive the post-decision handoff`
+      : "post-decision follow-through",
+    next_action:
+      item.status === "approve"
+        ? "Resume approved execution follow-through."
+        : item.status === "request_more_info"
+          ? "Collect requested information and republish the approval packet."
+          : "Record rejection outcome and return the item for follow-up.",
+    ready_once: normalizeRecommendationCopy(
+      item.resume_condition || "Ready once the next owner resumes work."
+    ),
+    movement_in_flight: movementInFlight,
+  };
+}
+
 function summarizeOfficeEvent(event) {
   if (event.type === "handoff_started") {
     return `${event.from_agent} started handoff to ${event.to_agent} on ${event.opportunity_id}.`;
@@ -3630,6 +4007,13 @@ function buildUiSnapshot(options = {}) {
     officeZoneAnchors,
     officeRouteHints
   );
+  for (const opportunity of annotatedOpportunities) {
+    opportunity.operational_next = deriveOpportunityOperationalNext(
+      opportunity,
+      officeMovementIntents,
+      nowIso
+    );
+  }
   const companyBoardSnapshot = buildCompanyBoardSnapshot(
     annotatedOpportunities,
     statusSnapshot.awaiting_tasks.tasks,
@@ -3659,7 +4043,15 @@ function buildUiSnapshot(options = {}) {
   const queueItems = alignApprovalQueueItemsWithRecommendations(
     sortedQueueItems,
     opportunitiesById
-  );
+  ).map((item) => ({
+    ...item,
+    operational_next: deriveApprovalQueueOperationalNext(
+      item,
+      opportunitiesById,
+      officeMovementIntents,
+      nowIso
+    ),
+  }));
 
   return {
     schema_version: "v1",

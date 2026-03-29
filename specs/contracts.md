@@ -34,6 +34,7 @@ Current extension note:
 
 - `v1.1` adds capital-control interfaces to support explicit deposit/reserve/approve-to-use and request-first withdrawal modeling with auditability.
 - `v1.2` adds optional approval-trace references on capital movement snapshots so later ledger effects can be linked back to the approval ticket that enabled them.
+- `v1.3` adds optional operational-next summaries on workflow opportunities and approval-queue snapshot items so the UI can surface one canonical owner/readiness line.
 
 ## OpportunityRecord
 
@@ -402,6 +403,21 @@ Purpose: annotate a single opportunity against the current company capital mode 
   "source": "handoff_signal|workflow_state|approval_queue",
   "duration_ms": 0,
   "blocking_count": 0
+}
+```
+
+### OperationalNextSummary
+
+Purpose: compress ownership, readiness, dependency, and next-step state into one additive read-only summary for workflow opportunities and approval-queue items.
+
+```json
+{
+  "owner": "string",
+  "state": "ready|waiting|blocked|moving",
+  "waiting_on": "string|null",
+  "next_action": "string",
+  "ready_once": "string",
+  "movement_in_flight": false
 }
 ```
 
