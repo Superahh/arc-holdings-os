@@ -14,6 +14,8 @@
           <h1>Desktop Command Floor</h1>
         </div>
         <div class="toolbar">
+          <button id="focus-task-button" class="action-button action-button-secondary" type="button">Focus top task</button>
+          <button id="ingest-button" class="action-button action-button-secondary" type="button">New opportunity</button>
           <button id="refresh-button" class="action-button" type="button">Refresh</button>
           <div class="stamp">
             <span>Snapshot</span>
@@ -69,6 +71,39 @@
         </section>
       </section>
     </div>
+
+    <dialog id="intake-dialog" class="intake-dialog">
+      <form method="dialog" class="intake-dialog-form" id="intake-form">
+        <div class="detail-title-row">
+          <div>
+            <p class="eyebrow">Operator intake</p>
+            <strong>New opportunity</strong>
+          </div>
+          <button type="button" class="queue-action" id="intake-close-button">Close</button>
+        </div>
+        <p class="muted">This slice establishes the entry point only. Saving here captures a local intake draft and does not mutate runtime workflow state yet.</p>
+        <label>
+          Listing summary
+          <textarea name="summary" rows="3" required placeholder="Example: iPhone 13 Pro 256GB, cracked back, powers on"></textarea>
+        </label>
+        <label>
+          Source
+          <input type="text" name="source" required placeholder="facebook_marketplace" />
+        </label>
+        <label>
+          Ask price (optional)
+          <input type="number" step="0.01" min="0" name="ask_price_usd" placeholder="0.00" />
+        </label>
+        <label>
+          Operator note (optional)
+          <textarea name="note" rows="2" placeholder="Why this intake matters or what to verify first"></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button type="button" class="queue-action" id="intake-cancel-button">Cancel</button>
+          <button type="submit" class="queue-action queue-action-approve">Capture draft</button>
+        </div>
+      </form>
+    </dialog>
 
     <template id="kpi-card-template">
       <article class="kpi-card">

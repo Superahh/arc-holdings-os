@@ -34,6 +34,9 @@ const state = {
   selected: null,
   transitions: createEmptyTransitionState(),
   transitionTimerId: null,
+  shellMessage: null,
+  shellMessageLevel: "info",
+  shellMessageTimerId: null,
   decisionInFlight: false,
   decisionMessage: null,
   decisionMessageLevel: "info",
@@ -47,10 +50,16 @@ const state = {
     intentId: null,
     progress: 50,
   },
+  detailFocusSection: null,
+  sendBackComposerOpportunityId: null,
+  localOperatorDrafts: {},
+  latestIntakeDraft: null,
 };
 
 const elements = {
   generatedAt: document.querySelector("#generated-at"),
+  focusTaskButton: document.querySelector("#focus-task-button"),
+  ingestButton: document.querySelector("#ingest-button"),
   refreshButton: document.querySelector("#refresh-button"),
   kpiStrip: document.querySelector("#kpi-strip"),
   officeCanvas: document.querySelector("#office-canvas"),
@@ -59,6 +68,10 @@ const elements = {
   approvalQueue: document.querySelector("#approval-queue"),
   attentionNote: document.querySelector("#attention-note"),
   kpiCardTemplate: document.querySelector("#kpi-card-template"),
+  intakeDialog: document.querySelector("#intake-dialog"),
+  intakeForm: document.querySelector("#intake-form"),
+  intakeCloseButton: document.querySelector("#intake-close-button"),
+  intakeCancelButton: document.querySelector("#intake-cancel-button"),
 };
 
 function escapeHtml(value) {
@@ -567,6 +580,25 @@ function findApprovalQueueItem(snapshot, ticketId) {
     return null;
   }
   return snapshot.approval_queue.items.find((item) => item && item.ticket_id === ticketId) || null;
+}
+
+function findPendingApprovalQueueItemByOpportunity(snapshot, opportunityId) {
+  if (
+    !snapshot ||
+    !snapshot.approval_queue ||
+    !Array.isArray(snapshot.approval_queue.items) ||
+    !opportunityId
+  ) {
+    return null;
+  }
+  return (
+    snapshot.approval_queue.items.find(
+      (item) =>
+        item &&
+        item.opportunity_id === opportunityId &&
+        normalizeToken(item.status) === "pending"
+    ) || null
+  );
 }
 
 function findOfficeEventById(snapshot, eventId) {
@@ -1403,7 +1435,32 @@ function ensureSelection() {
 
 function setSelection(type, id) {
   state.selected = { type, id };
+  state.detailFocusSection = null;
+  state.sendBackComposerOpportunityId = null;
   render();
+}
+
+function clearShellMessage() {
+  state.shellMessage = null;
+  state.shellMessageLevel = "info";
+}
+
+function setShellMessage(message, level = "info", options = {}) {
+  state.shellMessage = message;
+  state.shellMessageLevel = level;
+  if (state.shellMessageTimerId !== null) {
+    window.clearTimeout(state.shellMessageTimerId);
+    state.shellMessageTimerId = null;
+  }
+  const ttlMs = Number.isInteger(options.ttlMs) ? options.ttlMs : 0;
+  if (ttlMs > 0) {
+    state.shellMessageTimerId = window.setTimeout(() => {
+      clearShellMessage();
+      if (state.snapshot) {
+        renderAttention();
+      }
+    }, ttlMs);
+  }
 }
 
 function clearDecisionMessage() {
@@ -1548,7 +1605,7 @@ async function submitCapitalWithdrawalAction(url, payload, pendingMessage, succe
   }
 }
 
-async function submitApprovalDecision(ticketId, decision) {
+async function submitApprovalDecision(ticketId, decision, noteOverride = null) {
   if (state.decisionInFlight) {
     return;
   }
@@ -1573,7 +1630,10 @@ async function submitApprovalDecision(ticketId, decision) {
         ticket_id: ticketId,
         decision,
         actor: "owner_operator",
-        note: `Submitted from UI shell (${decision}).`,
+        note:
+          typeof noteOverride === "string" && noteOverride.trim()
+            ? noteOverride.trim()
+            : `Submitted from UI shell (${decision}).`,
       }),
     });
 
@@ -2659,6 +2719,286 @@ function bindMovementIntentControls() {
   }
 }
 
+function detailSectionFocusClass(sectionId) {
+  return state.detailFocusSection === sectionId ? "is-detail-focused" : "";
+}
+
+function applyFocusedDetailSection() {
+  if (!state.detailFocusSection) {
+    return;
+  }
+  const node = elements.detailPanel.querySelector(
+    `[data-detail-section="${state.detailFocusSection}"]`
+  );
+  if (!node) {
+    return;
+  }
+  node.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function activateDetailSectionFocus(sectionId, message, level = "info") {
+  state.detailFocusSection = sectionId || null;
+  renderDetailPanel();
+  applyFocusedDetailSection();
+  if (message) {
+    setShellMessage(message, level, { ttlMs: 9000 });
+    renderAttention();
+  }
+}
+
+function buildDetailPrimaryAction(entry, blockedFlow) {
+  const pendingQueueItem = findPendingApprovalQueueItemByOpportunity(
+    state.snapshot,
+    entry.opportunity_id
+  );
+  const status = normalizeToken(entry.current_status);
+
+  if (pendingQueueItem) {
+    return {
+      label: "Open approval queue",
+      detail: "Approval decisions stay in the queue. Use this handoff when the selected opportunity is waiting on a decision.",
+      action: "open-approval-queue",
+      sectionId: "what-next",
+      feedback: `Approval queue opened for ${entry.opportunity_id}.`,
+      planned: false,
+    };
+  }
+
+  if (status === "researching") {
+    return {
+      label: "Review intake",
+      detail: "Focus the evidence and recommendation readout before moving this opportunity forward.",
+      action: "open-section",
+      sectionId: "evidence",
+      feedback: `Intake review is now focused for ${entry.opportunity_id}.`,
+      planned: false,
+    };
+  }
+
+  if (status === "awaiting_seller_verification" || normalizeToken(entry.current_status) === "blocked") {
+    return {
+      label: "Resolve blocker",
+      detail: "Focus the unblock path first. The detail panel should tell you what must clear next.",
+      action: "open-section",
+      sectionId: blockedFlow ? "blockage" : "evidence",
+      feedback: `Blockage details are now focused for ${entry.opportunity_id}.`,
+      planned: false,
+    };
+  }
+
+  if (status === "approved") {
+    return {
+      label: "Start execution",
+      detail: "Execution commit remains runtime-managed in this slice. This action focuses the live handoff and next-step context.",
+      action: "open-section",
+      sectionId: "what-next",
+      feedback: `Execution follow-through is in focus for ${entry.opportunity_id}. UI execution commit remains deferred.`,
+      planned: true,
+    };
+  }
+
+  if (status === "acquired") {
+    return {
+      label: "Route to market",
+      detail: "Market routing remains runtime-managed in this slice. Use this to focus the next operator handoff instead of guessing.",
+      action: "open-section",
+      sectionId: "what-next",
+      feedback: `Market follow-through is in focus for ${entry.opportunity_id}. UI routing commit remains deferred.`,
+      planned: true,
+    };
+  }
+
+  if (new Set(["routed", "monetizing"]).has(status)) {
+    return {
+      label: "Advance next step",
+      detail: "Closure controls are still deferred. This action focuses the live next-step context without inventing a fake write path.",
+      action: "open-section",
+      sectionId: "what-next",
+      feedback: `Next-step follow-through is in focus for ${entry.opportunity_id}.`,
+      planned: true,
+    };
+  }
+
+  return {
+    label: "Review selected opportunity",
+    detail: "Keep the operator loop anchored in the selected item before deciding what to do next.",
+    action: "open-section",
+    sectionId: "what-next",
+    feedback: `Selected opportunity context refreshed for ${entry.opportunity_id}.`,
+    planned: false,
+  };
+}
+
+function renderDetailActionRail(entry, blockedFlow) {
+  const primaryAction = buildDetailPrimaryAction(entry, blockedFlow);
+  const pendingQueueItem = findPendingApprovalQueueItemByOpportunity(
+    state.snapshot,
+    entry.opportunity_id
+  );
+  const localDraft = state.localOperatorDrafts[entry.opportunity_id] || null;
+  const composerOpen = state.sendBackComposerOpportunityId === entry.opportunity_id;
+  const secondaryHelper = pendingQueueItem
+    ? "Requires a reason and submits a real request-more-info decision through the approval queue."
+    : "Requires a reason and captures a local operator draft only. Workflow mutation remains deferred in this slice.";
+
+  return `
+    <section class="detail-section detail-action-rail ${detailSectionFocusClass("action-rail")}" data-detail-section="action-rail">
+      <div class="detail-action-head">
+        <div>
+          <p class="eyebrow">Operator controls</p>
+          <h3>Action rail</h3>
+        </div>
+        ${
+          primaryAction.planned
+            ? `<span class="priority-pill">read-only follow-through</span>`
+            : `<span class="priority-pill">live control</span>`
+        }
+      </div>
+      <p class="detail-action-summary">${escapeHtml(primaryAction.detail)}</p>
+      <div class="detail-action-buttons">
+        <button
+          type="button"
+          class="action-button detail-action-primary ${primaryAction.planned ? "action-button-secondary" : ""}"
+          data-detail-primary="${escapeHtml(primaryAction.action)}"
+          data-action-section="${escapeHtml(primaryAction.sectionId || "")}"
+          data-feedback="${escapeHtml(primaryAction.feedback || "")}"
+          data-opportunity-id="${escapeHtml(entry.opportunity_id)}"
+        >
+          ${escapeHtml(primaryAction.label)}
+        </button>
+        <button
+          type="button"
+          class="queue-action queue-action-info detail-action-secondary"
+          data-operator-action="toggle-send-back"
+          data-opportunity-id="${escapeHtml(entry.opportunity_id)}"
+        >
+          Send back / Need more info
+        </button>
+      </div>
+      <p class="muted">${escapeHtml(secondaryHelper)}</p>
+      ${
+        localDraft
+          ? `<p class="panel-note decision-note-info">Local send-back draft saved ${escapeHtml(
+              formatTimestamp(localDraft.createdAt)
+            )}: ${escapeHtml(localDraft.reason)}</p>`
+          : ""
+      }
+      ${
+        composerOpen
+          ? `
+            <form class="detail-inline-form" data-send-back-form="${escapeHtml(entry.opportunity_id)}">
+              <label>
+                Reason
+                <textarea name="reason" rows="3" required placeholder="Explain what is missing, blocked, or needs to change first.">${
+                  localDraft ? escapeHtml(localDraft.reason) : ""
+                }</textarea>
+              </label>
+              <div class="queue-actions">
+                <button type="submit" class="queue-action queue-action-info">Save reason</button>
+                <button type="button" class="queue-action" data-operator-action="cancel-send-back" data-opportunity-id="${escapeHtml(
+                  entry.opportunity_id
+                )}">Cancel</button>
+              </div>
+            </form>
+          `
+          : ""
+      }
+    </section>
+  `;
+}
+
+function bindDetailActionRailControls(entry) {
+  const primaryButton = elements.detailPanel.querySelector("[data-detail-primary]");
+  if (primaryButton) {
+    primaryButton.addEventListener("click", () => {
+      const action = primaryButton.dataset.detailPrimary;
+      const sectionId = primaryButton.dataset.actionSection || null;
+      const feedback = primaryButton.dataset.feedback || null;
+      if (action === "open-approval-queue") {
+        state.detailFocusSection = sectionId;
+        renderDetailPanel();
+        elements.approvalQueue.scrollIntoView({ behavior: "smooth", block: "start" });
+        setShellMessage(feedback || `Approval queue opened for ${entry.opportunity_id}.`, "info", {
+          ttlMs: 9000,
+        });
+        renderAttention();
+        return;
+      }
+      activateDetailSectionFocus(sectionId, feedback, "info");
+    });
+  }
+
+  const toggleSendBack = elements.detailPanel.querySelector(
+    '[data-operator-action="toggle-send-back"]'
+  );
+  if (toggleSendBack) {
+    toggleSendBack.addEventListener("click", () => {
+      state.sendBackComposerOpportunityId =
+        state.sendBackComposerOpportunityId === entry.opportunity_id ? null : entry.opportunity_id;
+      renderDetailPanel();
+    });
+  }
+
+  const cancelSendBack = elements.detailPanel.querySelector(
+    '[data-operator-action="cancel-send-back"]'
+  );
+  if (cancelSendBack) {
+    cancelSendBack.addEventListener("click", () => {
+      state.sendBackComposerOpportunityId = null;
+      renderDetailPanel();
+    });
+  }
+
+  const sendBackForm = elements.detailPanel.querySelector(
+    `[data-send-back-form="${entry.opportunity_id}"]`
+  );
+  if (sendBackForm) {
+    sendBackForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(sendBackForm);
+      const reason = String(formData.get("reason") || "").trim();
+      if (!reason) {
+        setShellMessage("A reason is required before sending work back.", "error", {
+          ttlMs: 9000,
+        });
+        renderAttention();
+        return;
+      }
+      const pendingQueueItem = findPendingApprovalQueueItemByOpportunity(
+        state.snapshot,
+        entry.opportunity_id
+      );
+      state.sendBackComposerOpportunityId = null;
+      if (pendingQueueItem) {
+        const confirmed = window.confirm(
+          `Request more info for ${pendingQueueItem.ticket_id}?\nReason: ${reason}`
+        );
+        if (!confirmed) {
+          renderDetailPanel();
+          return;
+        }
+        await submitApprovalDecision(
+          pendingQueueItem.ticket_id,
+          "request_more_info",
+          `Detail rail send-back reason: ${reason}`
+        );
+        return;
+      }
+      state.localOperatorDrafts[entry.opportunity_id] = {
+        reason,
+        createdAt: new Date().toISOString(),
+      };
+      setShellMessage(
+        `Captured a local send-back draft for ${entry.opportunity_id}. Persistent workflow send-back remains deferred in this slice.`,
+        "info",
+        { ttlMs: 9000 }
+      );
+      renderAttention();
+      renderDetailPanel();
+    });
+  }
+}
+
 function renderDetailForOpportunity(entry) {
   const record = entry.contract_bundle.opportunity_record;
   const handoff = entry.contract_bundle.handoff_packet;
@@ -2717,7 +3057,8 @@ function renderDetailForOpportunity(entry) {
 
   elements.detailPanel.innerHTML = `
     ${renderCurrentFocusStrip(currentFocus)}
-    <section class="detail-section detail-section-now">
+    ${renderDetailActionRail(entry, blockedFlow)}
+    <section class="detail-section detail-section-now ${detailSectionFocusClass("now")}" data-detail-section="now">
       <h3>Now</h3>
       <div class="detail-hero">
         <div class="detail-title-row">
@@ -2734,7 +3075,7 @@ function renderDetailForOpportunity(entry) {
       </div>
     </section>
 
-    <section class="detail-section detail-section-now">
+    <section class="detail-section detail-section-now ${detailSectionFocusClass("why-now")}" data-detail-section="why-now">
       <h3>Why this matters now</h3>
       <p>${escapeHtml(whyThisMattersNow)}</p>
     </section>
@@ -2742,7 +3083,7 @@ function renderDetailForOpportunity(entry) {
     ${
       operationalNext
         ? `
-          <section class="detail-section detail-section-now">
+          <section class="detail-section detail-section-now ${detailSectionFocusClass("operational-next")}" data-detail-section="operational-next">
             <h3>Operational next</h3>
             <ul class="detail-list">
               <li>Owner: ${escapeHtml(operationalNext.owner || "Unassigned")}</li>
@@ -2768,7 +3109,7 @@ function renderDetailForOpportunity(entry) {
     ${
       blockedFlow
         ? `
-          <section class="detail-section">
+          <section class="detail-section ${detailSectionFocusClass("blockage")}" data-detail-section="blockage">
             <h3>Blockage and unblock</h3>
             <ul class="detail-list">
               <li>Blocked now: ${escapeHtml(blockedFlow.blockedNow)}</li>
@@ -2782,7 +3123,7 @@ function renderDetailForOpportunity(entry) {
         : ""
     }
 
-    <section class="detail-section">
+    <section class="detail-section ${detailSectionFocusClass("what-next")}" data-detail-section="what-next">
       <h3>What happens next</h3>
       <ul class="detail-list">
         <li>Owner or handoff target: ${escapeHtml(nextOwner || "Unassigned")}</li>
@@ -2796,7 +3137,7 @@ function renderDetailForOpportunity(entry) {
       </ul>
     </section>
 
-    <section class="detail-section">
+    <section class="detail-section ${detailSectionFocusClass("evidence")}" data-detail-section="evidence">
       <h3>Evidence</h3>
       <ul class="detail-list">
         <li>Recommendation: ${escapeHtml(
@@ -2869,7 +3210,7 @@ function renderDetailForOpportunity(entry) {
       }
     </section>
 
-    <section class="detail-section">
+    <section class="detail-section ${detailSectionFocusClass("history")}" data-detail-section="history">
       <h3>History</h3>
       <p class="eyebrow">Status history</p>
       ${
@@ -2902,6 +3243,8 @@ function renderDetailForOpportunity(entry) {
   `;
 
   bindMovementIntentControls();
+  bindDetailActionRailControls(entry);
+  applyFocusedDetailSection();
 }
 
 function renderDetailForLaneEmpty(card) {
@@ -3672,12 +4015,12 @@ function renderAttention() {
       : task
         ? `${task.owner} next: ${task.next_action}`
         : "No active attention item.";
+  const activeMessage = state.decisionMessage || state.shellMessage;
+  const activeLevel = state.decisionMessage ? state.decisionMessageLevel : state.shellMessageLevel;
   elements.attentionNote.className = `panel-note decision-note-${normalizeToken(
-    state.decisionMessageLevel || "info"
+    activeLevel || "info"
   )}`;
-  elements.attentionNote.textContent = state.decisionMessage
-    ? `${baseMessage} | ${state.decisionMessage}`
-    : baseMessage;
+  elements.attentionNote.textContent = activeMessage ? `${baseMessage} | ${activeMessage}` : baseMessage;
 }
 
 function syncRoutePlaybackState() {
@@ -3712,6 +4055,66 @@ function render() {
   renderApprovalQueue();
 }
 
+function closeIntakeDialog() {
+  if (!elements.intakeDialog) {
+    return;
+  }
+  if (typeof elements.intakeDialog.close === "function") {
+    elements.intakeDialog.close();
+    return;
+  }
+  elements.intakeDialog.removeAttribute("open");
+}
+
+function openIntakeDialog() {
+  if (!elements.intakeDialog || !elements.intakeForm) {
+    return;
+  }
+  elements.intakeForm.reset();
+  if (state.latestIntakeDraft) {
+    elements.intakeForm.elements.summary.value = state.latestIntakeDraft.summary || "";
+    elements.intakeForm.elements.source.value = state.latestIntakeDraft.source || "";
+    elements.intakeForm.elements.ask_price_usd.value =
+      typeof state.latestIntakeDraft.askPriceUsd === "number"
+        ? String(state.latestIntakeDraft.askPriceUsd)
+        : "";
+    elements.intakeForm.elements.note.value = state.latestIntakeDraft.note || "";
+  }
+  if (typeof elements.intakeDialog.showModal === "function") {
+    elements.intakeDialog.showModal();
+  } else {
+    elements.intakeDialog.setAttribute("open", "open");
+  }
+  const firstField = elements.intakeForm.elements.summary;
+  if (firstField && typeof firstField.focus === "function") {
+    window.setTimeout(() => firstField.focus(), 0);
+  }
+}
+
+function focusTopTask() {
+  if (!state.snapshot) {
+    return;
+  }
+  const task = state.snapshot.attention && state.snapshot.attention.top_task;
+  const opportunityId =
+    task && task.opportunity_id && findOpportunityById(task.opportunity_id)
+      ? task.opportunity_id
+      : null;
+  if (!opportunityId) {
+    setShellMessage("No top attention opportunity is available to focus right now.", "info", {
+      ttlMs: 8000,
+    });
+    renderAttention();
+    return;
+  }
+  setSelection("opportunity", opportunityId);
+  elements.detailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  setShellMessage(`Focused ${opportunityId} from the current top task.`, "success", {
+    ttlMs: 8000,
+  });
+  renderAttention();
+}
+
 async function loadSnapshot() {
   elements.refreshButton.disabled = true;
   try {
@@ -3735,6 +4138,52 @@ async function loadSnapshot() {
     elements.refreshButton.disabled = false;
   }
 }
+
+elements.focusTaskButton.addEventListener("click", () => {
+  focusTopTask();
+});
+
+elements.ingestButton.addEventListener("click", () => {
+  openIntakeDialog();
+});
+
+elements.intakeCloseButton.addEventListener("click", () => {
+  closeIntakeDialog();
+});
+
+elements.intakeCancelButton.addEventListener("click", () => {
+  closeIntakeDialog();
+});
+
+elements.intakeForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const formData = new FormData(elements.intakeForm);
+  const summary = String(formData.get("summary") || "").trim();
+  const source = String(formData.get("source") || "").trim();
+  const askPriceRaw = Number(formData.get("ask_price_usd"));
+  const note = String(formData.get("note") || "").trim();
+  if (!summary || !source) {
+    setShellMessage("Listing summary and source are required to capture an intake draft.", "error", {
+      ttlMs: 9000,
+    });
+    renderAttention();
+    return;
+  }
+  state.latestIntakeDraft = {
+    summary,
+    source,
+    askPriceUsd: Number.isFinite(askPriceRaw) && askPriceRaw >= 0 ? askPriceRaw : null,
+    note,
+    createdAt: new Date().toISOString(),
+  };
+  closeIntakeDialog();
+  setShellMessage(
+    `Captured a local intake draft for ${source}. Runtime ingest is not wired yet in this slice.`,
+    "success",
+    { ttlMs: 9000 }
+  );
+  renderAttention();
+});
 
 elements.refreshButton.addEventListener("click", () => {
   loadSnapshot();

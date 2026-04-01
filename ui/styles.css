@@ -82,6 +82,11 @@ select {
   align-items: center;
 }
 
+.toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .stamp {
   padding: 10px 14px;
   border-radius: 999px;
@@ -131,6 +136,17 @@ h2 {
 
 .action-button:hover {
   background: #0d1817;
+}
+
+.action-button-secondary {
+  background: rgba(255, 252, 245, 0.94);
+  color: var(--ink);
+  border: 1px solid rgba(20, 35, 34, 0.14);
+  box-shadow: none;
+}
+
+.action-button-secondary:hover {
+  background: rgba(255, 252, 245, 1);
 }
 
 .kpi-strip {
@@ -1215,12 +1231,78 @@ h2 {
   border-radius: 18px;
 }
 
+.detail-section.is-detail-focused {
+  border-color: rgba(175, 95, 45, 0.42);
+  box-shadow: 0 0 0 2px rgba(175, 95, 45, 0.1);
+}
+
 .detail-section h3 {
   margin: 0 0 10px;
 }
 
 .detail-section-now h3 {
   font-size: 1.05rem;
+}
+
+.detail-action-rail {
+  display: grid;
+  gap: 12px;
+  background:
+    linear-gradient(135deg, rgba(20, 35, 34, 0.04), rgba(175, 95, 45, 0.08)),
+    var(--panel);
+}
+
+.detail-action-head,
+.detail-action-buttons,
+.dialog-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.detail-action-summary {
+  line-height: 1.45;
+}
+
+.detail-action-primary {
+  min-width: 0;
+}
+
+.detail-action-secondary {
+  padding-inline: 14px;
+}
+
+.detail-inline-form,
+.intake-dialog-form {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-inline-form label,
+.intake-dialog-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+}
+
+.detail-inline-form textarea,
+.intake-dialog-form input,
+.intake-dialog-form textarea {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 35, 34, 0.14);
+  background: rgba(255, 252, 245, 0.96);
+  padding: 10px 12px;
+  color: var(--ink);
+}
+
+.detail-inline-form textarea:focus,
+.intake-dialog-form input:focus,
+.intake-dialog-form textarea:focus {
+  outline: 2px solid rgba(175, 95, 45, 0.26);
+  outline-offset: 1px;
 }
 
 .detail-hero {
@@ -1397,6 +1479,24 @@ h2 {
   margin-top: 14px;
   margin-bottom: 8px;
   font-size: 0.94rem;
+}
+
+.intake-dialog {
+  width: min(560px, calc(100vw - 32px));
+  border: 1px solid rgba(20, 35, 34, 0.14);
+  border-radius: 22px;
+  padding: 0;
+  background: rgba(249, 242, 231, 0.98);
+  color: var(--ink);
+  box-shadow: 0 24px 48px rgba(20, 35, 34, 0.18);
+}
+
+.intake-dialog::backdrop {
+  background: rgba(20, 35, 34, 0.3);
+}
+
+.intake-dialog-form {
+  padding: 20px;
 }
 
 .capital-withdrawal-form {
@@ -1831,6 +1931,19 @@ h2 {
   .floor-banner-metrics {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .detail-action-head,
+  .detail-action-buttons,
+  .dialog-actions {
+    align-items: stretch;
+  }
+
+  .detail-action-primary,
+  .detail-action-secondary,
+  .dialog-actions > * {
+    width: 100%;
+    justify-content: center;
   }
 
   .current-focus-strip {
