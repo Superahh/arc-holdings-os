@@ -46,6 +46,7 @@ const state = {
   capitalMessage: null,
   capitalMessageLevel: "info",
   capitalMessageTimerId: null,
+  intakeSubmitInFlight: false,
   routePlayback: {
     intentId: null,
     progress: 50,
@@ -4055,7 +4056,10 @@ function render() {
   renderApprovalQueue();
 }
 
-function closeIntakeDialog() {
+function closeIntakeDialog(force = false) {
+  if (!force && state.intakeSubmitInFlight) {
+    return;
+  }
   if (!elements.intakeDialog) {
     return;
   }
@@ -4088,6 +4092,19 @@ function openIntakeDialog() {
   const firstField = elements.intakeForm.elements.summary;
   if (firstField && typeof firstField.focus === "function") {
     window.setTimeout(() => firstField.focus(), 0);
+  }
+}
+
+function setIntakeFormDisabled(disabled) {
+  if (!elements.intakeForm) {
+    return;
+  }
+  elements.intakeForm.querySelectorAll("input, textarea, button").forEach((node) => {
+    node.disabled = disabled;
+  });
+  const submitButton = elements.intakeForm.querySelector("button[type='submit']");
+  if (submitButton) {
+    submitButton.textContent = disabled ? "Creating..." : "Create opportunity";
   }
 }
 
@@ -4155,15 +4172,19 @@ elements.intakeCancelButton.addEventListener("click", () => {
   closeIntakeDialog();
 });
 
-elements.intakeForm.addEventListener("submit", (event) => {
+elements.intakeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (state.intakeSubmitInFlight) {
+    return;
+  }
   const formData = new FormData(elements.intakeForm);
   const summary = String(formData.get("summary") || "").trim();
   const source = String(formData.get("source") || "").trim();
-  const askPriceRaw = Number(formData.get("ask_price_usd"));
+  const askPriceText = String(formData.get("ask_price_usd") || "").trim();
+  const askPriceRaw = Number(askPriceText);
   const note = String(formData.get("note") || "").trim();
-  if (!summary || !source) {
-    setShellMessage("Listing summary and source are required to capture an intake draft.", "error", {
+  if (!summary || !source || !askPriceText || !Number.isFinite(askPriceRaw) || askPriceRaw < 0) {
+    setShellMessage("Listing summary, source, and ask price are required to create an opportunity.", "error", {
       ttlMs: 9000,
     });
     renderAttention();
@@ -4176,13 +4197,65 @@ elements.intakeForm.addEventListener("submit", (event) => {
     note,
     createdAt: new Date().toISOString(),
   };
-  closeIntakeDialog();
-  setShellMessage(
-    `Captured a local intake draft for ${source}. Runtime ingest is not wired yet in this slice.`,
-    "success",
-    { ttlMs: 9000 }
-  );
+  state.intakeSubmitInFlight = true;
+  setIntakeFormDisabled(true);
+  setShellMessage(`Creating a real intake opportunity from ${source}...`, "info", {
+    ttlMs: 9000,
+  });
   renderAttention();
+
+  try {
+    const response = await fetch("/api/opportunity-intake", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        summary,
+        source,
+        ask_price_usd: askPriceRaw,
+        note,
+        actor: "owner_operator",
+      }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        payload && typeof payload.message === "string"
+          ? payload.message
+          : `Opportunity intake failed (${response.status}).`
+      );
+    }
+    const opportunityId =
+      payload && payload.result && typeof payload.result.opportunity_id === "string"
+        ? payload.result.opportunity_id
+        : "";
+    if (!opportunityId) {
+      throw new Error("Opportunity intake response did not include an opportunity_id.");
+    }
+    state.latestIntakeDraft = null;
+    state.selected = { type: "opportunity", id: opportunityId };
+    closeIntakeDialog(true);
+    const nextSnapshot = await loadSnapshot();
+    if (nextSnapshot && findOpportunityByIdInSnapshot(nextSnapshot, opportunityId)) {
+      setSelection("opportunity", opportunityId);
+      elements.detailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setShellMessage(`Created ${opportunityId} and added it to the live workflow.`, "success", {
+      ttlMs: 9000,
+    });
+    renderAttention();
+  } catch (error) {
+    setShellMessage(
+      error instanceof Error ? error.message : String(error),
+      "error",
+      { ttlMs: 9000 }
+    );
+    renderAttention();
+  } finally {
+    state.intakeSubmitInFlight = false;
+    setIntakeFormDisabled(false);
+  }
 });
 
 elements.refreshButton.addEventListener("click", () => {

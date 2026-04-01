@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { assertValidOpportunityRecord } = require("./contracts");
 
 const OPPORTUNITY_STATES = new Set([
   "discovered",
@@ -111,6 +112,50 @@ function mapDecisionToStatus(decision) {
     return "rejected";
   }
   return "awaiting_seller_verification";
+}
+
+function sanitizeOpportunitySlug(value) {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 18);
+  return normalized || "manual-intake";
+}
+
+function buildOperatorIntakeOpportunityId(state, source, summary, timestamp) {
+  const timeToken = toIso(timestamp).replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "z");
+  const sourceSlug = sanitizeOpportunitySlug(source);
+  const summarySlug = sanitizeOpportunitySlug(summary);
+  const baseId = `opp-${timeToken}-${sourceSlug}-${summarySlug}`;
+  let candidate = baseId;
+  let suffix = 2;
+  while (state.opportunities[candidate]) {
+    candidate = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+function buildOperatorIntakeOpportunityRecord(opportunityId, intake, timestamp) {
+  const capturedAt = toIso(timestamp);
+  const note = typeof intake.note === "string" ? intake.note.trim() : "";
+  const askPriceUsd = Number(intake.ask_price_usd);
+  const record = {
+    opportunity_id: opportunityId,
+    source: intake.source,
+    captured_at: capturedAt,
+    device_summary: intake.summary,
+    ask_price_usd: askPriceUsd,
+    estimated_value_range_usd: [askPriceUsd, askPriceUsd],
+    recommended_path: "request_more_info",
+    recommendation: "request_more_info",
+    confidence: "low",
+    risks: [],
+    notes: note || "Operator intake created from UI.",
+  };
+  assertValidOpportunityRecord(record);
+  return record;
 }
 
 function ensureOpportunityRecord(state, opportunityId, source = "unknown_source", timestamp = new Date().toISOString()) {
@@ -377,6 +422,73 @@ function updateOpportunityPriority(
   return record;
 }
 
+function createOperatorIntakeOpportunity(
+  state,
+  intake,
+  actor = "owner_operator",
+  timestamp = new Date().toISOString()
+) {
+  ensureWorkflowShape(state);
+  const summary = typeof intake.summary === "string" ? intake.summary.trim() : "";
+  const source = typeof intake.source === "string" ? intake.source.trim() : "";
+  const note = typeof intake.note === "string" ? intake.note.trim() : "";
+  const askPriceUsd = Number(intake.ask_price_usd);
+  if (!summary) {
+    throw new Error("summary is required.");
+  }
+  if (!source) {
+    throw new Error("source is required.");
+  }
+  if (!Number.isFinite(askPriceUsd) || askPriceUsd < 0) {
+    throw new Error("ask_price_usd must be a non-negative number.");
+  }
+
+  const at = toIso(timestamp);
+  const opportunityId = buildOperatorIntakeOpportunityId(state, source, summary, at);
+  const opportunityRecord = buildOperatorIntakeOpportunityRecord(
+    opportunityId,
+    {
+      summary,
+      source,
+      ask_price_usd: askPriceUsd,
+      note,
+    },
+    at
+  );
+  const workflowRecord = ensureOpportunityRecord(state, opportunityId, source, at);
+  workflowRecord.source = source;
+  workflowRecord.recommendation = opportunityRecord.recommendation;
+  workflowRecord.confidence = opportunityRecord.confidence;
+  workflowRecord.priority = "normal";
+  workflowRecord.approval_ticket_id = null;
+  workflowRecord.purchase_recommendation_blocked = false;
+  workflowRecord.alternative_opportunities_required = false;
+
+  setOpportunityStatus(
+    state,
+    workflowRecord,
+    "researching",
+    actor,
+    "Operator intake created from UI.",
+    at
+  );
+  appendEvent(state, {
+    action: "opportunity_intake_created",
+    opportunity_id: opportunityId,
+    actor,
+    source,
+    ask_price_usd: askPriceUsd,
+    note: note || null,
+    timestamp: at,
+  });
+  state.updated_at = at;
+  return {
+    opportunity_id: opportunityId,
+    workflow_record: workflowRecord,
+    opportunity_record: opportunityRecord,
+  };
+}
+
 function requestSellerVerification(
   state,
   opportunityId,
@@ -522,6 +634,7 @@ module.exports = {
   updateOpportunityPriority,
   requestSellerVerification,
   applySellerVerificationResponse,
+  createOperatorIntakeOpportunity,
   canTransitionStatus,
   mapRecommendationToStatus,
   mapDecisionToStatus,

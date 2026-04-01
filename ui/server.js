@@ -6,7 +6,13 @@ const path = require("node:path");
 const { URL } = require("node:url");
 
 const { buildUiSnapshot } = require("../runtime/ui_snapshot");
+const { buildRunArtifact, writeRunArtifact } = require("../runtime/output");
 const { runDecisionAction } = require("../runtime/queue_decision_cli");
+const {
+  createOperatorIntakeOpportunity,
+  loadWorkflowState,
+  saveWorkflowState,
+} = require("../runtime/workflow_state");
 const {
   loadCapitalState,
   saveCapitalState,
@@ -74,6 +80,40 @@ function runWithdrawalAction(capitalStatePath, operation) {
   return {
     ...result,
     ledger_integrity: verifyLedgerIntegrity(state),
+  };
+}
+
+function createOpportunityIntake(workflowStatePath, baseDir, payload, timestamp = new Date().toISOString()) {
+  const workflowState = loadWorkflowState(workflowStatePath);
+  const created = createOperatorIntakeOpportunity(
+    workflowState,
+    {
+      summary: payload.summary,
+      source: payload.source,
+      ask_price_usd: payload.ask_price_usd,
+      note: payload.note,
+    },
+    payload.actor,
+    timestamp
+  );
+  saveWorkflowState(workflowStatePath, workflowState, timestamp);
+  const artifact = buildRunArtifact(
+    {
+      opportunity_id: created.opportunity_id,
+      source: created.opportunity_record.source,
+      captured_at: created.opportunity_record.captured_at,
+      captured_via: "ui_manual_intake",
+      operator_note: payload.note || "",
+    },
+    {
+      opportunity_record: created.opportunity_record,
+    },
+    timestamp
+  );
+  const artifactPath = writeRunArtifact(baseDir, artifact);
+  return {
+    ...created,
+    artifact_path: artifactPath,
   };
 }
 
@@ -211,6 +251,84 @@ function createUiServer(options = {}) {
             sendJson(response, isConflict ? 409 : 400, {
               error: isConflict ? "decision_conflict" : "decision_failed",
               message,
+              retryable: false,
+            });
+          }
+        })
+        .catch((error) => {
+          sendJson(response, 400, {
+            error: "invalid_request",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          });
+        });
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/opportunity-intake") {
+      readJsonBody(request)
+        .then((body) => {
+          const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+          const source = typeof body.source === "string" ? body.source.trim() : "";
+          const note = typeof body.note === "string" ? body.note : "";
+          const actor = typeof body.actor === "string" && body.actor.trim() ? body.actor.trim() : "owner_operator";
+          const askPriceProvided = !(
+            body.ask_price_usd === undefined ||
+            body.ask_price_usd === null ||
+            (typeof body.ask_price_usd === "string" && body.ask_price_usd.trim() === "")
+          );
+          const askPriceUsd = Number(body.ask_price_usd);
+
+          if (!summary) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "summary is required.",
+              retryable: false,
+            });
+            return;
+          }
+          if (!source) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "source is required.",
+              retryable: false,
+            });
+            return;
+          }
+          if (!askPriceProvided || !Number.isFinite(askPriceUsd) || askPriceUsd < 0) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "ask_price_usd must be a non-negative number.",
+              retryable: false,
+            });
+            return;
+          }
+
+          try {
+            const result = createOpportunityIntake(
+              snapshotOptions.workflowStatePath,
+              snapshotOptions.baseDir,
+              {
+                summary,
+                source,
+                ask_price_usd: askPriceUsd,
+                note,
+                actor,
+              },
+              new Date().toISOString()
+            );
+            sendJson(response, 200, {
+              ok: true,
+              result: {
+                opportunity_id: result.opportunity_id,
+                current_status: result.workflow_record.current_status,
+                artifact_path: result.artifact_path,
+              },
+            });
+          } catch (error) {
+            sendJson(response, 400, {
+              error: "intake_failed",
+              message: error instanceof Error ? error.message : String(error),
               retryable: false,
             });
           }
@@ -452,5 +570,6 @@ if (require.main === module) {
 module.exports = {
   parseArgs,
   createUiServer,
+  createOpportunityIntake,
   main,
 };
