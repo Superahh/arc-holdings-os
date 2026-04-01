@@ -42,6 +42,7 @@ const state = {
   decisionMessageLevel: "info",
   decisionMessageTimerId: null,
   lastDecisionRetry: null,
+  sendBackInFlight: false,
   capitalActionInFlight: false,
   capitalMessage: null,
   capitalMessageLevel: "info",
@@ -1561,6 +1562,12 @@ function buildCapitalTimeoutError(actionName) {
   return error;
 }
 
+function buildSendBackTimeoutError(opportunityId) {
+  const error = new Error(`Send-back request timed out for ${opportunityId}. Retry or refresh.`);
+  error.retryable = true;
+  return error;
+}
+
 async function submitCapitalWithdrawalAction(url, payload, pendingMessage, successMessage) {
   if (state.capitalActionInFlight) {
     return false;
@@ -1669,6 +1676,70 @@ async function submitApprovalDecision(ticketId, decision, noteOverride = null) {
     window.clearTimeout(timeoutId);
     state.decisionInFlight = false;
     renderApprovalQueue();
+  }
+}
+
+async function submitOpportunitySendBack(opportunityId, reason) {
+  if (state.sendBackInFlight) {
+    return false;
+  }
+  state.sendBackInFlight = true;
+  setShellMessage(`Sending ${opportunityId} back for more information...`, "info", {
+    ttlMs: 9000,
+  });
+  renderAttention();
+  renderDetailPanel();
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort();
+  }, DECISION_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch("/api/opportunity-send-back", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        opportunity_id: opportunityId,
+        reason,
+        actor: "owner_operator",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+      throw new Error(
+        payload && payload.message
+          ? payload.message
+          : `Send-back failed (${response.status}).`
+      );
+    }
+    const nextSnapshot = await loadSnapshot();
+    if (nextSnapshot && findOpportunityByIdInSnapshot(nextSnapshot, opportunityId)) {
+      setSelection("opportunity", opportunityId);
+    }
+    setShellMessage(`Sent ${opportunityId} back to verification with a persisted reason.`, "success", {
+      ttlMs: DECISION_SUCCESS_MESSAGE_MS,
+    });
+    renderAttention();
+    return true;
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === "AbortError";
+    const normalizedError = isAbort ? buildSendBackTimeoutError(opportunityId) : error;
+    setShellMessage(
+      normalizedError instanceof Error ? normalizedError.message : String(normalizedError),
+      "error",
+      { ttlMs: 9000 }
+    );
+    renderAttention();
+    renderDetailPanel();
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+    state.sendBackInFlight = false;
+    renderDetailPanel();
   }
 }
 
@@ -2830,17 +2901,31 @@ function buildDetailPrimaryAction(entry, blockedFlow) {
   };
 }
 
+function supportsPersistentDetailSendBack(entry) {
+  const status = normalizeToken(entry && entry.current_status ? entry.current_status : "");
+  return new Set([
+    "discovered",
+    "researching",
+    "awaiting_seller_verification",
+    "approved",
+    "acquired",
+  ]).has(status);
+}
+
 function renderDetailActionRail(entry, blockedFlow) {
   const primaryAction = buildDetailPrimaryAction(entry, blockedFlow);
   const pendingQueueItem = findPendingApprovalQueueItemByOpportunity(
     state.snapshot,
     entry.opportunity_id
   );
-  const localDraft = state.localOperatorDrafts[entry.opportunity_id] || null;
+  const supportsPersistentSendBack =
+    !pendingQueueItem && supportsPersistentDetailSendBack(entry);
   const composerOpen = state.sendBackComposerOpportunityId === entry.opportunity_id;
   const secondaryHelper = pendingQueueItem
     ? "Requires a reason and submits a real request-more-info decision through the approval queue."
-    : "Requires a reason and captures a local operator draft only. Workflow mutation remains deferred in this slice.";
+    : supportsPersistentSendBack
+      ? "Requires a reason and sends this item back into verification with a persisted blocker message."
+      : "Deferred for this state. No truthful non-approval send-back write path exists here yet.";
 
   return `
     <section class="detail-section detail-action-rail ${detailSectionFocusClass("action-rail")}" data-detail-section="action-rail">
@@ -2872,33 +2957,25 @@ function renderDetailActionRail(entry, blockedFlow) {
           class="queue-action queue-action-info detail-action-secondary"
           data-operator-action="toggle-send-back"
           data-opportunity-id="${escapeHtml(entry.opportunity_id)}"
+          ${!pendingQueueItem && !supportsPersistentSendBack ? "disabled" : ""}
         >
           Send back / Need more info
         </button>
       </div>
       <p class="muted">${escapeHtml(secondaryHelper)}</p>
       ${
-        localDraft
-          ? `<p class="panel-note decision-note-info">Local send-back draft saved ${escapeHtml(
-              formatTimestamp(localDraft.createdAt)
-            )}: ${escapeHtml(localDraft.reason)}</p>`
-          : ""
-      }
-      ${
         composerOpen
           ? `
             <form class="detail-inline-form" data-send-back-form="${escapeHtml(entry.opportunity_id)}">
               <label>
                 Reason
-                <textarea name="reason" rows="3" required placeholder="Explain what is missing, blocked, or needs to change first.">${
-                  localDraft ? escapeHtml(localDraft.reason) : ""
-                }</textarea>
+                <textarea name="reason" rows="3" required placeholder="Explain what is missing, blocked, or needs to change first."></textarea>
               </label>
               <div class="queue-actions">
-                <button type="submit" class="queue-action queue-action-info">Save reason</button>
+                <button type="submit" class="queue-action queue-action-info" ${state.sendBackInFlight ? "disabled" : ""}>${state.sendBackInFlight ? "Sending..." : "Send back"}</button>
                 <button type="button" class="queue-action" data-operator-action="cancel-send-back" data-opportunity-id="${escapeHtml(
                   entry.opportunity_id
-                )}">Cancel</button>
+                )}" ${state.sendBackInFlight ? "disabled" : ""}>Cancel</button>
               </div>
             </form>
           `
@@ -2934,6 +3011,9 @@ function bindDetailActionRailControls(entry) {
   );
   if (toggleSendBack) {
     toggleSendBack.addEventListener("click", () => {
+      if (toggleSendBack.disabled) {
+        return;
+      }
       state.sendBackComposerOpportunityId =
         state.sendBackComposerOpportunityId === entry.opportunity_id ? null : entry.opportunity_id;
       renderDetailPanel();
@@ -2969,6 +3049,7 @@ function bindDetailActionRailControls(entry) {
         state.snapshot,
         entry.opportunity_id
       );
+      const supportsPersistentSendBack = supportsPersistentDetailSendBack(entry);
       state.sendBackComposerOpportunityId = null;
       if (pendingQueueItem) {
         const confirmed = window.confirm(
@@ -2985,17 +3066,24 @@ function bindDetailActionRailControls(entry) {
         );
         return;
       }
-      state.localOperatorDrafts[entry.opportunity_id] = {
-        reason,
-        createdAt: new Date().toISOString(),
-      };
-      setShellMessage(
-        `Captured a local send-back draft for ${entry.opportunity_id}. Persistent workflow send-back remains deferred in this slice.`,
-        "info",
-        { ttlMs: 9000 }
+      if (!supportsPersistentSendBack) {
+        setShellMessage(
+          `Persistent send-back is deferred for ${entry.current_status}.`,
+          "info",
+          { ttlMs: 9000 }
+        );
+        renderAttention();
+        renderDetailPanel();
+        return;
+      }
+      const confirmed = window.confirm(
+        `Send ${entry.opportunity_id} back for more information?\nReason: ${reason}`
       );
-      renderAttention();
-      renderDetailPanel();
+      if (!confirmed) {
+        renderDetailPanel();
+        return;
+      }
+      await submitOpportunitySendBack(entry.opportunity_id, reason);
     });
   }
 }
@@ -3206,6 +3294,11 @@ function renderDetailForOpportunity(entry) {
               <div class="detail-meta-item"><span>Carrier status</span><strong>${workflow.seller_verification.carrier_status_verified ? "Verified" : "Pending"}</strong></div>
               <div class="detail-meta-item"><span>Seller response</span><strong>${escapeHtml(workflow.seller_verification.response_status || "none")}</strong></div>
             </div>
+            ${
+              workflow.seller_verification.request_message
+                ? `<p class="muted">Verification request: ${escapeHtml(workflow.seller_verification.request_message)}</p>`
+                : ""
+            }
           `
           : ""
       }

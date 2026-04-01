@@ -10,6 +10,7 @@ const { buildRunArtifact, writeRunArtifact } = require("../runtime/output");
 const { runDecisionAction } = require("../runtime/queue_decision_cli");
 const {
   createOperatorIntakeOpportunity,
+  createOperatorSendBack,
   loadWorkflowState,
   saveWorkflowState,
 } = require("../runtime/workflow_state");
@@ -83,6 +84,30 @@ function runWithdrawalAction(capitalStatePath, operation) {
   };
 }
 
+function loadLatestOpportunityArtifact(baseDir, opportunityId) {
+  const runsDir = path.join(baseDir, "runs");
+  if (!fs.existsSync(runsDir)) {
+    return null;
+  }
+  const files = fs
+    .readdirSync(runsDir)
+    .filter((entry) => entry.endsWith(".artifact.json"))
+    .map((entry) => path.join(runsDir, entry))
+    .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+
+  for (const filePath of files) {
+    try {
+      const artifact = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      if (artifact && artifact.opportunity_id === opportunityId) {
+        return artifact;
+      }
+    } catch {
+      // Ignore malformed artifacts and continue scanning.
+    }
+  }
+  return null;
+}
+
 function createOpportunityIntake(workflowStatePath, baseDir, payload, timestamp = new Date().toISOString()) {
   const workflowState = loadWorkflowState(workflowStatePath);
   const created = createOperatorIntakeOpportunity(
@@ -113,6 +138,57 @@ function createOpportunityIntake(workflowStatePath, baseDir, payload, timestamp 
   const artifactPath = writeRunArtifact(baseDir, artifact);
   return {
     ...created,
+    artifact_path: artifactPath,
+  };
+}
+
+function createOpportunitySendBack(
+  workflowStatePath,
+  baseDir,
+  payload,
+  timestamp = new Date().toISOString()
+) {
+  const workflowState = loadWorkflowState(workflowStatePath);
+  const record = createOperatorSendBack(
+    workflowState,
+    payload.opportunity_id,
+    payload.reason,
+    payload.actor,
+    timestamp
+  );
+  saveWorkflowState(workflowStatePath, workflowState, timestamp);
+  const latestArtifact = loadLatestOpportunityArtifact(baseDir, payload.opportunity_id);
+  let artifactPath = null;
+  if (
+    latestArtifact &&
+    latestArtifact.output &&
+    latestArtifact.output.opportunity_record &&
+    typeof latestArtifact.output.opportunity_record === "object"
+  ) {
+    const opportunityRecord = {
+      ...latestArtifact.output.opportunity_record,
+      recommendation: "request_more_info",
+      recommended_path: "request_more_info",
+      confidence: "low",
+      notes: payload.reason,
+    };
+    artifactPath = writeRunArtifact(
+      baseDir,
+      buildRunArtifact(
+        {
+          opportunity_id: payload.opportunity_id,
+          send_back_from_status: record.current_status,
+          actor: payload.actor,
+        },
+        {
+          opportunity_record: opportunityRecord,
+        },
+        timestamp
+      )
+    );
+  }
+  return {
+    ...record,
     artifact_path: artifactPath,
   };
 }
@@ -329,6 +405,71 @@ function createUiServer(options = {}) {
             sendJson(response, 400, {
               error: "intake_failed",
               message: error instanceof Error ? error.message : String(error),
+              retryable: false,
+            });
+          }
+        })
+        .catch((error) => {
+          sendJson(response, 400, {
+            error: "invalid_request",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: false,
+          });
+        });
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/opportunity-send-back") {
+      readJsonBody(request)
+        .then((body) => {
+          const opportunityId =
+            typeof body.opportunity_id === "string" ? body.opportunity_id.trim() : "";
+          const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+          const actor = typeof body.actor === "string" && body.actor.trim() ? body.actor.trim() : "owner_operator";
+
+          if (!opportunityId) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "opportunity_id is required.",
+              retryable: false,
+            });
+            return;
+          }
+          if (!reason) {
+            sendJson(response, 400, {
+              error: "invalid_request",
+              message: "reason is required.",
+              retryable: false,
+            });
+            return;
+          }
+
+          try {
+            const result = createOpportunitySendBack(
+              snapshotOptions.workflowStatePath,
+              snapshotOptions.baseDir,
+              {
+                opportunity_id: opportunityId,
+                reason,
+                actor,
+              },
+              new Date().toISOString()
+            );
+            sendJson(response, 200, {
+              ok: true,
+              result: {
+                opportunity_id: result.opportunity_id,
+                current_status: result.current_status,
+                seller_verification: result.seller_verification,
+                artifact_path: result.artifact_path,
+              },
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const isConflict = /awaiting_approval|not supported|not found/i.test(message);
+            sendJson(response, isConflict ? 409 : 400, {
+              error: isConflict ? "send_back_conflict" : "send_back_failed",
+              message,
               retryable: false,
             });
           }
@@ -571,5 +712,6 @@ module.exports = {
   parseArgs,
   createUiServer,
   createOpportunityIntake,
+  createOpportunitySendBack,
   main,
 };

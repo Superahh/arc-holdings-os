@@ -19,6 +19,13 @@ const OPPORTUNITY_STATES = new Set([
 
 const PRIORITY_LEVELS = new Set(["low", "normal", "urgent"]);
 const VERIFICATION_RESPONSE_STATUSES = new Set(["pending", "satisfactory", "unsatisfactory"]);
+const OPERATOR_SEND_BACK_SUPPORTED_STATES = new Set([
+  "discovered",
+  "researching",
+  "awaiting_seller_verification",
+  "approved",
+  "acquired",
+]);
 
 const ALLOWED_STATUS_TRANSITIONS = {
   discovered: new Set(["researching", "awaiting_seller_verification", "closed", "rejected"]),
@@ -112,6 +119,10 @@ function mapDecisionToStatus(decision) {
     return "rejected";
   }
   return "awaiting_seller_verification";
+}
+
+function canPersistOperatorSendBack(status) {
+  return OPERATOR_SEND_BACK_SUPPORTED_STATES.has(status);
 }
 
 function sanitizeOpportunitySlug(value) {
@@ -489,6 +500,58 @@ function createOperatorIntakeOpportunity(
   };
 }
 
+function createOperatorSendBack(
+  state,
+  opportunityId,
+  reason,
+  actor = "owner_operator",
+  timestamp = new Date().toISOString()
+) {
+  ensureWorkflowShape(state);
+  if (typeof opportunityId !== "string" || !opportunityId.trim()) {
+    throw new Error("opportunityId is required.");
+  }
+  const normalizedReason = typeof reason === "string" ? reason.trim() : "";
+  if (!normalizedReason) {
+    throw new Error("reason is required.");
+  }
+
+  const existing = state.opportunities[opportunityId];
+  if (!existing) {
+    throw new Error(`Opportunity not found in workflow state: ${opportunityId}`);
+  }
+  if (existing.current_status === "awaiting_approval") {
+    throw new Error("awaiting_approval must use the approval queue request-more-info path.");
+  }
+  if (!canPersistOperatorSendBack(existing.current_status)) {
+    throw new Error(`Persistent send-back is not supported for state ${existing.current_status}.`);
+  }
+
+  const at = toIso(timestamp);
+  const previousStatus = existing.current_status;
+  const record = requestSellerVerification(state, opportunityId, actor, at, {
+    message: normalizedReason,
+    reason: `Operator send-back: ${normalizedReason}`,
+    priority: "urgent",
+  });
+  record.recommendation = "request_more_info";
+  if (!record.confidence) {
+    record.confidence = "low";
+  }
+
+  appendEvent(state, {
+    action: "operator_send_back",
+    opportunity_id: opportunityId,
+    actor,
+    reason: normalizedReason,
+    from_status: previousStatus,
+    to_status: record.current_status,
+    timestamp: at,
+  });
+  state.updated_at = at;
+  return record;
+}
+
 function requestSellerVerification(
   state,
   opportunityId,
@@ -635,6 +698,9 @@ module.exports = {
   requestSellerVerification,
   applySellerVerificationResponse,
   createOperatorIntakeOpportunity,
+  createOperatorSendBack,
+  canPersistOperatorSendBack,
+  OPERATOR_SEND_BACK_SUPPORTED_STATES,
   canTransitionStatus,
   mapRecommendationToStatus,
   mapDecisionToStatus,
